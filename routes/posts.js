@@ -181,4 +181,49 @@ router.put('/:id', authenticateToken, async (req, res) => {
         res.status(500).json({ message: '게시글 수정에 실패했습니다.' });
     }
 });
+
+// ==========================================
+// 5. 게시글(물품) 삭제 API (DELETE /api/posts/:id)
+// ==========================================
+router.delete('/:id', authenticateToken, async (req, res) => {
+    const postId = req.params.id;
+    const postType = req.query.type; 
+    const member_id = req.user.member_id || req.user.id;
+
+    if (!postType || (postType !== 'donate' && postType !== 'request')) {
+        return res.status(400).json({ message: "type(donate/request)을 주소에 정확히 입력해주세요." });
+    }
+
+    try {
+        const tableName = postType === 'donate' ? 'ITEM_DONATE' : 'ITEM_REQUEST';
+        const idColumn = postType === 'donate' ? 'donate_id' : 'request_id';
+
+        // 1. 게시글 존재 여부 및 작성자 본인 확인
+        const [checkRows] = await db.query(
+            `SELECT member_id FROM ${tableName} WHERE ${idColumn} = ?`,
+            [postId]
+        );
+
+        if (checkRows.length === 0) {
+            return res.status(404).json({ message: "게시글을 찾을 수 없습니다." });
+        }
+
+        if (checkRows[0].member_id !== member_id) {
+            return res.status(403).json({ message: "내가 작성한 글만 삭제할 수 있습니다." });
+        }
+
+        // 2. 자식 테이블(ITEM) 물품 상세 데이터 먼저 삭제 (외래키 에러 방지)
+        await db.query(`DELETE FROM ITEM WHERE ${idColumn} = ?`, [postId]);
+
+        // 3. 부모 테이블(게시글) 데이터 삭제
+        await db.query(`DELETE FROM ${tableName} WHERE ${idColumn} = ?`, [postId]);
+
+        res.status(200).json({ message: "게시글이 성공적으로 삭제되었습니다." });
+
+    } catch (error) {
+        console.error('게시글 삭제 에러:', error);
+        res.status(500).json({ message: '게시글 삭제에 실패했습니다.' });
+    }
+});
+
 module.exports = router;

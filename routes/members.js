@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const db = require('../db');
-
+const authenticateToken = require('../middlewares/authMiddleware');
 const router = express.Router();
 
 // ==========================================
@@ -96,4 +96,83 @@ router.post('/signup', async (req, res) => {
   }
 });
 
+// ==========================================
+// 2. 내 정보 조회 API (GET /api/members/me)
+// ==========================================
+router.get('/me', authenticateToken, async (req, res) => {
+    // 토큰에서 내 유저 번호 꺼내기
+    const member_id = req.user.member_id || req.user.id;
+
+    try {
+        // 비밀번호를 제외한 내 프로필 정보(이름, 이메일, 전화번호 등) 가져오기
+        const [rows] = await db.query(
+            `SELECT member_id, name, email, phone, role_id, created_at 
+             FROM MEMBER 
+             WHERE member_id = ?`, 
+            [member_id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "사용자 정보를 찾을 수 없습니다." });
+        }
+
+        res.status(200).json(rows[0]);
+        
+    } catch (error) {
+        console.error('내 정보 조회 에러:', error);
+        res.status(500).json({ message: '내 정보를 불러오는데 실패했습니다.' });
+    }
+});
+// ==========================================
+// 3. 내 정보 수정 API (PATCH /api/members/me)
+// ==========================================
+router.patch('/me', authenticateToken, async (req, res) => {
+    // 토큰에서 내 유저 번호 꺼내기
+    const member_id = req.user.member_id || req.user.id;
+    
+    // 프론트에서 보낸 수정할 데이터 받기
+    const { name, email, phone } = req.body;
+
+    // 1. 들어온 값만 골라서 쿼리 조립할 배열 준비
+    let updateFields = [];
+    let queryParams = [];
+
+    // 값이 있는 것만 배열에 추가
+    if (name) { 
+        updateFields.push("name = ?"); 
+        queryParams.push(name); 
+    }
+    if (email) { 
+        updateFields.push("email = ?"); 
+        queryParams.push(email); 
+    }
+    if (phone) { 
+        updateFields.push("phone = ?"); 
+        queryParams.push(phone); 
+    }
+
+    // 2. 아무것도 안 보냈으면 차단
+    if (updateFields.length === 0) {
+        return res.status(400).json({ message: '수정할 정보를 하나 이상 입력해주세요.' });
+    }
+
+    // 3. WHERE 조건에 쓸 유저 번호를 마지막에 추가
+    queryParams.push(member_id);
+
+    try {
+        // 4. 동적으로 쿼리문 합체해서 실행
+        const sql = `UPDATE MEMBER SET ${updateFields.join(', ')} WHERE member_id = ?`;
+        const [result] = await db.query(sql, queryParams);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "사용자 정보를 찾을 수 없거나 수정되지 않았습니다." });
+        }
+
+        res.status(200).json({ message: "내 정보가 성공적으로 수정되었습니다." });
+        
+    } catch (error) {
+        console.error('내 정보 수정 에러:', error);
+        res.status(500).json({ message: '내 정보를 수정하는데 실패했습니다.' });
+    }
+});
 module.exports = router;
