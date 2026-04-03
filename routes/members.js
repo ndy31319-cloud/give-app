@@ -8,14 +8,32 @@ const router = express.Router();
 // 1. 회원가입 API (POST /api/members/signup)
 // ==========================================
 router.post("/signup", async (req, res) => {
-  const { phone, member_pw, name, email, qr_code } = req.body;
+  const {
+    phone,
+    member_pw,
+    name,
+    email,
+    qr_code,
+    dong_name,
+    latitude,
+    longitude,
+  } = req.body;
 
   try {
-    // 1-1. 입력값 검사
-    if (!phone || !member_pw || !name || !email) {
+    // 1-1. 입력값 검사 (위치 정보 필수 확인)
+    if (
+      !phone ||
+      !member_pw ||
+      !name ||
+      !email ||
+      !dong_name ||
+      !latitude ||
+      !longitude
+    ) {
       return res.status(400).json({
         success: false,
-        message: "이름, 이메일, 전화번호, 비밀번호를 모두 입력해주세요.",
+        message:
+          "필수 정보(이름, 이메일, 전화번호, 비밀번호, 동네 이름, 위도, 경도)를 모두 입력해주세요.",
       });
     }
 
@@ -56,11 +74,20 @@ router.post("/signup", async (req, res) => {
     // 1-4. 비밀번호 암호화
     const hashedPassword = await bcrypt.hash(member_pw, 10);
 
-    // 1-5. MEMBER 테이블에 회원 저장
+    // 1-5. MEMBER 테이블에 회원 및 위치 정보 저장
     const [result] = await db.query(
-      `INSERT INTO MEMBER (role_id, member_pw, name, email, phone)
-       VALUES (?, ?, ?, ?, ?)`,
-      [role_id, hashedPassword, name, email, phone],
+      `INSERT INTO MEMBER (role_id, member_pw, name, email, phone, dong_name, latitude, longitude)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        role_id,
+        hashedPassword,
+        name,
+        email,
+        phone,
+        dong_name,
+        latitude,
+        longitude,
+      ],
     );
 
     // 1-6. qr_code가 있었다면 인증코드 사용 처리
@@ -75,6 +102,7 @@ router.post("/signup", async (req, res) => {
       );
     }
 
+    // 1-7. 응답 데이터에도 위치 정보 포함
     return res.status(201).json({
       success: true,
       message: "회원가입이 완료되었습니다!",
@@ -84,6 +112,9 @@ router.post("/signup", async (req, res) => {
         email,
         phone,
         role_id,
+        dong_name,
+        latitude,
+        longitude,
       },
     });
   } catch (error) {
@@ -180,21 +211,25 @@ router.patch("/me", authenticateToken, async (req, res) => {
 });
 
 // ==========================================
-// 4. 동네(지역) 설정 및 변경 API (PATCH /api/members/region)
+// 4. 내 정보(동네 포함) 수정 API (PATCH /api/members/me/location)
 // ==========================================
-router.patch("/region", authenticateToken, async (req, res) => {
+router.patch("/me/location", authenticateToken, async (req, res) => {
   const member_id = req.user.member_id || req.user.id;
-  const { region } = req.body; // 프론트에서 보낼 동네 이름 (예: "부천시 심곡동")
+  const { dong_name, latitude, longitude } = req.body;
 
-  if (!region) {
-    return res.status(400).json({ message: "설정할 동네를 입력해주세요." });
+  if (!dong_name || !latitude || !longitude) {
+    return res
+      .status(400)
+      .json({ message: "동네 정보(이름, 위도, 경도)를 모두 입력해주세요." });
   }
 
   try {
-    // DB의 region 컬럼 업데이트
+    // MEMBER 테이블의 동네 및 좌표 정보 업데이트
     const [result] = await db.query(
-      `UPDATE MEMBER SET region = ? WHERE member_id = ?`,
-      [region, member_id],
+      `UPDATE MEMBER 
+       SET dong_name = ?, latitude = ?, longitude = ? 
+       WHERE member_id = ?`,
+      [dong_name, latitude, longitude, member_id],
     );
 
     if (result.affectedRows === 0) {
@@ -203,7 +238,14 @@ router.patch("/region", authenticateToken, async (req, res) => {
         .json({ message: "사용자 정보를 찾을 수 없습니다." });
     }
 
-    res.status(200).json({ message: "동네 설정이 완료되었습니다.", region });
+    res.status(200).json({
+      message: "동네 설정이 완료되었습니다.",
+      data: {
+        dong_name,
+        latitude,
+        longitude,
+      },
+    });
   } catch (error) {
     console.error("동네 설정 에러:", error);
     res.status(500).json({ message: "동네 설정에 실패했습니다." });
