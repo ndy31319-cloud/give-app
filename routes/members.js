@@ -2,95 +2,184 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
+
 const router = express.Router();
 
-// ==========================================
-// 1. 회원가입 API (POST /api/members/signup)
-// ==========================================
-router.post("/signup", async (req, res) => {
-  const {
-    phone,
-    member_pw,
-    name,
-    email,
-    qr_code,
-    dong_name,
-    latitude,
-    longitude,
-  } = req.body;
+const requireDevelopmentOnly = (req, res, next) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({
+      success: false,
+      message: "This delete API is only available in development.",
+    });
+  }
+
+  next();
+};
+
+const requireDevDeleteKey = (req, res, next) => {
+  const expectedKey = process.env.ADMIN_DELETE_KEY;
+
+  if (!expectedKey) {
+    return next();
+  }
+
+  const providedKey = req.headers["x-dev-delete-key"];
+
+  if (providedKey !== expectedKey) {
+    return res.status(403).json({
+      success: false,
+      message: "Invalid development delete key.",
+    });
+  }
+
+  next();
+};
+
+const formatPhoneNumber = (phone) => {
+  const cleaned = String(phone || "").replace(/\D/g, "");
+  return cleaned.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1-$2-$3");
+};
+
+const buildInClause = (ids) => ids.map(() => "?").join(", ");
+
+const deleteMemberRelatedData = async (connection, memberId) => {
+  const [donateRows] = await connection.query(
+    "SELECT donate_id FROM ITEM_DONATE WHERE member_id = ?",
+    [memberId]
+  );
+  const [requestRows] = await connection.query(
+    "SELECT request_id FROM ITEM_REQUEST WHERE member_id = ?",
+    [memberId]
+  );
+
+  const donateIds = donateRows.map((row) => row.donate_id);
+  const requestIds = requestRows.map((row) => row.request_id);
+
+  if (donateIds.length > 0) {
+    const donateInClause = buildInClause(donateIds);
+
+    await connection.query(
+      `DELETE FROM ITEM_DONATE_IMAGE WHERE donate_id IN (${donateInClause})`,
+      donateIds
+    );
+    await connection.query(
+      `DELETE FROM ITEM WHERE donate_id IN (${donateInClause})`,
+      donateIds
+    );
+    await connection.query(
+      `DELETE FROM ITEM_DONATE WHERE donate_id IN (${donateInClause})`,
+      donateIds
+    );
+  }
+
+  if (requestIds.length > 0) {
+    const requestInClause = buildInClause(requestIds);
+
+    await connection.query(
+      `DELETE FROM ITEM_REQUEST_IMAGE WHERE request_id IN (${requestInClause})`,
+      requestIds
+    );
+    await connection.query(
+      `DELETE FROM ITEM WHERE request_id IN (${requestInClause})`,
+      requestIds
+    );
+    await connection.query(
+      `DELETE FROM ITEM_REQUEST WHERE request_id IN (${requestInClause})`,
+      requestIds
+    );
+  }
+
+  await connection.query(
+    "UPDATE CERTIFICATION_CODE SET member_id = NULL WHERE member_id = ?",
+    [memberId]
+  );
+};
+
+const deleteMemberWithRelations = async (memberId) => {
+  const connection = await db.getConnection();
 
   try {
-    // 1-1. 입력값 검사 (위치 정보 필수 확인)
-    if (
-      !phone ||
-      !member_pw ||
-      !name ||
-      !email ||
-      !dong_name ||
-      !latitude ||
-      !longitude
-    ) {
+    await connection.beginTransaction();
+    await deleteMemberRelatedData(connection, memberId);
+
+    const [result] = await connection.query(
+      "DELETE FROM MEMBER WHERE member_id = ?",
+      [memberId]
+    );
+
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return false;
+    }
+
+    await connection.commit();
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
+router.post("/signup", async (req, res) => {
+  const { phone, member_pw, name, email, qr_code, dong_name, nickname } = req.body;
+
+  try {
+    if (!phone || !member_pw || !name || !email || !dong_name || !nickname) {
       return res.status(400).json({
         success: false,
-        message:
-          "필수 정보(이름, 이메일, 전화번호, 비밀번호, 동네 이름, 위도, 경도)를 모두 입력해주세요.",
+        message: "Required signup fields are missing.",
       });
     }
 
-    // 1-2. 이미 가입된 전화번호인지 확인
+    const formattedPhone = formatPhoneNumber(phone);
+    const pwRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{8,}$/;
+
+    if (!pwRegex.test(member_pw)) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters and include a number and special character.",
+      });
+    }
+
     const [existingUsers] = await db.query(
-      "SELECT member_id FROM MEMBER WHERE phone = ?",
-      [phone],
+      "SELECT member_id FROM MEMBER WHERE phone = ? OR email = ?",
+      [formattedPhone, email]
     );
 
     if (existingUsers.length > 0) {
       return res.status(400).json({
         success: false,
-        message: "이미 가입된 전화번호입니다.",
+        message: "Phone number or email is already registered.",
       });
     }
 
-    // 기본 권한: USER = 1
     let role_id = 1;
 
-    // 1-3. QR 코드가 있으면 인증 코드 유효성 확인
     if (qr_code) {
       const [certData] = await db.query(
-        "SELECT code_id, is_used FROM CERTIFICATION_CODE WHERE code_id = ? AND is_used = FALSE",
-        [qr_code],
+        "SELECT code_id FROM CERTIFICATION_CODE WHERE code_id = ? AND is_used = FALSE",
+        [qr_code]
       );
 
       if (certData.length === 0) {
         return res.status(400).json({
           success: false,
-          message: "유효하지 않거나 이미 사용된 인증번호입니다.",
+          message: "Invalid or already used certification code.",
         });
       }
 
-      // 취약계층 권한: BENEFICIARY = 3
       role_id = 3;
     }
 
-    // 1-4. 비밀번호 암호화
     const hashedPassword = await bcrypt.hash(member_pw, 10);
-
-    // 1-5. MEMBER 테이블에 회원 및 위치 정보 저장
     const [result] = await db.query(
-      `INSERT INTO MEMBER (role_id, member_pw, name, email, phone, dong_name, latitude, longitude)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        role_id,
-        hashedPassword,
-        name,
-        email,
-        phone,
-        dong_name,
-        latitude,
-        longitude,
-      ],
+      `INSERT INTO MEMBER (role_id, member_pw, name, email, phone, dong_name, nickname)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [role_id, hashedPassword, name, email, formattedPhone, dong_name, nickname]
     );
 
-    // 1-6. qr_code가 있었다면 인증코드 사용 처리
     if (qr_code) {
       await db.query(
         `UPDATE CERTIFICATION_CODE
@@ -98,148 +187,152 @@ router.post("/signup", async (req, res) => {
              used_at = NOW(),
              member_id = ?
          WHERE code_id = ?`,
-        [result.insertId, qr_code],
+        [result.insertId, qr_code]
       );
     }
 
-    // 1-7. 응답 데이터에도 위치 정보 포함
     return res.status(201).json({
       success: true,
-      message: "회원가입이 완료되었습니다!",
+      message: "Signup completed.",
       data: {
         member_id: result.insertId,
         name,
+        nickname,
         email,
-        phone,
+        phone: formattedPhone,
         role_id,
         dong_name,
-        latitude,
-        longitude,
       },
     });
   } catch (error) {
-    console.error("회원가입 에러:", error);
+    console.error("Signup error:", error);
     return res.status(500).json({
       success: false,
-      message: "서버 에러가 발생했습니다.",
+      message: "Server error occurred during signup.",
     });
   }
 });
 
-// ==========================================
-// 2. 내 정보 조회 API (GET /api/members/me)
-// ==========================================
 router.get("/me", authenticateToken, async (req, res) => {
-  // 토큰에서 내 유저 번호 꺼내기
   const member_id = req.user.member_id || req.user.id;
 
   try {
-    // 비밀번호를 제외한 내 프로필 정보(이름, 이메일, 전화번호 등) 가져오기
     const [rows] = await db.query(
-      `SELECT member_id, name, email, phone, role_id, created_at 
-             FROM MEMBER 
-             WHERE member_id = ?`,
-      [member_id],
+      `SELECT member_id, name, email, phone, role_id, created_at
+       FROM MEMBER
+       WHERE member_id = ?`,
+      [member_id]
     );
 
     if (rows.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "사용자 정보를 찾을 수 없습니다." });
+      return res.status(404).json({ message: "Member not found." });
     }
 
-    res.status(200).json(rows[0]);
+    return res.status(200).json(rows[0]);
   } catch (error) {
-    console.error("내 정보 조회 에러:", error);
-    res.status(500).json({ message: "내 정보를 불러오는데 실패했습니다." });
+    console.error("Load member error:", error);
+    return res.status(500).json({ message: "Failed to load member information." });
   }
 });
-// ==========================================
-// 3. 내 정보 수정 API (PATCH /api/members/me)
-// ==========================================
+
 router.patch("/me", authenticateToken, async (req, res) => {
-  // 토큰에서 내 유저 번호 꺼내기
   const member_id = req.user.member_id || req.user.id;
-
-  // 프론트에서 보낸 수정할 데이터 받기
-  const { name, email, phone } = req.body;
-
-  // 1. 들어온 값만 골라서 쿼리 조립할 배열 준비
-  let updateFields = [];
-  let queryParams = [];
-
-  // 값이 있는 것만 배열에 추가
-  if (name) {
-    updateFields.push("name = ?");
-    queryParams.push(name);
-  }
-  if (email) {
-    updateFields.push("email = ?");
-    queryParams.push(email);
-  }
-  if (phone) {
-    updateFields.push("phone = ?");
-    queryParams.push(phone);
-  }
-
-  // 2. 아무것도 안 보냈으면 차단
-  if (updateFields.length === 0) {
-    return res
-      .status(400)
-      .json({ message: "수정할 정보를 하나 이상 입력해주세요." });
-  }
-
-  // 3. WHERE 조건에 쓸 유저 번호를 마지막에 추가
-  queryParams.push(member_id);
+  const { nickname, email, phone, member_pw } = req.body;
+  const updateFields = [];
+  const queryParams = [];
 
   try {
-    // 4. 동적으로 쿼리문 합체해서 실행
+    if (nickname) {
+      updateFields.push("nickname = ?");
+      queryParams.push(nickname);
+    }
+
+    if (email) {
+      const [exist] = await db.query(
+        "SELECT member_id FROM MEMBER WHERE email = ? AND member_id != ?",
+        [email, member_id]
+      );
+
+      if (exist.length > 0) {
+        return res.status(400).json({ message: "Email is already in use." });
+      }
+
+      updateFields.push("email = ?");
+      queryParams.push(email);
+    }
+
+    if (phone) {
+      const formattedPhone = formatPhoneNumber(phone);
+      const [exist] = await db.query(
+        "SELECT member_id FROM MEMBER WHERE phone = ? AND member_id != ?",
+        [formattedPhone, member_id]
+      );
+
+      if (exist.length > 0) {
+        return res.status(400).json({ message: "Phone number is already in use." });
+      }
+
+      updateFields.push("phone = ?");
+      queryParams.push(formattedPhone);
+    }
+
+    if (member_pw) {
+      const pwRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{8,}$/;
+
+      if (!pwRegex.test(member_pw)) {
+        return res.status(400).json({
+          message: "Password must be at least 8 characters and include a number and special character.",
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(member_pw, 10);
+      updateFields.push("member_pw = ?");
+      queryParams.push(hashedPassword);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: "No profile fields were provided." });
+    }
+
+    queryParams.push(member_id);
     const sql = `UPDATE MEMBER SET ${updateFields.join(", ")} WHERE member_id = ?`;
     const [result] = await db.query(sql, queryParams);
 
     if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ message: "사용자 정보를 찾을 수 없거나 수정되지 않았습니다." });
+      return res.status(404).json({ message: "Member not found." });
     }
 
-    res.status(200).json({ message: "내 정보가 성공적으로 수정되었습니다." });
+    return res.status(200).json({ message: "Profile updated successfully." });
   } catch (error) {
-    console.error("내 정보 수정 에러:", error);
-    res.status(500).json({ message: "내 정보를 수정하는데 실패했습니다." });
+    console.error("Update member error:", error);
+    return res.status(500).json({ message: "Failed to update member information." });
   }
 });
 
-// ==========================================
-// 4. 내 정보(동네 포함) 수정 API (PATCH /api/members/me/location)
-// ==========================================
 router.patch("/me/location", authenticateToken, async (req, res) => {
   const member_id = req.user.member_id || req.user.id;
   const { dong_name, latitude, longitude } = req.body;
 
   if (!dong_name || !latitude || !longitude) {
-    return res
-      .status(400)
-      .json({ message: "동네 정보(이름, 위도, 경도)를 모두 입력해주세요." });
+    return res.status(400).json({
+      message: "dong_name, latitude, and longitude are all required.",
+    });
   }
 
   try {
-    // MEMBER 테이블의 동네 및 좌표 정보 업데이트
     const [result] = await db.query(
-      `UPDATE MEMBER 
-       SET dong_name = ?, latitude = ?, longitude = ? 
+      `UPDATE MEMBER
+       SET dong_name = ?, latitude = ?, longitude = ?
        WHERE member_id = ?`,
-      [dong_name, latitude, longitude, member_id],
+      [dong_name, latitude, longitude, member_id]
     );
 
     if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ message: "사용자 정보를 찾을 수 없습니다." });
+      return res.status(404).json({ message: "Member not found." });
     }
 
-    res.status(200).json({
-      message: "동네 설정이 완료되었습니다.",
+    return res.status(200).json({
+      message: "Location updated successfully.",
       data: {
         dong_name,
         latitude,
@@ -247,8 +340,124 @@ router.patch("/me/location", authenticateToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("동네 설정 에러:", error);
-    res.status(500).json({ message: "동네 설정에 실패했습니다." });
+    console.error("Update location error:", error);
+    return res.status(500).json({ message: "Failed to update location." });
   }
 });
+
+router.delete("/me", authenticateToken, async (req, res) => {
+  const member_id = req.user.member_id || req.user.id;
+
+  try {
+    const deleted = await deleteMemberWithRelations(member_id);
+
+    if (!deleted) {
+      return res.status(404).json({ message: "Member not found." });
+    }
+
+    return res.status(200).json({ message: "Member account deleted successfully." });
+  } catch (error) {
+    console.error("Delete self error:", error);
+    return res.status(500).json({ message: "Failed to delete member account." });
+  }
+});
+
+router.delete(
+  "/admin/:member_id",
+  authenticateToken,
+  requireDevelopmentOnly,
+  requireDevDeleteKey,
+  async (req, res) => {
+    const { member_id } = req.params;
+
+    try {
+      const deleted = await deleteMemberWithRelations(member_id);
+
+      if (!deleted) {
+        return res.status(404).json({ message: "Member not found." });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Member ${member_id} deleted successfully.`,
+      });
+    } catch (error) {
+      console.error("Admin delete error:", error);
+      return res.status(500).json({ message: "Failed to delete member." });
+    }
+  }
+);
+
+router.delete(
+  "/dev/cleanup",
+  requireDevelopmentOnly,
+  requireDevDeleteKey,
+  async (req, res) => {
+    const { member_id, email, phone } = req.body;
+
+    try {
+      if (!member_id && !email && !phone) {
+        return res.status(400).json({
+          success: false,
+          message: "Provide at least one of member_id, email, or phone.",
+        });
+      }
+
+      let targetMemberId = member_id;
+
+      if (!targetMemberId) {
+        const conditions = [];
+        const params = [];
+
+        if (email) {
+          conditions.push("email = ?");
+          params.push(email);
+        }
+
+        if (phone) {
+          conditions.push("phone = ?");
+          params.push(formatPhoneNumber(phone));
+        }
+
+        const [members] = await db.query(
+          `SELECT member_id FROM MEMBER WHERE ${conditions.join(" OR ")} LIMIT 1`,
+          params
+        );
+
+        if (members.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "No matching member was found.",
+          });
+        }
+
+        targetMemberId = members[0].member_id;
+      }
+
+      const deleted = await deleteMemberWithRelations(targetMemberId);
+
+      if (!deleted) {
+        return res.status(404).json({
+          success: false,
+          message: "No matching member was found.",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Development cleanup removed member ${targetMemberId} and related posts.`,
+        data: {
+          member_id: targetMemberId,
+        },
+      });
+    } catch (error) {
+      console.error("Development cleanup error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to run development cleanup.",
+      });
+    }
+  }
+);
+
 module.exports = router;

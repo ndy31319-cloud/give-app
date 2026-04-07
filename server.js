@@ -9,12 +9,14 @@ app.use(express.json());
 const authRoutes = require("./routes/auth");
 const membersRoutes = require("./routes/members");
 const postsRoutes = require("./routes/posts");
+const chatRoutes = require("./routes/chat");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/members", membersRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/mypage", require("./routes/mypage"));
-app.use("/api/posts", postsRoutes);
+app.use("/api/chats", chatRoutes);
+
 
 // ==========================================
 // 테스트 API
