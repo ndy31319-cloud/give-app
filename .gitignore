@@ -1,4 +1,4 @@
 node_modules/
-backend/.env
+.env
 backend/ca.pem
 backend/serviceAccountKey.json

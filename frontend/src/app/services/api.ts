@@ -240,6 +240,8 @@ const loadCurrentUser = async (
     return { data: null, error: meResult.error || "Failed to load profile." };
   }
 
+  saveUserId(String(meResult.data.member_id));
+
   return {
     data: {
       token,
@@ -271,6 +273,7 @@ export const authAPI = {
         member_pw: data.password,
         nickname: data.name,
         dong_name: data.location,
+        isVulnerable: data.isVulnerable,
       }),
     });
 
@@ -340,6 +343,8 @@ interface PostDetailApiItem {
   donate_id?: number;
   request_id?: number;
   member_id: number;
+  name?: string;
+  nickname?: string;
   title: string;
   content?: string;
   dong_name?: string;
@@ -359,7 +364,7 @@ const mapListPost = (post: PostsApiItem): Post => ({
   category: "",
   author: {
     id: String(post.member_id),
-    name: "",
+    name: post.nickname || post.name || "사용자",
     temperature: 36.5,
   },
   images: [],
@@ -449,7 +454,7 @@ export const postAPI = {
     formData.append("title", data.title);
     formData.append("content", data.description);
     formData.append("item_name", data.category || data.title);
-    formData.append("item_condition", "unknown");
+    formData.append("item_condition", "상태 무관");
     formData.append("product_id", "1");
 
     if (data.imageFile) {
@@ -550,6 +555,13 @@ export interface Message {
   location?: { lat: number; lng: number; address: string };
 }
 
+interface CreateChatRoomRequest {
+  name?: string;
+  participantIds: number[];
+  relatedPostId?: string | number | null;
+  relatedPostType?: "donate" | "request" | null;
+}
+
 interface ChatRoomApiItem {
   id: string;
   name?: string;
@@ -582,6 +594,27 @@ const firestoreTimeToString = (value: MessageApiItem["createdAt"]) => {
 };
 
 export const chatAPI = {
+  createRoom: async (
+    payload: CreateChatRoomRequest,
+  ): Promise<ApiResult<{ id: string }>> => {
+    const result = await requestJSON<{ data: { id: string } }>("/chats/rooms", {
+      method: "POST",
+      withAuth: true,
+      body: JSON.stringify(payload),
+    });
+
+    if (result.error || !result.data?.data) {
+      return { data: null, error: result.error };
+    }
+
+    return {
+      data: {
+        id: result.data.data.id,
+      },
+      error: null,
+    };
+  },
+
   getChats: async (): Promise<ApiResult<Chat[]>> => {
     const result = await requestJSON<{ data: ChatRoomApiItem[] }>(
       "/chats/rooms",

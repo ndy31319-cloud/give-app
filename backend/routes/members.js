@@ -174,7 +174,7 @@ router.get("/nickname-check", async (req, res) => {
 });
 
 router.post("/signup", async (req, res) => {
-  const { phone, member_pw, name, email, qr_code, dong_name, nickname } = req.body;
+  const { phone, member_pw, name, email, qr_code, dong_name, nickname, isVulnerable } = req.body;
 
   try {
     if (!phone || !member_pw || !name || !email || !dong_name || !nickname) {
@@ -217,6 +217,8 @@ router.post("/signup", async (req, res) => {
     }
 
     let role_id = 1;
+    const allowDevelopmentVulnerableSignup =
+      process.env.NODE_ENV !== "production" && isVulnerable === true;
 
     if (qr_code) {
       const [certData] = await db.query(
@@ -231,6 +233,10 @@ router.post("/signup", async (req, res) => {
         });
       }
 
+      role_id = 3;
+    }
+    
+    if (!qr_code && allowDevelopmentVulnerableSignup) {
       role_id = 3;
     }
 

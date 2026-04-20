@@ -5,6 +5,23 @@ const db = require("../db");
 
 const ROLE_GENERAL = 1;
 const ROLE_VULNERABLE = 3;
+const ALLOWED_ITEM_CONDITIONS = new Set([
+  "새상품",
+  "사용감 적음",
+  "사용감 있음",
+  "상태 무관",
+  "중고 가능",
+]);
+
+const normalizeItemCondition = (value) => {
+  const normalizedValue = String(value || "").trim();
+
+  if (ALLOWED_ITEM_CONDITIONS.has(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  return "상태 무관";
+};
 
 const resolveAiImageApiUrl = (rawUrl) => {
   const trimmedUrl = String(rawUrl || "").trim();
@@ -167,6 +184,8 @@ const createPost = async (req, res) => {
     const member_id = req.user.member_id || req.user.id;
     const role_id = Number(req.user.role_id);
     const imageFiles = getUploadedImages(req);
+    const normalizedItemCondition = normalizeItemCondition(item_condition);
+    const normalizedProductId = product_id || 1;
 
     if (role_id !== ROLE_GENERAL && role_id !== ROLE_VULNERABLE) {
       return res.status(403).json({ message: "게시글 작성 권한이 없습니다." });
@@ -238,7 +257,7 @@ const createPost = async (req, res) => {
       await connection.query(
         `INSERT INTO ITEM (donate_id, product_id, item_name, item_condition)
          VALUES (?, ?, ?, ?)`,
-        [postId, product_id, item_name, item_condition],
+        [postId, normalizedProductId, item_name, normalizedItemCondition],
       );
     } else if (isRequest) {
       const [postResult] = await connection.query(
@@ -261,7 +280,7 @@ const createPost = async (req, res) => {
       await connection.query(
         `INSERT INTO ITEM (request_id, product_id, item_name, item_condition)
          VALUES (?, ?, ?, ?)`,
-        [postId, product_id, item_name, item_condition],
+        [postId, normalizedProductId, item_name, normalizedItemCondition],
       );
     }
 
@@ -329,6 +348,8 @@ const updatePost = async (req, res) => {
   const postType = req.query.type;
   const { title, content, item_name, item_condition, product_id } = req.body;
   const member_id = req.user.member_id || req.user.id;
+  const normalizedItemCondition = normalizeItemCondition(item_condition);
+  const normalizedProductId = product_id || 1;
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
     return res.status(400).json({ message: "type은 donate 또는 request여야 합니다." });
@@ -362,7 +383,7 @@ const updatePost = async (req, res) => {
       `UPDATE ITEM
        SET product_id = ?, item_name = ?, item_condition = ?
        WHERE ${idColumn} = ?`,
-      [product_id, item_name, item_condition, postId],
+      [normalizedProductId, item_name, normalizedItemCondition, postId],
     );
 
     return res.status(200).json({ message: "게시글이 수정되었습니다." });

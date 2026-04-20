@@ -18,7 +18,7 @@ export function PostCard({ id, type, title, location, time, image, status }: Pos
 
   return (
     <div
-      onClick={() => navigate(`/post/${id}`)}
+      onClick={() => navigate(`/post/${id}?type=${type}`, { state: { type } })}
       className="bg-white rounded-lg p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
     >
       <div className="flex gap-3">
