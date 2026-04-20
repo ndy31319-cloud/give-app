@@ -14,6 +14,20 @@ const formatParticipant = (member) => ({
 
 const getCurrentMemberId = (req) => Number(req.user.member_id || req.user.id);
 
+const buildRoomKey = ({
+  participantIds,
+  relatedPostId,
+  relatedPostType,
+}) => {
+  const normalizedParticipants = [...new Set(participantIds.map(Number))]
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+  const postType = relatedPostType || "none";
+  const postId = relatedPostId == null ? "none" : String(relatedPostId);
+
+  return `${normalizedParticipants.join(":")}__${postType}__${postId}`;
+};
+
 const getMembersByIds = async (memberIds) => {
   const uniqueIds = [...new Set(memberIds.map(Number).filter(Boolean))];
 
@@ -91,6 +105,30 @@ router.post("/rooms", async (req, res) => {
     }
 
     const firestore = getFirestore();
+    const roomKey = buildRoomKey({
+      participantIds: participantIdList,
+      relatedPostId,
+      relatedPostType,
+    });
+    const existingRoomSnapshot = await firestore
+      .collection("chatRooms")
+      .where("roomKey", "==", roomKey)
+      .limit(1)
+      .get();
+
+    if (!existingRoomSnapshot.empty) {
+      const existingRoom = existingRoomSnapshot.docs[0];
+
+      return res.status(200).json({
+        success: true,
+        message: "이미 존재하는 채팅방입니다.",
+        data: {
+          id: existingRoom.id,
+          ...existingRoom.data(),
+        },
+      });
+    }
+
     const roomRef = firestore.collection("chatRooms").doc();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     const roomName =
@@ -106,6 +144,7 @@ router.post("/rooms", async (req, res) => {
 
     await roomRef.set({
       roomId: roomRef.id,
+      roomKey,
       name: roomName,
       createdBy: creatorId,
       participants,

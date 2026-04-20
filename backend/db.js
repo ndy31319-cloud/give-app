@@ -2,7 +2,11 @@ const mysql = require("mysql2/promise");
 const fs = require("fs");
 const path = require("path");
 
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+const localEnvPath = path.join(__dirname, ".env");
+const rootEnvPath = path.join(__dirname, "..", ".env");
+const envPath = fs.existsSync(localEnvPath) ? localEnvPath : rootEnvPath;
+
+require("dotenv").config({ path: envPath });
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
