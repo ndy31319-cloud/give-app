@@ -13,8 +13,11 @@ export function ChatListScreen() {
   useEffect(() => {
     let mounted = true;
 
-    const loadChats = async () => {
-      setLoading(true);
+    const loadChats = async (showLoading = false) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+
       const result = await chatAPI.getChats();
 
       if (!mounted) {
@@ -29,13 +32,19 @@ export function ChatListScreen() {
         setChats(result.data);
       }
 
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     };
 
-    void loadChats();
+    void loadChats(true);
+    const intervalId = window.setInterval(() => {
+      void loadChats(false);
+    }, 3000);
 
     return () => {
       mounted = false;
+      window.clearInterval(intervalId);
     };
   }, []);
 

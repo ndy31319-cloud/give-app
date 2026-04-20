@@ -20,6 +20,7 @@ import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { Textarea } from "@/app/components/ui/textarea";
 import { chatAPI, type Message } from "@/app/services/api";
+import { canUseRealtimeChat, subscribeToRoomMessages } from "@/app/services/firebaseChat";
 import {
   Sheet,
   SheetContent,
@@ -65,8 +66,11 @@ export function ChatRoomScreen() {
 
     let mounted = true;
 
-    const loadMessages = async () => {
-      setLoading(true);
+    const loadMessages = async (showLoading = false) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+
       const result = await chatAPI.getMessages(id);
 
       if (!mounted) {
@@ -81,13 +85,39 @@ export function ChatRoomScreen() {
         setMessages(result.data);
       }
 
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     };
 
-    void loadMessages();
+    const unsubscribe = subscribeToRoomMessages(
+      id,
+      (nextMessages) => {
+        if (!mounted) {
+          return;
+        }
+
+        setMessages(nextMessages);
+        setError(null);
+        setLoading(false);
+      },
+      (subscriptionError) => {
+        if (!mounted) {
+          return;
+        }
+
+        setError(subscriptionError.message || "실시간 메시지를 불러오지 못했습니다.");
+        setLoading(false);
+      },
+    );
+
+    if (!unsubscribe) {
+      void loadMessages(true);
+    }
 
     return () => {
       mounted = false;
+      unsubscribe?.();
     };
   }, [id]);
 
@@ -110,7 +140,9 @@ export function ChatRoomScreen() {
       return;
     }
 
-    setMessages((prev) => [...prev, result.data as Message]);
+    if (!canUseRealtimeChat()) {
+      setMessages((prev) => [...prev, result.data as Message]);
+    }
     setMessage("");
     setError(null);
     setSending(false);
