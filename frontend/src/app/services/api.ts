@@ -705,6 +705,27 @@ export const chatAPI = {
       error: null,
     };
   },
+
+  leaveRoom: async (
+    chatId: string,
+  ): Promise<ApiResult<{ roomId: string; deleted: boolean }>> => {
+    const result = await requestJSON<{ data: { roomId: string; deleted: boolean } }>(
+      `/chats/rooms/${chatId}`,
+      {
+        method: "DELETE",
+        withAuth: true,
+      },
+    );
+
+    if (result.error || !result.data?.data) {
+      return { data: null, error: result.error };
+    }
+
+    return {
+      data: result.data.data,
+      error: null,
+    };
+  },
 };
 
 export const userAPI = {

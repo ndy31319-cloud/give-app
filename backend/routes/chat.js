@@ -71,6 +71,21 @@ const ensureRoomParticipant = async (roomId, memberId) => {
   return { roomRef, roomData };
 };
 
+const deleteRoomMessages = async (roomRef) => {
+  const snapshot = await roomRef.collection("messages").get();
+
+  if (snapshot.empty) {
+    return;
+  }
+
+  const firestore = getFirestore();
+  const batch = firestore.batch();
+  snapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
+};
+
 router.use(authenticateToken);
 
 router.post("/rooms", async (req, res) => {
@@ -304,6 +319,49 @@ router.post("/rooms/:roomId/messages", async (req, res) => {
     return res.status(error.statusCode || 500).json({
       success: false,
       message: error.message || "메시지 전송 중 오류가 발생했습니다.",
+    });
+  }
+});
+
+router.delete("/rooms/:roomId", async (req, res) => {
+  const memberId = getCurrentMemberId(req);
+  const { roomId } = req.params;
+
+  try {
+    const { roomRef, roomData } = await ensureRoomParticipant(roomId, memberId);
+    const nextParticipants = Array.isArray(roomData.participants)
+      ? roomData.participants.filter(
+          (participant) => Number(participant.member_id) !== Number(memberId),
+        )
+      : [];
+    const nextParticipantIds = nextParticipants.map((participant) =>
+      Number(participant.member_id),
+    );
+
+    if (nextParticipantIds.length === 0) {
+      await deleteRoomMessages(roomRef);
+      await roomRef.delete();
+    } else {
+      await roomRef.update({
+        participants: nextParticipants,
+        participantIds: nextParticipantIds,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "채팅방에서 나갔습니다.",
+      data: {
+        roomId,
+        deleted: nextParticipantIds.length === 0,
+      },
+    });
+  } catch (error) {
+    console.error("채팅방 나가기 오류:", error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "채팅방 나가기 중 오류가 발생했습니다.",
     });
   }
 });

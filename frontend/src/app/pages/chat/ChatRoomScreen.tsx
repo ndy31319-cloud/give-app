@@ -44,6 +44,7 @@ export function ChatRoomScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -148,6 +149,29 @@ export function ChatRoomScreen() {
     setSending(false);
   };
 
+  const handleLeaveRoom = async () => {
+    if (!id || leaving) {
+      return;
+    }
+
+    const shouldLeave = window.confirm("채팅방에서 나가시겠습니까?");
+    if (!shouldLeave) {
+      return;
+    }
+
+    setLeaving(true);
+    const result = await chatAPI.leaveRoom(id);
+
+    if (result.error) {
+      setError(result.error || "채팅방 나가기에 실패했습니다.");
+      setLeaving(false);
+      return;
+    }
+
+    setMoreMenuOpen(false);
+    navigate("/chat");
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
@@ -198,7 +222,11 @@ export function ChatRoomScreen() {
                 <Ban className="w-5 h-5 text-gray-600" />
                 <span>차단하기</span>
               </button>
-              <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 rounded-lg transition-colors text-red-600">
+              <button
+                onClick={() => void handleLeaveRoom()}
+                disabled={leaving}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 rounded-lg transition-colors text-red-600 disabled:opacity-60"
+              >
                 <LogOut className="w-5 h-5" />
                 <span>채팅방 나가기</span>
               </button>
