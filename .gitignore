@@ -1,5 +1,6 @@
 node_modules/
 .env
-frontend/.env
+frontend-web/.env
+frontend-app/.env
 backend/ca.pem
 backend/serviceAccountKey.json
