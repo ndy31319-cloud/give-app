@@ -3,33 +3,343 @@ const router = express.Router();
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
 
-// ==========================================
-// 마이페이지 작성 내역 조회 API (GET /api/mypage/histories)
-// ==========================================
-router.get("/histories", authenticateToken, async (req, res) => {
-  // 토큰에서 내 유저 번호 꺼내기
-  const member_id = req.user.member_id || req.user.id;
+const inMemoryContacts = [];
+
+const getMemberId = (req) => req.user.member_id || req.user.id;
+
+const toIsoString = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+};
+
+const normalizeUploadUrl = (req, imageUrl) => {
+  if (!imageUrl) {
+    return null;
+  }
+
+  const rawUrl = String(imageUrl);
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return rawUrl;
+  }
+
+  const filename = rawUrl.split(/[\\/]/).pop();
+  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+};
+
+const mapDonateStatus = (status) => {
+  if (status === "completed") return "completed";
+  if (status === "canceled") return "canceled";
+  return "inProgress";
+};
+
+const buildDisplayCode = (value) => {
+  let hash = 2166136261;
+  const source = String(value || Date.now());
+
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  const seed = (hash >>> 0).toString(16).toUpperCase().padStart(8, "0");
+  return `GIVE-${seed.slice(0, 4)}-${seed.slice(4, 8)}`;
+};
+
+const getLatestActiveQr = async (memberId) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT qr_id, member_id, purpose, token, display_code, status, issued_at, expires_at, used_at, ttl_seconds
+       FROM DYNAMIC_QR
+       WHERE member_id = ? AND status = 'active'
+       ORDER BY issued_at DESC
+       LIMIT 1`,
+      [memberId],
+    );
+
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+};
+
+const getShareCount = async (memberId) => {
+  const [rows] = await db.query(
+    "SELECT COUNT(*) AS count FROM ITEM_DONATE WHERE member_id = ?",
+    [memberId],
+  );
+  return Number(rows[0]?.count ?? 0);
+};
+
+const getRequestCount = async (memberId) => {
+  const [rows] = await db.query(
+    "SELECT COUNT(*) AS count FROM ITEM_REQUEST WHERE member_id = ?",
+    [memberId],
+  );
+  return Number(rows[0]?.count ?? 0);
+};
+
+router.get("/summary", authenticateToken, async (req, res) => {
+  const memberId = getMemberId(req);
 
   try {
-    // 내가 쓴 기부 글과 요청 글만 합쳐서 최신순으로 가져오기
-    const sql = `
-            SELECT donate_id AS post_id, title, status, created_at, 'donate' AS post_type 
-            FROM ITEM_DONATE
-            WHERE member_id = ?
-            UNION ALL
-            SELECT request_id AS post_id, title, status, created_at, 'request' AS post_type 
-            FROM ITEM_REQUEST
-            WHERE member_id = ?
-            ORDER BY created_at DESC
-        `;
+    const [memberRows] = await db.query(
+      `SELECT member_id, name, nickname, email, phone, role_id, dong_name,
+              created_at
+       FROM MEMBER
+       WHERE member_id = ?`,
+      [memberId],
+    );
 
-    // ?가 두 개니까 member_id도 두 번 넣음.
-    const [rows] = await db.query(sql, [member_id, member_id]);
-    res.status(200).json(rows);
+    if (memberRows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "회원 정보를 찾을 수 없습니다.",
+      });
+    }
+
+    const member = memberRows[0];
+    const [shareCount, requestCount, activeQr] = await Promise.all([
+      getShareCount(memberId),
+      getRequestCount(memberId),
+      getLatestActiveQr(memberId),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          memberId: member.member_id,
+          member_id: member.member_id,
+          name: member.name,
+          nickname: member.nickname,
+          email: member.email,
+          phone: member.phone,
+          roleId: member.role_id,
+          role_id: member.role_id,
+          dongName: member.dong_name,
+          dong_name: member.dong_name,
+          profileImage: null,
+          profile_image: null,
+          bio: null,
+          createdAt: toIsoString(member.created_at),
+          created_at: toIsoString(member.created_at),
+        },
+        counts: {
+          shares: shareCount,
+          requests: requestCount,
+        },
+        activeQr: activeQr
+          ? {
+              id: String(activeQr.qr_id),
+              memberId: activeQr.member_id,
+              member_id: activeQr.member_id,
+              purpose: activeQr.purpose,
+              token: activeQr.token,
+              displayCode: activeQr.display_code || buildDisplayCode(activeQr.token),
+              display_code: activeQr.display_code || buildDisplayCode(activeQr.token),
+              status: activeQr.status,
+              issuedAt: toIsoString(activeQr.issued_at),
+              issued_at: toIsoString(activeQr.issued_at),
+              expiresAt: toIsoString(activeQr.expires_at),
+              expires_at: toIsoString(activeQr.expires_at),
+              ttlSeconds: Number(activeQr.ttl_seconds ?? 30),
+              ttl_seconds: Number(activeQr.ttl_seconds ?? 30),
+              usedAt: toIsoString(activeQr.used_at),
+              used_at: toIsoString(activeQr.used_at),
+            }
+          : null,
+        device: {
+          status: "idle",
+          message: "디바이스가 대기 중입니다.",
+        },
+      },
+      message: "마이페이지 요약 조회에 성공했습니다.",
+    });
   } catch (error) {
-    console.error("마이페이지 내역 조회 에러:", error);
-    res.status(500).json({ message: "내역을 불러오는데 실패했습니다." });
+    console.error("Mypage summary error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "마이페이지 요약을 불러오지 못했습니다.",
+    });
   }
+});
+
+router.get("/histories", authenticateToken, async (req, res) => {
+  const memberId = getMemberId(req);
+
+  try {
+    const sql = `
+      SELECT
+        d.donate_id AS post_id,
+        d.title,
+        d.status,
+        d.created_at,
+        'donate' AS post_type,
+        MIN(di.image_url) AS image_url
+      FROM ITEM_DONATE d
+      LEFT JOIN ITEM_DONATE_IMAGE di ON di.donate_id = d.donate_id
+      WHERE d.member_id = ?
+      GROUP BY d.donate_id, d.title, d.status, d.created_at
+
+      UNION ALL
+
+      SELECT
+        r.request_id AS post_id,
+        r.title,
+        r.status,
+        r.created_at,
+        'request' AS post_type,
+        MIN(ri.image_url) AS image_url
+      FROM ITEM_REQUEST r
+      LEFT JOIN ITEM_REQUEST_IMAGE ri ON ri.request_id = r.request_id
+      WHERE r.member_id = ?
+      GROUP BY r.request_id, r.title, r.status, r.created_at
+
+      ORDER BY created_at DESC
+    `;
+
+    const [rows] = await db.query(sql, [memberId, memberId]);
+    const histories = rows.map((row) => ({
+      id: `${row.post_type}_${row.post_id}`,
+      postId: row.post_id,
+      post_id: row.post_id,
+      title: row.title,
+      status: row.status,
+      displayStatus: row.post_type === "donate" ? mapDonateStatus(row.status) : row.status,
+      display_status: row.post_type === "donate" ? mapDonateStatus(row.status) : row.status,
+      postType: row.post_type,
+      post_type: row.post_type,
+      image: normalizeUploadUrl(req, row.image_url),
+      image_url: normalizeUploadUrl(req, row.image_url),
+      createdAt: toIsoString(row.created_at),
+      created_at: toIsoString(row.created_at),
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        histories,
+        total: histories.length,
+      },
+      message: "내역 조회에 성공했습니다.",
+    });
+  } catch (error) {
+    console.error("Mypage histories error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "내역을 불러오는 데 실패했습니다.",
+    });
+  }
+});
+
+router.get("/stats", authenticateToken, async (req, res) => {
+  const memberId = getMemberId(req);
+  const period = req.query.period === "3months" ? 3 : req.query.period === "year" ? 12 : 6;
+
+  try {
+    const [mineRows] = await db.query(
+      `SELECT DATE_FORMAT(created_at, '%Y-%m') AS month_key, COUNT(*) AS count
+       FROM ITEM_DONATE
+       WHERE member_id = ?
+         AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+       GROUP BY DATE_FORMAT(created_at, '%Y-%m')`,
+      [memberId, period],
+    );
+
+    const [allRows] = await db.query(
+      `SELECT DATE_FORMAT(created_at, '%Y-%m') AS month_key, COUNT(*) AS count
+       FROM ITEM_DONATE
+       WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+       GROUP BY DATE_FORMAT(created_at, '%Y-%m')`,
+      [period],
+    );
+
+    const mineMap = new Map(mineRows.map((row) => [row.month_key, Number(row.count)]));
+    const allMap = new Map(allRows.map((row) => [row.month_key, Number(row.count)]));
+    const now = new Date();
+    const monthlyStats = [];
+
+    for (let index = period - 1; index >= 0; index -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const mine = mineMap.get(monthKey) ?? 0;
+      const total = allMap.get(monthKey) ?? 0;
+
+      monthlyStats.push({
+        month: `${date.getMonth() + 1}월`,
+        monthKey,
+        month_key: monthKey,
+        mine,
+        average: Number((total / Math.max(1, period)).toFixed(1)),
+      });
+    }
+
+    const myAverage = Number(
+      (monthlyStats.reduce((sum, item) => sum + item.mine, 0) / period).toFixed(1),
+    );
+    const allAverage = Number(
+      (monthlyStats.reduce((sum, item) => sum + item.average, 0) / period).toFixed(1),
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        period: req.query.period || "6months",
+        myAverage,
+        my_average: myAverage,
+        allAverage,
+        all_average: allAverage,
+        difference: Number((myAverage - allAverage).toFixed(1)),
+        monthlyStats,
+        monthly_stats: monthlyStats,
+      },
+      message: "나눔통계 조회에 성공했습니다.",
+    });
+  } catch (error) {
+    console.error("Mypage stats error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "나눔통계를 불러오지 못했습니다.",
+    });
+  }
+});
+
+router.post("/contact", authenticateToken, async (req, res) => {
+  const memberId = getMemberId(req);
+  const subject = String(req.body.subject || "").trim();
+  const email = String(req.body.email || "").trim();
+  const message = String(req.body.message || "").trim();
+
+  if (!subject || !email || !message) {
+    return res.status(400).json({
+      success: false,
+      message: "제목, 이메일, 문의 내용을 모두 입력해주세요.",
+    });
+  }
+
+  const contact = {
+    inquiryId: inMemoryContacts.length + 1,
+    inquiry_id: inMemoryContacts.length + 1,
+    memberId,
+    member_id: memberId,
+    subject,
+    email,
+    message,
+    createdAt: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+  };
+
+  inMemoryContacts.push(contact);
+
+  return res.status(201).json({
+    success: true,
+    data: contact,
+    message: "문의가 접수되었습니다.",
+  });
 });
 
 module.exports = router;

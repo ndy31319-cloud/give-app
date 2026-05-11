@@ -86,7 +86,274 @@ const deleteRoomMessages = async (roomRef) => {
   await batch.commit();
 };
 
+const inMemoryReviews = [];
+
+const normalizeRelatedPostType = (type) => {
+  if (type === "share" || type === "donate") {
+    return "donate";
+  }
+
+  if (type === "need" || type === "request") {
+    return "request";
+  }
+
+  return null;
+};
+
+const getRelatedPostMeta = (roomData) => ({
+  postId: roomData.relatedPostId || roomData.postId || roomData.donateId || null,
+  postType: normalizeRelatedPostType(roomData.relatedPostType || roomData.postType),
+});
+
+const findDonatePost = async (donateId) => {
+  const [rows] = await db.query(
+    `SELECT donate_id, member_id, title, status
+     FROM ITEM_DONATE
+     WHERE donate_id = ?`,
+    [donateId],
+  );
+
+  return rows[0] || null;
+};
+
+const findExistingReview = async (donateId, writerId) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT review_id, donate_id, writer_id, target_member_id, rating, content, created_at
+       FROM REVIEW
+       WHERE donate_id = ? AND writer_id = ?
+       LIMIT 1`,
+      [donateId, writerId],
+    );
+
+    return rows[0] || null;
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      throw error;
+    }
+
+    return (
+      inMemoryReviews.find(
+        (review) =>
+          Number(review.donate_id) === Number(donateId) &&
+          Number(review.writer_id) === Number(writerId),
+      ) || null
+    );
+  }
+};
+
+const getReviewEligibility = async (roomId, memberId) => {
+  const { roomData } = await ensureRoomParticipant(roomId, memberId);
+  const { postId, postType } = getRelatedPostMeta(roomData);
+
+  if (!postId || postType !== "donate") {
+    return {
+      roomData,
+      canReview: false,
+      reason: "후기를 작성할 수 있는 나눔 게시글이 연결되어 있지 않습니다.",
+      donate: null,
+      existingReview: null,
+    };
+  }
+
+  const donate = await findDonatePost(postId);
+
+  if (!donate) {
+    return {
+      roomData,
+      canReview: false,
+      reason: "연결된 나눔 게시글을 찾을 수 없습니다.",
+      donate: null,
+      existingReview: null,
+    };
+  }
+
+  if (donate.status !== "completed") {
+    return {
+      roomData,
+      canReview: false,
+      reason: "나눔완료 상태에서만 후기를 작성할 수 있습니다.",
+      donate,
+      existingReview: null,
+    };
+  }
+
+  if (Number(donate.member_id) === Number(memberId)) {
+    return {
+      roomData,
+      canReview: false,
+      reason: "본인이 작성한 나눔에는 후기를 작성할 수 없습니다.",
+      donate,
+      existingReview: null,
+    };
+  }
+
+  const existingReview = await findExistingReview(donate.donate_id, memberId);
+
+  if (existingReview) {
+    return {
+      roomData,
+      canReview: false,
+      reason: "이미 후기를 작성했습니다.",
+      donate,
+      existingReview,
+    };
+  }
+
+  return {
+    roomData,
+    canReview: true,
+    reason: null,
+    donate,
+    existingReview: null,
+  };
+};
+
+const buildReviewStatusPayload = (eligibility, memberId) => ({
+  canReview: eligibility.canReview,
+  can_review: eligibility.canReview,
+  reason: eligibility.reason,
+  donateId: eligibility.donate?.donate_id ?? null,
+  donate_id: eligibility.donate?.donate_id ?? null,
+  postStatus: eligibility.donate?.status ?? null,
+  post_status: eligibility.donate?.status ?? null,
+  targetMemberId: eligibility.donate?.member_id ?? null,
+  target_member_id: eligibility.donate?.member_id ?? null,
+  writerId: memberId,
+  writer_id: memberId,
+  alreadyReviewed: Boolean(eligibility.existingReview),
+  already_reviewed: Boolean(eligibility.existingReview),
+});
+
+const insertReview = async ({ donateId, writerId, targetMemberId, rating, content }) => {
+  try {
+    const [result] = await db.query(
+      `INSERT INTO REVIEW (donate_id, writer_id, target_member_id, rating, content, created_at)
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      [donateId, writerId, targetMemberId, rating, content],
+    );
+
+    const [rows] = await db.query(
+      `SELECT review_id, donate_id, writer_id, target_member_id, rating, content, created_at
+       FROM REVIEW
+       WHERE review_id = ?`,
+      [result.insertId],
+    );
+
+    return rows[0];
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      throw error;
+    }
+
+    const review = {
+      review_id: inMemoryReviews.length + 1,
+      donate_id: donateId,
+      writer_id: writerId,
+      target_member_id: targetMemberId,
+      rating,
+      content,
+      created_at: new Date().toISOString(),
+    };
+
+    inMemoryReviews.push(review);
+    return review;
+  }
+};
+
+const handleReviewStatus = async (req, res) => {
+  const memberId = getCurrentMemberId(req);
+  const roomId = req.params.roomId;
+
+  try {
+    const eligibility = await getReviewEligibility(roomId, memberId);
+
+    return res.status(200).json({
+      success: true,
+      data: buildReviewStatusPayload(eligibility, memberId),
+      message: "후기 작성 가능 여부를 조회했습니다.",
+    });
+  } catch (error) {
+    console.error("Review status error:", error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "후기 작성 가능 여부를 조회하지 못했습니다.",
+    });
+  }
+};
+
+const handleCreateReview = async (req, res) => {
+  const memberId = getCurrentMemberId(req);
+  const roomId = req.params.roomId;
+  const rating = Number(req.body.rating);
+  const content = String(req.body.content || req.body.message || "").trim();
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({
+      success: false,
+      message: "평점은 1점부터 5점까지 입력할 수 있습니다.",
+    });
+  }
+
+  if (!content) {
+    return res.status(400).json({
+      success: false,
+      message: "후기 내용을 입력해주세요.",
+    });
+  }
+
+  try {
+    const eligibility = await getReviewEligibility(roomId, memberId);
+
+    if (!eligibility.canReview) {
+      return res.status(409).json({
+        success: false,
+        data: buildReviewStatusPayload(eligibility, memberId),
+        message: eligibility.reason,
+      });
+    }
+
+    const review = await insertReview({
+      donateId: eligibility.donate.donate_id,
+      writerId: memberId,
+      targetMemberId: eligibility.donate.member_id,
+      rating,
+      content,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        reviewId: review.review_id,
+        review_id: review.review_id,
+        donateId: review.donate_id,
+        donate_id: review.donate_id,
+        writerId: review.writer_id,
+        writer_id: review.writer_id,
+        targetMemberId: review.target_member_id,
+        target_member_id: review.target_member_id,
+        rating: review.rating,
+        content: review.content,
+        createdAt: review.created_at,
+        created_at: review.created_at,
+      },
+      message: "후기가 등록되었습니다.",
+    });
+  } catch (error) {
+    console.error("Create review error:", error);
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "후기 등록에 실패했습니다.",
+    });
+  }
+};
+
 router.use(authenticateToken);
+
+router.get("/:roomId/review-status", handleReviewStatus);
+router.post("/:roomId/review", handleCreateReview);
+router.get("/rooms/:roomId/review-status", handleReviewStatus);
+router.post("/rooms/:roomId/review", handleCreateReview);
 
 router.post("/rooms", async (req, res) => {
   const creatorId = getCurrentMemberId(req);

@@ -302,13 +302,178 @@ router.get("/me", authenticateToken, async (req, res) => {
   }
 });
 
+const normalizeUploadUrl = (req, imageUrl) => {
+  if (!imageUrl) {
+    return null;
+  }
+
+  const rawUrl = String(imageUrl);
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return rawUrl;
+  }
+
+  const filename = rawUrl.split(/[\\/]/).pop();
+  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+};
+
+router.get("/me/posts", authenticateToken, async (req, res) => {
+  const member_id = req.user.member_id || req.user.id;
+
+  try {
+    const sql = `
+      SELECT
+        d.donate_id AS post_id,
+        d.title,
+        d.content,
+        d.status,
+        d.created_at,
+        'donate' AS post_type,
+        MIN(di.image_url) AS image_url
+      FROM ITEM_DONATE d
+      LEFT JOIN ITEM_DONATE_IMAGE di ON di.donate_id = d.donate_id
+      WHERE d.member_id = ?
+      GROUP BY d.donate_id, d.title, d.content, d.status, d.created_at
+
+      UNION ALL
+
+      SELECT
+        r.request_id AS post_id,
+        r.title,
+        r.content,
+        r.status,
+        r.created_at,
+        'request' AS post_type,
+        MIN(ri.image_url) AS image_url
+      FROM ITEM_REQUEST r
+      LEFT JOIN ITEM_REQUEST_IMAGE ri ON ri.request_id = r.request_id
+      WHERE r.member_id = ?
+      GROUP BY r.request_id, r.title, r.content, r.status, r.created_at
+
+      ORDER BY created_at DESC
+    `;
+
+    const [rows] = await db.query(sql, [member_id, member_id]);
+    const posts = rows.map((row) => ({
+      post_id: row.post_id,
+      postId: row.post_id,
+      post_type: row.post_type,
+      postType: row.post_type,
+      title: row.title,
+      content: row.content,
+      status: row.status,
+      image_url: normalizeUploadUrl(req, row.image_url),
+      image: normalizeUploadUrl(req, row.image_url),
+      created_at: row.created_at,
+      createdAt: row.created_at,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        posts,
+        total: posts.length,
+      },
+      message: "작성한 글 조회에 성공했습니다.",
+    });
+  } catch (error) {
+    console.error("Load my posts error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "작성한 글을 불러오지 못했습니다.",
+    });
+  }
+});
+
+router.get("/me/likes", authenticateToken, async (req, res) => {
+  const member_id = req.user.member_id || req.user.id;
+
+  try {
+    const sql = `
+      SELECT
+        d.donate_id AS post_id,
+        d.title,
+        d.status,
+        d.created_at,
+        'donate' AS post_type,
+        MIN(di.image_url) AS image_url
+      FROM DONATE_LIKE dl
+      INNER JOIN ITEM_DONATE d ON d.donate_id = dl.donate_id
+      LEFT JOIN ITEM_DONATE_IMAGE di ON di.donate_id = d.donate_id
+      WHERE dl.member_id = ?
+      GROUP BY d.donate_id, d.title, d.status, d.created_at
+
+      UNION ALL
+
+      SELECT
+        r.request_id AS post_id,
+        r.title,
+        r.status,
+        r.created_at,
+        'request' AS post_type,
+        MIN(ri.image_url) AS image_url
+      FROM REQUEST_LIKE rl
+      INNER JOIN ITEM_REQUEST r ON r.request_id = rl.request_id
+      LEFT JOIN ITEM_REQUEST_IMAGE ri ON ri.request_id = r.request_id
+      WHERE rl.member_id = ?
+      GROUP BY r.request_id, r.title, r.status, r.created_at
+
+      ORDER BY created_at DESC
+    `;
+
+    const [rows] = await db.query(sql, [member_id, member_id]);
+    const likes = rows.map((row) => ({
+      post_id: row.post_id,
+      postId: row.post_id,
+      post_type: row.post_type,
+      postType: row.post_type,
+      title: row.title,
+      status: row.status,
+      image_url: normalizeUploadUrl(req, row.image_url),
+      image: normalizeUploadUrl(req, row.image_url),
+      created_at: row.created_at,
+      createdAt: row.created_at,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        likes,
+        total: likes.length,
+      },
+      message: "찜한 글 조회에 성공했습니다.",
+    });
+  } catch (error) {
+    if (error?.code === "ER_NO_SUCH_TABLE") {
+      return res.status(200).json({
+        success: true,
+        data: {
+          likes: [],
+          total: 0,
+        },
+        message: "찜한 글 조회에 성공했습니다.",
+      });
+    }
+
+    console.error("Load my likes error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "찜한 글을 불러오지 못했습니다.",
+    });
+  }
+});
+
 router.patch("/me", authenticateToken, async (req, res) => {
   const member_id = req.user.member_id || req.user.id;
-  const { nickname, email, phone, member_pw } = req.body;
+  const { name, nickname, email, phone, member_pw, password } = req.body;
   const updateFields = [];
   const queryParams = [];
 
   try {
+    if (name) {
+      updateFields.push("name = ?");
+      queryParams.push(String(name).trim());
+    }
+
     if (nickname) {
       const nicknameTaken = await isNicknameTaken(nickname, member_id);
 
@@ -349,16 +514,18 @@ router.patch("/me", authenticateToken, async (req, res) => {
       queryParams.push(formattedPhone);
     }
 
-    if (member_pw) {
+    const nextPassword = member_pw || password;
+
+    if (nextPassword) {
       const pwRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*]).{8,}$/;
 
-      if (!pwRegex.test(member_pw)) {
+      if (!pwRegex.test(nextPassword)) {
         return res.status(400).json({
           message: "Password must be at least 8 characters and include a number and special character.",
         });
       }
 
-      const hashedPassword = await bcrypt.hash(member_pw, 10);
+      const hashedPassword = await bcrypt.hash(nextPassword, 10);
       updateFields.push("member_pw = ?");
       queryParams.push(hashedPassword);
     }
@@ -375,7 +542,18 @@ router.patch("/me", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Member not found." });
     }
 
-    return res.status(200).json({ message: "Profile updated successfully." });
+    const [memberRows] = await db.query(
+      `SELECT member_id, name, nickname, email, phone, role_id, dong_name, created_at
+       FROM MEMBER
+       WHERE member_id = ?`,
+      [member_id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: memberRows[0],
+      message: "Profile updated successfully.",
+    });
   } catch (error) {
     console.error("Update member error:", error);
     return res.status(500).json({ message: "Failed to update member information." });
@@ -384,20 +562,31 @@ router.patch("/me", authenticateToken, async (req, res) => {
 
 router.patch("/me/location", authenticateToken, async (req, res) => {
   const member_id = req.user.member_id || req.user.id;
-  const { dong_name, latitude, longitude } = req.body;
+  const dong_name = req.body.dong_name || req.body.dongName || req.body.location;
+  const { latitude, longitude } = req.body;
 
-  if (!dong_name || !latitude || !longitude) {
+  if (!dong_name) {
     return res.status(400).json({
-      message: "dong_name, latitude, and longitude are all required.",
+      message: "dong_name is required.",
     });
   }
 
   try {
+    const updateFields = ["dong_name = ?"];
+    const queryParams = [dong_name];
+
+    if (latitude !== undefined && longitude !== undefined) {
+      updateFields.push("latitude = ?", "longitude = ?");
+      queryParams.push(latitude, longitude);
+    }
+
+    queryParams.push(member_id);
+
     const [result] = await db.query(
       `UPDATE MEMBER
-       SET dong_name = ?, latitude = ?, longitude = ?
+       SET ${updateFields.join(", ")}
        WHERE member_id = ?`,
-      [dong_name, latitude, longitude, member_id]
+      queryParams
     );
 
     if (result.affectedRows === 0) {
@@ -408,8 +597,8 @@ router.patch("/me/location", authenticateToken, async (req, res) => {
       message: "Location updated successfully.",
       data: {
         dong_name,
-        latitude,
-        longitude,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
       },
     });
   } catch (error) {

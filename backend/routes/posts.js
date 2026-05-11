@@ -25,6 +25,7 @@ router.post(
   postController.createPost,
 );
 router.get("/:id", postController.getPostDetail);
+router.patch("/:id/status", authenticateToken, postController.updatePost);
 router.put("/:id", authenticateToken, postController.updatePost);
 router.delete("/:id", authenticateToken, postController.deletePost);
 

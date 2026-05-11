@@ -19,12 +19,14 @@ const authRoutes = require("./routes/auth");
 const membersRoutes = require("./routes/members");
 const postsRoutes = require("./routes/posts");
 const chatRoutes = require("./routes/chat");
+const deviceRoutes = require("./routes/device");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/members", membersRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/mypage", require("./routes/mypage"));
 app.use("/api/chats", chatRoutes);
+app.use("/api/device", deviceRoutes);
 
 
 // ==========================================

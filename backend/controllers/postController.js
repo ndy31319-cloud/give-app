@@ -346,7 +346,7 @@ const getPostDetail = async (req, res) => {
 const updatePost = async (req, res) => {
   const postId = req.params.id;
   const postType = req.query.type;
-  const { title, content, item_name, item_condition, product_id } = req.body;
+  const { title, content, item_name, item_condition, product_id, status } = req.body;
   const member_id = req.user.member_id || req.user.id;
   const normalizedItemCondition = normalizeItemCondition(item_condition);
   const normalizedProductId = product_id || 1;
@@ -372,19 +372,61 @@ const updatePost = async (req, res) => {
       return res.status(403).json({ message: "수정 권한이 없습니다." });
     }
 
-    await db.query(
-      `UPDATE ${tableName}
-       SET title = ?, content = ?, updated_at = NOW()
-       WHERE ${idColumn} = ?`,
-      [title, content, postId],
-    );
+    const postUpdateFields = [];
+    const postUpdateParams = [];
 
-    await db.query(
-      `UPDATE ITEM
-       SET product_id = ?, item_name = ?, item_condition = ?
-       WHERE ${idColumn} = ?`,
-      [normalizedProductId, item_name, normalizedItemCondition, postId],
-    );
+    if (title !== undefined) {
+      postUpdateFields.push("title = ?");
+      postUpdateParams.push(title);
+    }
+
+    if (content !== undefined) {
+      postUpdateFields.push("content = ?");
+      postUpdateParams.push(content);
+    }
+
+    if (status !== undefined) {
+      postUpdateFields.push("status = ?");
+      postUpdateParams.push(status);
+    }
+
+    if (postUpdateFields.length > 0) {
+      postUpdateParams.push(postId);
+      await db.query(
+        `UPDATE ${tableName}
+         SET ${postUpdateFields.join(", ")}, updated_at = NOW()
+         WHERE ${idColumn} = ?`,
+        postUpdateParams,
+      );
+    }
+
+    const itemUpdateFields = [];
+    const itemUpdateParams = [];
+
+    if (product_id !== undefined) {
+      itemUpdateFields.push("product_id = ?");
+      itemUpdateParams.push(normalizedProductId);
+    }
+
+    if (item_name !== undefined) {
+      itemUpdateFields.push("item_name = ?");
+      itemUpdateParams.push(item_name);
+    }
+
+    if (item_condition !== undefined) {
+      itemUpdateFields.push("item_condition = ?");
+      itemUpdateParams.push(normalizedItemCondition);
+    }
+
+    if (itemUpdateFields.length > 0) {
+      itemUpdateParams.push(postId);
+      await db.query(
+        `UPDATE ITEM
+         SET ${itemUpdateFields.join(", ")}
+         WHERE ${idColumn} = ?`,
+        itemUpdateParams,
+      );
+    }
 
     return res.status(200).json({ message: "게시글이 수정되었습니다." });
   } catch (error) {
