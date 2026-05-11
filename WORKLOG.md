@@ -83,3 +83,62 @@
 - `frontend/.env`, 루트 `.env`, `backend/ca.pem`은 로컬 설정 파일이므로 GitHub에 올리지 않는다.
 - Firestore 테스트 규칙은 개발용이며, 배포 전에는 참여자만 읽고 쓸 수 있도록 보안 규칙을 강화해야 한다.
 - React Native 전환 시 백엔드는 대부분 유지 가능하지만, 이미지 업로드 `FormData` 형식과 위치 권한 기반 요청 형식은 별도 테스트가 필요하다.
+
+### 2026-05-11
+- 작업 범위: 사용자가 "프론트엔드는 건드리지 말고 백엔드만 수정"을 요청했다.
+- 마이페이지 백엔드 API를 보강했다.
+  - `GET /api/mypage/summary`: 마이페이지 메인용 회원 정보, 나눔 수, 신청 수, 활성 QR 상태, 디바이스 대기 상태를 반환한다.
+  - `GET /api/mypage/histories`: 내가 작성한 나눔/요청 내역을 이미지와 함께 반환하도록 보강했다.
+  - `GET /api/mypage/stats`: 3개월/6개월/1년 기준 나눔 통계 데이터를 반환한다.
+  - `POST /api/mypage/contact`: 관리자 문의 등록 API를 추가했다. 현재는 DB 테이블이 없어 메모리 임시 저장 방식이다.
+- 회원 관련 마이페이지 API를 보강했다.
+  - `PATCH /api/members/me`: 이름, 닉네임, 이메일, 전화번호, 비밀번호 수정이 가능하도록 보강했다.
+  - `PATCH /api/members/me/location`: 동네명만으로도 동네 수정이 가능하도록 보강했다.
+  - `GET /api/members/me/posts`: 내가 작성한 나눔/요청 글 조회 API를 추가했다.
+  - `GET /api/members/me/likes`: 찜한 글 조회 API를 추가했다.
+- 동적 QR 및 키오스크 로그인용 백엔드 API를 추가했다.
+  - `POST /api/device/qr/issue`: 앱에 로그인한 회원이 로그인용 QR 토큰을 발급받는다.
+  - `POST /api/device/qr/validate`: QR 토큰 유효성을 검증한다.
+  - `POST /api/device/qr/consume`: QR 토큰을 사용 완료 처리한다.
+  - `POST /api/device/qr/kiosk-login`: 키오스크가 앱 로그인용 QR을 스캔한 뒤 회원 정보를 확인하고 키오스크 세션을 만든다.
+  - `GET /api/device/relay`, `GET /api/device/sensor`: 기부함 디바이스 상태 테스트용 응답을 반환한다.
+  - `backend/routes/device.js` 파일을 새로 만들고 `backend/server.js`에 `/api/device` 라우트를 연결했다.
+- 채팅방 후기 작성 기능을 백엔드에 추가했다.
+  - `GET /api/chats/:roomId/review-status`
+  - `GET /api/chats/rooms/:roomId/review-status`
+  - `POST /api/chats/:roomId/review`
+  - `POST /api/chats/rooms/:roomId/review`
+  - 후기 가능 조건: 채팅방 참여자이며, 연결된 나눔글 상태가 `completed`이고, 본인 나눔글이 아니며, 아직 후기를 작성하지 않은 경우.
+  - `REVIEW` 테이블이 있으면 DB에 저장하고, 없으면 개발용으로 메모리 임시 저장한다.
+- 게시글 상태 변경 로직을 보강했다.
+  - `PUT /api/posts/:id?type=donate`에서 `status`도 수정 가능하게 했다.
+  - `PATCH /api/posts/:id/status?type=donate` 라우트를 추가했다.
+  - 나눔글 상태가 `completed`가 되어야 후기 작성 가능 상태가 된다.
+- 로그인 API 응답을 프론트가 쓰기 쉬운 형태로 보강했다.
+  - `POST /api/auth/login`이 이메일 또는 전화번호를 identifier로 받을 수 있게 했다.
+  - 응답에 `data.user` 객체를 포함하도록 했다.
+- AI 이미지 분석 서버 주소를 루트 `.env`에 갱신했다.
+  - `AI_SERVER_URL`은 ngrok `/docs` 주소로 저장했으며, 백엔드는 자동으로 `/api/image` 호출 주소로 변환한다.
+  - 실제 주소/비밀값은 워크로그에 기록하지 않는다.
+- 취약계층 인증서 QR 기능은 아직 구현하지 않았다. 설계만 합의했다.
+  - 취약계층 QR은 로그인용이 아니라 "자격 인증용"이다.
+  - 앱에서는 취약계층 인증서 QR을 스캔해 이름, 전화번호, 주소, 인증서 번호 등을 자동 입력하고 DB 사전 등록 정보와 대조한다.
+  - 키오스크에서는 회원가입/로그인 없이 취약계층 인증서 QR만으로 자격을 확인하고 나눔받기 절차로 진행한다.
+  - 나눔을 실제로 받으면 어떤 인증서의 사람이 어떤 물건을 받았는지 DB 로그를 남겨야 한다.
+- DB 담당자에게 전달할 최종 요청사항을 정리했다.
+  - `REVIEW` 테이블은 이미 있으므로 새로 만들 필요 없음. 다만 `UNIQUE(donate_id, writer_id)` 제약 추가 권장.
+  - `VULNERABLE_CERTIFICATE` 테이블 추가 필요: 취약계층 인증서 QR 검증용.
+  - `DONATION_RECEIPT_LOG` 테이블 추가 필요: 비회원 취약계층 QR 수령 기록 저장용.
+  - `DYNAMIC_QR` 테이블 추가 권장: 앱 로그인용 QR 기록 보존 및 재사용 방지용.
+  - `CONTACT_INQUIRY` 테이블 추가 권장: 마이페이지 관리자 문의 저장용.
+  - `MEMBER.profile_image`, `MEMBER.bio` 컬럼은 프로필 사진/자기소개 저장이 필요할 경우 선택 추가.
+- 기존 DB 테이블 문서 확인 결과:
+  - `ITEM_DONATE.status`에 `completed`가 이미 명시되어 있으므로 별도 상태값 추가 요청은 필요 없다.
+  - 찜 테이블은 `ITEM_DONATE_LIKE`, `ITEM_REQUEST_LIKE`가 이미 있으므로 DB 담당자에게 새 테이블 요청은 필요 없다. 백엔드 SQL이 이 이름을 사용하도록 맞추면 된다.
+- 검증:
+  - 변경한 주요 백엔드 파일에 대해 `node --check` 문법 검사를 통과했다.
+  - 실제 서버 실행 및 DB 연결 통합 테스트는 아직 하지 않았다.
+- 남은 일:
+  - DB 담당자가 추가/제약 변경을 반영하면 백엔드 SQL을 메모리 임시 저장에서 DB 저장으로 전환해야 한다.
+  - 취약계층 인증서 QR 검증 API와 수령 로그 API는 구현 전 사용자 확인을 먼저 받아야 한다.
+  - 프론트 연결은 별도 작업이다. 현재 요청 범위에서는 프론트 파일을 수정하지 않았다.
