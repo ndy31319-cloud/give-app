@@ -5,7 +5,7 @@ const db = require("../db");
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "please-change-this-secret";
+const JWT_SECRET = process.env.JWT_SECRET || "give-local-development-secret";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 
 const formatUser = (user) => ({

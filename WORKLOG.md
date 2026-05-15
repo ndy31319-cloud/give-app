@@ -142,3 +142,45 @@
   - DB 담당자가 추가/제약 변경을 반영하면 백엔드 SQL을 메모리 임시 저장에서 DB 저장으로 전환해야 한다.
   - 취약계층 인증서 QR 검증 API와 수령 로그 API는 구현 전 사용자 확인을 먼저 받아야 한다.
   - 프론트 연결은 별도 작업이다. 현재 요청 범위에서는 프론트 파일을 수정하지 않았다.
+
+### 2026-05-14
+- 현재 프로젝트 구조를 정리했다.
+  - `backend`: Express/MySQL 백엔드. 루트 `GIVE` 폴더에서 `npm start`로 실행한다.
+  - `frontend-app`: 모바일 앱 프론트. `https://github.com/gkstmdwo999/give_PJ.git`에서 받은 Expo/React Native 프로젝트다.
+  - `frontend-web`: 웹 프론트. `https://github.com/LeeYongWo-o/web_project.git`에서 받은 Create React App 프로젝트다.
+- `frontend-app` 폴더 구조를 평탄화했다.
+  - 이전에는 `frontend-app/give_PJ`처럼 한 단계 더 들어가 있었으나, 현재는 `frontend-app` 자체가 프론트 앱 루트다.
+  - `frontend-app`의 Git 원격은 `https://github.com/gkstmdwo999/give_PJ.git`이다.
+- `frontend-app` 백엔드 연결 상태:
+  - Android 에뮬레이터 기준 로컬 API 주소는 `frontend-app/.env.local`에 `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`으로 설정했다.
+  - PC 웹/브라우저 기준으로 볼 때는 `http://localhost:3000`을 쓰지만, Android 에뮬레이터에서는 PC의 localhost가 `10.0.2.2`다.
+  - 백엔드는 루트 `GIVE`에서 `npm start`로 별도 실행해야 하고, 앱은 `frontend-app`에서 `npm run android` 또는 `npm run android:clear`로 실행한다.
+- `frontend-app`에서 PDF API 명세서 기준으로 일부 API 경로를 맞췄다.
+  - 회원가입 기본 경로: `/api/members/signup`
+  - 이미지 분석 기본 경로: `/api/posts/analyze`
+  - 마이페이지 요약/내역/통계/문의: `/api/mypage/summary`, `/api/mypage/histories`, `/api/mypage/stats`, `/api/mypage/contact`
+  - 내 정보 수정/동네 수정: `/api/members/me`, `/api/members/me/location`
+  - 채팅 목록/메시지 조회: `/api/chats/rooms`, `/api/chats/rooms/:roomId/messages`
+- `frontend-app` 마이페이지 일부 기능을 백엔드 API 호출로 연결했다.
+  - 프로필 수정, 동네 수정, 나눔 통계, 나눔/활동 내역, 관리자 문의가 API를 호출하도록 변경했다.
+- 백엔드 JWT 설정을 정리했다.
+  - `backend/server.js`가 루트 `.env`를 읽도록 변경했다.
+  - `POST /api/auth/login`과 인증 미들웨어가 같은 `JWT_SECRET`을 쓰도록 기본값을 맞췄다.
+  - 회원가입 API가 성공 시 로그인 응답과 비슷하게 `data.token`, `data.user`를 반환하도록 보강했다.
+- 로그인 관련 확인:
+  - `asdf@asdf.com` 계정은 DB에 존재한다.
+  - DB에 일부 오래된 테스트 계정은 `pw1`, `pw2` 같은 평문 비밀번호로 저장되어 있으나, 로그인은 bcrypt 해시 계정만 허용하는 상태로 유지했다.
+  - 따라서 평문 비밀번호 계정은 로그인되지 않는다. 필요하면 새로 회원가입해서 bcrypt 해시 계정을 만들어야 한다.
+- `frontend-web` 상태:
+  - `frontend-web`은 방금 받은 웹 프론트 저장소이며, 현재는 백엔드 API와 연결되지 않은 목업 구조다.
+  - 로그인/회원가입은 Zustand 로컬 상태와 alert/console 기반이고, `/api/auth/login`, `/api/members/signup` 호출은 아직 없다.
+  - 웹 프론트를 백엔드에 연결하려면 `frontend-web/.env.local`에 `REACT_APP_API_URL=http://localhost:3000`을 두고, 로그인/회원가입 컴포넌트에서 fetch/axios로 백엔드 API를 호출하도록 수정해야 한다.
+  - CRA 웹 기본 포트도 3000이라 백엔드와 충돌한다. 웹 실행 시에는 예를 들어 `PORT=3001 npm start`로 실행하는 것이 좋다.
+- `frontend-web/givegive.zip`은 원격 저장소에 들어있던 압축파일이었고, 실행에는 필요 없어 보여 로컬에서 삭제했다. 삭제 상태는 `frontend-web` Git 변경사항으로 남아 있다.
+- 검증:
+  - `frontend-app`에서 `npx tsc --noEmit` 통과.
+  - `frontend-app`에서 `npm run lint` 통과.
+  - 백엔드 주요 변경 파일에 대해 `node --check` 통과.
+- 주의:
+  - 루트 `.env`와 `frontend-app/.env.local`은 로컬 설정 파일이며 GitHub에 올리지 않는다.
+  - 백엔드 비밀값, DB 비밀번호, Firebase private key 등은 워크로그에 기록하지 않는다.

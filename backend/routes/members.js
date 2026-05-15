@@ -1,9 +1,12 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || "give-local-development-secret";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 
 const requireDevelopmentOnly = (req, res, next) => {
   if (process.env.NODE_ENV === "production") {
@@ -258,17 +261,37 @@ router.post("/signup", async (req, res) => {
       );
     }
 
+    const token = jwt.sign(
+      {
+        member_id: result.insertId,
+        email,
+        role_id,
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN },
+    );
+
     return res.status(201).json({
       success: true,
       message: "Signup completed.",
       data: {
+        token,
+        user: {
+          id: result.insertId,
+          memberId: result.insertId,
+          member_id: result.insertId,
+          name,
+          nickname,
+          email,
+          phone: formattedPhone,
+          roleId: role_id,
+          role_id,
+          dongName: dong_name,
+          dong_name,
+        },
         member_id: result.insertId,
-        name,
-        nickname,
         email,
-        phone: formattedPhone,
         role_id,
-        dong_name,
       },
     });
   } catch (error) {
