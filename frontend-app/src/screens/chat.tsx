@@ -70,12 +70,27 @@ export function ChatRoomScreen() {
   const [isSending, setIsSending] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
 
-  const chatRoom = useMemo(() => chatRooms.find((item) => item.id === id) ?? chatRooms[0], [chatRooms, id]);
+  const chatRoom = useMemo(() => chatRooms.find((item) => item.id === id) ?? null, [chatRooms, id]);
   const relatedPost = useMemo(
-    () => (chatRoom.postId ? posts.find((item) => item.id === chatRoom.postId) ?? null : null),
-    [chatRoom.postId, posts],
+    () => (chatRoom?.postId ? posts.find((item) => item.id === chatRoom.postId) ?? null : null),
+    [chatRoom?.postId, posts],
   );
-  const messages = messagesByChat[chatRoom.id] ?? [];
+  const messages = chatRoom ? messagesByChat[chatRoom.id] ?? [] : [];
+
+  if (!chatRoom) {
+    return (
+      <AppScreen>
+        <AppHeader title="채팅방" />
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>채팅방을 찾을 수 없습니다.</Text>
+          <Text style={styles.listSubtitle}>게시글에서 다시 채팅을 시작해주세요.</Text>
+        </View>
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <AppButton label="채팅 목록으로" onPress={() => router.replace('/chat')} />
+        </View>
+      </AppScreen>
+    );
+  }
 
   return (
     <AppScreen>

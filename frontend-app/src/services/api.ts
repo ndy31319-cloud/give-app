@@ -1054,6 +1054,63 @@ export const communityAPI = {
 };
 
 export const chatAPI = {
+  async createRoom(payload: {
+    participantIds: string[];
+    relatedPostId: string;
+    relatedPostType: Post['type'];
+    currentUserId: string;
+    relatedPost?: Post;
+    authToken?: string;
+  }): ApiResult<ChatRoom> {
+    const response = await requestEnvelope<any>(
+      `${backendConfig.endpoints.chats}/rooms`,
+      {
+        method: 'POST',
+        headers: buildAuthHeaders(payload.authToken, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          participantIds: payload.participantIds,
+          relatedPostId: payload.relatedPostId,
+          relatedPostType: payload.relatedPostType,
+        }),
+      },
+    );
+
+    if (response.error) {
+      return { data: null as never, error: response.error };
+    }
+
+    if (response.data) {
+      return {
+        data: mapBackendChatRoom(response.data, payload.currentUserId),
+        error: null,
+      };
+    }
+
+    const relatedPost = payload.relatedPost;
+    const otherUserId = payload.participantIds[0] ?? relatedPost?.author.id ?? '';
+    const roomId = `mock_room_${payload.relatedPostId}_${payload.currentUserId}_${otherUserId}`;
+
+    return {
+      data: {
+        id: roomId,
+        roomStatus: 'open',
+        donorId: relatedPost?.type === 'share' ? otherUserId : payload.currentUserId,
+        requesterId: relatedPost?.type === 'need' ? otherUserId : payload.currentUserId,
+        userId: otherUserId,
+        userName: relatedPost?.author.name ?? '상대방',
+        userNickname: relatedPost?.author.nickname,
+        userLocation: relatedPost?.location.neighborhood ?? '동네 정보 없음',
+        postId: payload.relatedPostId,
+        postType: payload.relatedPostType,
+        lastMessage: '',
+        timeLabel: '방금',
+        unreadCount: 0,
+        mannerTemperature: relatedPost?.author.temperature ?? 36.5,
+      },
+      error: null,
+    };
+  },
+
   async listRooms(memberId: string, authToken?: string): ApiResult<ChatRoom[]> {
     const response = await requestEnvelope<{ chats?: any[] } | any[]>(
       `${backendConfig.endpoints.chats}/rooms`,

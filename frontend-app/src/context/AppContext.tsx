@@ -51,6 +51,7 @@ interface AppContextValue {
   updateProfile: (data: Partial<User>) => Promise<{ error: string | null }>;
   updateLocation: (location: NeighborhoodLocation) => Promise<{ error: string | null }>;
   addPost: (payload: CreatePostInput) => Promise<{ error: string | null }>;
+  startChatWithPost: (post: Post) => Promise<{ roomId: string | null; error: string | null }>;
   sendMessage: (chatId: string, text: string) => Promise<{ error: string | null }>;
   markNotificationRead: (id: string) => void;
   issueDynamicQr: (
@@ -263,6 +264,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setPosts((prev) => [newPost, ...prev]);
     return { error: null };
+  }
+
+  async function startChatWithPost(post: Post) {
+    if (!user) {
+      return { roomId: null, error: '로그인이 필요합니다.' };
+    }
+
+    if (!post.author.id) {
+      return { roomId: null, error: '게시글 작성자 정보를 찾을 수 없습니다.' };
+    }
+
+    if (String(post.author.id) === String(user.id)) {
+      return { roomId: null, error: '본인 게시글에는 채팅을 시작할 수 없습니다.' };
+    }
+
+    const existingRoom = chatRooms.find(
+      (room) =>
+        String(room.postId) === String(post.id) &&
+        String(room.userId) === String(post.author.id),
+    );
+
+    if (existingRoom) {
+      return { roomId: existingRoom.id, error: null };
+    }
+
+    const result = await chatAPI.createRoom({
+      participantIds: [post.author.id],
+      relatedPostId: post.id,
+      relatedPostType: post.type,
+      currentUserId: user.id,
+      relatedPost: post,
+      authToken: authToken ?? undefined,
+    });
+
+    if (result.error || !result.data) {
+      return { roomId: null, error: result.error ?? '채팅방을 만들 수 없습니다.' };
+    }
+
+    const room = result.data;
+    setChatRooms((prev) => {
+      const exists = prev.some((item) => item.id === room.id);
+      return exists ? prev.map((item) => (item.id === room.id ? room : item)) : [room, ...prev];
+    });
+
+    return { roomId: room.id, error: null };
   }
 
   async function sendMessage(chatId: string, text: string) {
@@ -519,6 +565,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateProfile,
         updateLocation,
         addPost,
+        startChatWithPost,
         sendMessage,
         markNotificationRead,
         issueDynamicQr,

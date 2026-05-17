@@ -248,8 +248,39 @@ export function HomeScreen() {
 
 export function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { posts, user } = useAppContext();
-  const post = posts.find((item) => item.id === id) ?? posts[0];
+  const { posts, startChatWithPost, user } = useAppContext();
+  const [isStartingChat, setIsStartingChat] = useState(false);
+  const post = posts.find((item) => item.id === id);
+
+  async function handleStartChat() {
+    if (!post || isStartingChat) {
+      return;
+    }
+
+    setIsStartingChat(true);
+    const result = await startChatWithPost(post);
+    setIsStartingChat(false);
+
+    if (result.error || !result.roomId) {
+      Alert.alert('채팅 연결 실패', result.error ?? '채팅방을 열 수 없습니다.');
+      return;
+    }
+
+    router.push(`/chat/${result.roomId}`);
+  }
+
+  if (!post) {
+    return (
+      <AppScreen>
+        <AppHeader title="게시글 상세" />
+        <View style={styles.homeEmptyState}>
+          <Ionicons name="document-text-outline" size={28} color={colors.textLight} />
+          <Text style={styles.homeEmptyStateTitle}>게시글을 찾을 수 없습니다.</Text>
+          <Text style={styles.homeEmptyStateDescription}>목록에서 다시 선택해주세요.</Text>
+        </View>
+      </AppScreen>
+    );
+  }
 
   return (
     <AppScreen scroll contentContainerStyle={{ paddingBottom: 110 }}>
@@ -319,7 +350,13 @@ export function PostDetailScreen() {
       </View>
 
       <View style={styles.bottomActions}>
-        <AppButton label="채팅하기" variant="secondary" onPress={() => router.push(`/chat/${post.id}`)} style={{ flex: 1 }} />
+        <AppButton
+          label={isStartingChat ? '연결 중' : '채팅하기'}
+          variant="secondary"
+          disabled={isStartingChat}
+          onPress={handleStartChat}
+          style={{ flex: 1 }}
+        />
         <AppButton
           label={post.type === 'share' ? '나눔 신청' : '나눔하기'}
           onPress={() => Alert.alert('안내', '이 기능은 채팅 연결 중심으로 이어집니다.')}
