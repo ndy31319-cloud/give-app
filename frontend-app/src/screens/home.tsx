@@ -460,12 +460,27 @@ export function WriteFormScreen() {
 
   const handleAutoFill = () => {
     if (!aiAnalysis) return;
+    const nextTitle = aiAnalysis.suggestedTitle;
+    const nextDescription = aiAnalysis.aiGeneratedPost;
+
+    if (!nextDescription) {
+      Alert.alert('AI 추천 글 없음', 'AI가 생성한 게시글 본문을 받지 못했습니다. 백엔드 AI 응답에 ai_generated_post가 포함되어야 합니다.');
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
-      title: aiAnalysis.suggestedTitle ?? prev.title,
-      description: aiAnalysis.suggestedDescription ?? prev.description,
+      title: nextTitle ?? prev.title,
+      description: nextDescription ?? prev.description,
       category: aiAnalysis.recommendedCategory ?? prev.category,
     }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.title;
+      delete next.description;
+      delete next.category;
+      return next;
+    });
   };
 
   const validate = () => {
@@ -582,9 +597,31 @@ export function WriteFormScreen() {
             {aiAnalysis ? (
               <View style={styles.aiSuggestionCard}>
                 <Text style={styles.aiSuggestionTitle}>AI 인식 결과</Text>
-                <Text style={styles.sectionDescription}>
-                  {aiAnalysis.detectedItem}으로 인식했습니다. 필요하면 AI 추천 글쓰기로 제목과 내용을 자동 작성할 수 있어요.
-                </Text>
+                {aiAnalysis.suggestedTitle ? (
+                  <Text style={styles.aiSuggestionText}>추천 제목: {aiAnalysis.suggestedTitle}</Text>
+                ) : (
+                  <Text style={styles.aiSuggestionText}>{aiAnalysis.detectedItem}으로 인식했습니다.</Text>
+                )}
+                {aiAnalysis.recommendedCategory ? (
+                  <Text style={styles.aiSuggestionText}>
+                    카테고리: {aiAnalysis.recommendedCategoryLabel ?? aiAnalysis.recommendedCategory}
+                  </Text>
+                ) : null}
+                {aiAnalysis.confidence ? (
+                  <Text style={styles.aiSuggestionText}>신뢰도: {aiAnalysis.confidence}%</Text>
+                ) : null}
+                {aiAnalysis.extractedFeatures?.length ? (
+                  <View style={styles.aiFeatureList}>
+                    {aiAnalysis.extractedFeatures.map((feature) => (
+                      <Text key={feature} style={styles.aiFeatureItem}>
+                        • {feature}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {aiAnalysis.aiGeneratedPost ? (
+                  <Text style={styles.aiGeneratedPost}>{aiAnalysis.aiGeneratedPost}</Text>
+                ) : null}
                 <AppButton label="AI 추천 글쓰기" variant="secondary" onPress={handleAutoFill} />
               </View>
             ) : null}

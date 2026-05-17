@@ -8,6 +8,13 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "give-local-development-secret";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 
+const formatPhoneNumber = (phone) => {
+  const cleaned = String(phone || "").replace(/\D/g, "");
+  return cleaned.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1-$2-$3");
+};
+
+const normalizeLoginIdentifier = (value) => String(value || "").trim();
+
 const formatUser = (user) => ({
   id: user.member_id,
   memberId: user.member_id,
@@ -16,6 +23,9 @@ const formatUser = (user) => ({
   nickname: user.nickname,
   email: user.email,
   phone: user.phone,
+  role: user.role_name,
+  roleName: user.role_name,
+  role_name: user.role_name,
   roleId: user.role_id,
   role_id: user.role_id,
   dongName: user.dong_name,
@@ -25,11 +35,12 @@ const formatUser = (user) => ({
 });
 
 router.post("/login", async (req, res) => {
-  const identifier = req.body.email || req.body.phone;
-  const password = req.body.password || req.body.member_pw;
+  const identifier = normalizeLoginIdentifier(req.body.identifier || req.body.email || req.body.phone);
+  const memberPw = req.body.member_pw || req.body.password;
+  const formattedPhone = formatPhoneNumber(identifier);
 
   try {
-    if (!identifier || !password) {
+    if (!identifier || !memberPw) {
       return res.status(400).json({
         success: false,
         message: "이메일 또는 전화번호와 비밀번호를 입력해주세요.",
@@ -37,8 +48,12 @@ router.post("/login", async (req, res) => {
     }
 
     const [users] = await db.query(
-      "SELECT * FROM MEMBER WHERE email = ? OR phone = ? LIMIT 1",
-      [identifier, identifier],
+      `SELECT m.*, r.role_name
+       FROM MEMBER m
+       LEFT JOIN ROLE r ON m.role_id = r.role_id
+       WHERE m.email = ? OR m.phone = ? OR m.phone = ?
+       LIMIT 1`,
+      [identifier, identifier, formattedPhone],
     );
     const user = users[0];
 
@@ -49,7 +64,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.member_pw);
+    const isMatch = await bcrypt.compare(memberPw, user.member_pw);
 
     if (!isMatch) {
       return res.status(401).json({
@@ -63,6 +78,7 @@ router.post("/login", async (req, res) => {
         member_id: user.member_id,
         email: user.email,
         role_id: user.role_id,
+        role: user.role_name,
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
@@ -72,10 +88,15 @@ router.post("/login", async (req, res) => {
       success: true,
       message: "로그인에 성공했습니다.",
       data: {
+        access_token: token,
         token,
         user: formatUser(user),
         member_id: user.member_id,
+        nickname: user.nickname,
+        name: user.name,
         email: user.email,
+        phone: user.phone,
+        role: user.role_name,
         role_id: user.role_id,
       },
     });

@@ -444,8 +444,13 @@ export interface ImageAnalysisResult {
   confidence: number;
   detectedItem: string;
   recommendedCategory?: string;
+  recommendedCategoryLabel?: string;
   suggestedTitle?: string;
   suggestedDescription?: string;
+  isSameItem?: boolean;
+  extractedFeatures?: string[];
+  aiGeneratedPost?: string;
+  rawAiResult?: unknown;
 }
 
 export interface CreatePostInput {

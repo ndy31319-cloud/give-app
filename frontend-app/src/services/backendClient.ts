@@ -89,7 +89,7 @@ export async function requestEnvelope<T>(path: string, init?: RequestInit) {
     }
 
     return {
-      data: (raw?.data ?? null) as T | null,
+      data: (raw && 'data' in raw ? raw.data : raw) as T | null,
       error: null,
     };
   } catch {

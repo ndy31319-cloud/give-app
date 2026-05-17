@@ -40,7 +40,8 @@
           "cameraPermission": "게시글 사진 촬영과 AI 판독을 위해 카메라 권한이 필요합니다."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-image"
     ]
   }
 }

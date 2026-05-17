@@ -123,6 +123,23 @@ function buildFilePart(image: UploadableImage) {
   } as any;
 }
 
+function normalizeAiCategory(category?: string | null) {
+  const value = String(category || '').trim();
+  const lowerValue = value.toLowerCase();
+
+  if (!value) return undefined;
+  if (categoryOptions.some((option) => option.id === value)) return value;
+  if (value.includes('생활') || value.includes('주방') || lowerValue.includes('household')) return 'household';
+  if (value.includes('전자') || value.includes('디지털') || lowerValue.includes('electronic')) return 'electronics';
+  if (value.includes('가구') || value.includes('책장') || lowerValue.includes('furniture')) return 'furniture';
+  if (value.includes('도서') || value.includes('책') || lowerValue.includes('book')) return 'books';
+  if (value.includes('의류') || value.includes('옷') || lowerValue.includes('cloth')) return 'clothing';
+  if (value.includes('유아') || value.includes('아기') || lowerValue.includes('baby')) return 'baby';
+  if (lowerValue.includes('kitchen')) return 'kitchen';
+
+  return value;
+}
+
 function inferFromFilename(image: UploadableImage): ImageAnalysisResult {
   const name = `${image.name} ${image.uri}`.toLowerCase();
 
@@ -284,6 +301,14 @@ function resolveRoleName(roleId: string): RoleCode {
   return mockRoles.find((role) => role.roleId === roleId)?.roleName ?? 'USER';
 }
 
+function toBackendPostType(type: CreatePostInput['type']) {
+  return type === 'share' ? 'donate' : 'request';
+}
+
+function toProductId(category: string) {
+  return mockProducts.find((product) => product.category === category)?.productId ?? category;
+}
+
 function buildUserFromDraft(draft: SignupDraft, location: NeighborhoodLocation): User {
   const roleCode: RoleCode = draft.isVulnerable ? 'BENEFICIARY' : 'USER';
   const member: MemberRecord = {
@@ -337,10 +362,14 @@ function createPostViewFromPayload(payload: CreatePostInput, user: User): Post {
 
 export const memberAPI = {
   async login(payload: { phone: string; password: string }): ApiResult<{ user: User; token: string }> {
-    const response = await safeFetch<{ data?: { user: User; token: string } }>('/members/login', {
+    const response = await safeFetch<{ data?: { user: User; token: string } }>('/api/auth/login', {
       method: 'POST',
       headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        email: payload.phone,
+        phone: payload.phone,
+        password: payload.password,
+      }),
     });
 
     if (response?.data) {
@@ -364,17 +393,28 @@ export const memberAPI = {
 
   async signup(draft: SignupDraft, location: NeighborhoodLocation): ApiResult<{ user: User; token: string }> {
     const requestPayload = {
+      role: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_name: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_id: draft.isVulnerable ? 'role_beneficiary' : 'role_user',
       roleId: draft.isVulnerable ? 'role_beneficiary' : 'role_user',
+      password: draft.password ?? 'Give1234',
+      member_pw: draft.password ?? 'Give1234',
       memberPw: draft.password ?? 'Give1234',
       name: draft.name ?? '사용자',
       nickname: draft.nickname ?? draft.name ?? '사용자',
       email: draft.email ?? '',
       phone: draft.phone ?? '',
+      certificate_number: '',
+      qr_code: '',
+      dong_name: location.dongName,
       dongName: location.dongName,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      birth_date: draft.birthdate ?? '',
       birthdate: draft.birthdate ?? '',
     };
 
-    const response = await safeFetch<{ data?: { user: User; token: string } }>('/members', {
+    const response = await safeFetch<{ data?: { user: User; token: string } }>('/api/members/signup', {
       method: 'POST',
       headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(requestPayload),
@@ -1099,6 +1139,8 @@ export const chatAPI = {
         method: 'POST',
         headers: buildAuthHeaders(payload.authToken, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({
+          content: payload.content,
+          message_type: payload.messageType ?? 'TEXT',
           text: payload.content,
           messageType: payload.messageType ?? 'TEXT',
         }),
@@ -1130,17 +1172,20 @@ export const chatAPI = {
     };
   },
 
-  async markAsRead(chatRoomId: string, memberId: string): ApiResult<{ success: boolean }> {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/chat-rooms/${chatRoomId}/messages/read`,
+  async markAsRead(chatRoomId: string, memberId: string, authToken?: string): ApiResult<{ success: boolean }> {
+    const response = await requestEnvelope<{ success?: boolean }>(
+      `${backendConfig.endpoints.chats}/rooms/${chatRoomId}/read`,
       {
         method: 'PATCH',
-        headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+        headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ memberId }),
       },
     );
-    if (response?.data) {
-      return { data: response.data, error: null };
+    if (response.error) {
+      return { data: null as never, error: response.error };
+    }
+    if (response.data) {
+      return { data: { success: response.data.success ?? true }, error: null };
     }
     return { data: { success: true }, error: null };
   },
@@ -1521,10 +1566,10 @@ export const reviewAPI = {
 export const authAPI = {
   async login(payload: { identifier: string; password: string }) {
     const identifier = payload.identifier.trim();
-    const backendPayload =
-      identifier.includes('@')
-        ? { email: identifier, password: payload.password }
-        : { phone: identifier, password: payload.password };
+    const backendPayload = {
+      identifier,
+      member_pw: payload.password,
+    };
 
     const backendResult = await requestEnvelope<{ user: any; token: string }>(
       backendConfig.endpoints.authLogin,
@@ -1560,12 +1605,20 @@ export const authAPI = {
       password: draft.password ?? 'Give1234',
       member_pw: draft.password ?? 'Give1234',
       phone: draft.phone ?? '',
+      role: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_name: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_id: draft.isVulnerable ? 'role_beneficiary' : 'role_user',
+      certificate_number: '',
+      qr_code: '',
+      birth_date: draft.birthdate ?? '',
       birthdate: draft.birthdate ?? '',
       isVulnerable: draft.isVulnerable ?? false,
       vulnerableTypes: draft.vulnerableTypes ?? [],
       location: toLocationString(location),
-      dongName: location.dongName,
       dong_name: location.dongName,
+      dongName: location.dongName,
+      latitude: location.latitude,
+      longitude: location.longitude,
     };
 
     const backendResult = await requestEnvelope<{ user: any; token: string }>(
@@ -1604,13 +1657,24 @@ export const postAPI = {
     const authToken = context?.authToken ?? undefined;
 
     const formData = new FormData();
+    const backendPostType = toBackendPostType(payload.type);
+    const productId = toProductId(payload.category);
+
+    formData.append('post_type', backendPostType);
     formData.append('type', payload.type);
+    formData.append('frontend_type', payload.type);
     formData.append('title', payload.title);
     formData.append('content', payload.description);
     formData.append('description', payload.description);
+    formData.append('category_id', productId);
+    formData.append('product_id', productId);
     formData.append('category', payload.category);
     formData.append('item_name', payload.aiAnalysis?.detectedItem ?? payload.title);
     formData.append('item_condition', '상태 미기재');
+    formData.append('status', 'open');
+    formData.append('dong_name', payload.location.dongName);
+    formData.append('latitude', String(payload.location.latitude));
+    formData.append('longitude', String(payload.location.longitude));
     formData.append('location', toLocationString(payload.location));
     if (payload.urgency) {
       formData.append('urgency', payload.urgency);
@@ -1691,25 +1755,57 @@ export const postAPI = {
     if (response.data) {
       const firstAnalysis = Array.isArray(response.data.analyzed_images)
         ? response.data.analyzed_images[0]
-        : null;
+        : response.data;
       const firstProblem = Array.isArray(response.data.problematic_images)
         ? response.data.problematic_images[0]
         : null;
+      const rawAiResult = firstAnalysis?.raw_ai_result ?? firstAnalysis;
+      const suggestedTitle =
+        firstAnalysis?.suggested_title ??
+        rawAiResult?.suggested_title ??
+        response.data.suggested_title ??
+        response.data.suggestedTitle;
+      const aiGeneratedPost =
+        firstAnalysis?.ai_generated_post ??
+        rawAiResult?.ai_generated_post ??
+        response.data.ai_generated_post;
+      const extractedFeatures =
+        firstAnalysis?.extracted_features ??
+        rawAiResult?.extracted_features ??
+        response.data.extracted_features ??
+        [];
+      const category =
+        firstAnalysis?.category ??
+        rawAiResult?.category ??
+        response.data.category ??
+        response.data.recommendedCategory;
+      const normalizedCategory = normalizeAiCategory(category);
 
       return {
         data: {
           isHarmful: Boolean(response.data.isHarmful ?? response.data.is_dangerous ?? firstProblem),
           reason: response.data.reason ?? response.data.message ?? firstProblem?.ai_reason,
-          confidence: Number(response.data.confidence ?? 1),
+          confidence: Number(firstAnalysis?.confidence ?? rawAiResult?.confidence ?? response.data.confidence ?? 1),
           detectedItem:
+            suggestedTitle ??
+            category ??
             response.data.detectedItem ??
             response.data.ai_guess ??
             firstAnalysis?.ai_guess ??
+            rawAiResult?.ai_guess ??
             firstProblem?.ai_guess ??
             '분석 완료',
-          recommendedCategory: response.data.recommendedCategory,
-          suggestedTitle: response.data.suggestedTitle,
-          suggestedDescription: response.data.suggestedDescription,
+          recommendedCategory: normalizedCategory,
+          recommendedCategoryLabel: category,
+          suggestedTitle,
+          suggestedDescription: aiGeneratedPost ?? response.data.suggestedDescription,
+          isSameItem:
+            firstAnalysis?.is_same_item ??
+            rawAiResult?.is_same_item ??
+            response.data.is_same_item,
+          extractedFeatures,
+          aiGeneratedPost,
+          rawAiResult: rawAiResult ?? response.data,
         },
         error: null as string | null,
       };

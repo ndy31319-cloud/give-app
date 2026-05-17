@@ -23,7 +23,7 @@ const normalizeItemCondition = (value) => {
   return "상태 무관";
 };
 
-const resolveAiImageApiUrl = (rawUrl) => {
+const resolveAiPostGenerationApiUrl = (rawUrl) => {
   const trimmedUrl = String(rawUrl || "").trim();
 
   if (!trimmedUrl) {
@@ -34,7 +34,7 @@ const resolveAiImageApiUrl = (rawUrl) => {
 
   let normalizedUrl = trimmedUrl.replace(/\/+$/, "");
 
-  if (normalizedUrl.endsWith("/api/image")) {
+  if (normalizedUrl.endsWith("/api/post/generate-post")) {
     return normalizedUrl;
   }
 
@@ -42,7 +42,7 @@ const resolveAiImageApiUrl = (rawUrl) => {
     normalizedUrl = normalizedUrl.slice(0, -"/docs".length);
   }
 
-  return `${normalizedUrl}/api/image`;
+  return `${normalizedUrl}/api/post/generate-post`;
 };
 
 const getUploadedImages = (req) => {
@@ -61,18 +61,32 @@ const getUploadedImages = (req) => {
   return [];
 };
 
+const firstTextValue = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+};
+
 const analyzeImageWithAI = async (imageFile) => {
   if (!imageFile) {
     throw new Error("이미지 파일이 필요합니다.");
   }
 
-  const aiPredictUrl = resolveAiImageApiUrl(process.env.AI_SERVER_URL);
+  const aiPredictUrl = resolveAiPostGenerationApiUrl(process.env.AI_SERVER_URL);
 
   const form = new FormData();
-  form.append("file", fs.createReadStream(imageFile.path), {
+  form.append("file1", fs.createReadStream(imageFile.path), {
     filename: imageFile.originalname,
     contentType: imageFile.mimetype,
   });
+  form.append("generate_post", "true");
+  form.append("write_post", "true");
+  form.append("with_post", "true");
+  form.append("mode", "write");
 
   const aiResponse = await axios.post(aiPredictUrl, form, {
     headers: {
@@ -91,14 +105,38 @@ const analyzeImagesWithAI = async (imageFiles) => {
   for (let index = 0; index < imageFiles.length; index += 1) {
     const imageFile = imageFiles[index];
     const aiResult = await analyzeImageWithAI(imageFile);
+    const suggestedTitle = firstTextValue(
+      aiResult.suggested_title,
+      aiResult.title,
+      aiResult.post_title,
+      aiResult.generated_title,
+    );
+    const aiGeneratedPost = firstTextValue(
+      aiResult.ai_generated_post,
+      aiResult.generated_post,
+      aiResult.post,
+      aiResult.post_content,
+      aiResult.description,
+      aiResult.content,
+      aiResult.message,
+    );
 
     results.push({
       index,
       filename: imageFile.originalname,
       stored_path: imageFile.path,
       is_dangerous: aiResult.is_dangerous === true,
-      ai_guess: aiResult.ai_guess || null,
-      ai_message: aiResult.message || null,
+      is_same_item: aiResult.is_same_item ?? null,
+      category: aiResult.category ?? null,
+      suggested_title: suggestedTitle,
+      extracted_features: Array.isArray(aiResult.extracted_features)
+        ? aiResult.extracted_features
+        : [],
+      ai_generated_post: aiGeneratedPost,
+      confidence: aiResult.confidence ?? null,
+      ai_guess: aiResult.ai_guess || suggestedTitle || aiResult.category || null,
+      ai_message: aiResult.message || aiGeneratedPost || null,
+      raw_ai_result: aiResult,
     });
   }
 
@@ -155,6 +193,13 @@ const analyzeImage = async (req, res) => {
           filename: image.filename,
           ai_reason: image.ai_message,
           ai_guess: image.ai_guess,
+          is_same_item: image.is_same_item,
+          category: image.category,
+          suggested_title: image.suggested_title,
+          extracted_features: image.extracted_features,
+          ai_generated_post: image.ai_generated_post,
+          confidence: image.confidence,
+          raw_ai_result: image.raw_ai_result,
         })),
       });
     }
@@ -164,8 +209,15 @@ const analyzeImage = async (req, res) => {
       analyzed_images: analysisResults.map((image) => ({
         index: image.index,
         filename: image.filename,
+        is_same_item: image.is_same_item,
+        category: image.category,
+        suggested_title: image.suggested_title,
+        extracted_features: image.extracted_features,
+        ai_generated_post: image.ai_generated_post,
+        confidence: image.confidence,
         ai_guess: image.ai_guess,
         ai_message: image.ai_message,
+        raw_ai_result: image.raw_ai_result,
       })),
     });
   } catch (error) {
@@ -214,6 +266,13 @@ const createPost = async (req, res) => {
             filename: image.filename,
             ai_reason: image.ai_message,
             ai_guess: image.ai_guess,
+            is_same_item: image.is_same_item,
+            category: image.category,
+            suggested_title: image.suggested_title,
+            extracted_features: image.extracted_features,
+            ai_generated_post: image.ai_generated_post,
+            confidence: image.confidence,
+            raw_ai_result: image.raw_ai_result,
           })),
         });
       }

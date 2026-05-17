@@ -429,6 +429,24 @@ export const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.brand,
   },
+  aiSuggestionText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  aiFeatureList: {
+    gap: 4,
+  },
+  aiFeatureItem: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+  },
+  aiGeneratedPost: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.text,
+  },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '700',

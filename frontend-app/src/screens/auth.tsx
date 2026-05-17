@@ -269,7 +269,6 @@ export function LoginScreen() {
           value={identifier}
           onChangeText={setIdentifier}
           error={errors.identifier}
-          hint="백엔드 명세서는 이메일 로그인 기준이고, 현재 프론트는 전화번호도 함께 허용합니다."
         />
         <AppTextField
           label="비밀번호"

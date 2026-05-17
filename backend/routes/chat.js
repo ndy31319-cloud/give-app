@@ -14,11 +14,7 @@ const formatParticipant = (member) => ({
 
 const getCurrentMemberId = (req) => Number(req.user.member_id || req.user.id);
 
-const buildRoomKey = ({
-  participantIds,
-  relatedPostId,
-  relatedPostType,
-}) => {
+const buildRoomKey = ({ participantIds, relatedPostId, relatedPostType }) => {
   const normalizedParticipants = [...new Set(participantIds.map(Number))]
     .filter(Boolean)
     .sort((a, b) => a - b);
@@ -101,8 +97,11 @@ const normalizeRelatedPostType = (type) => {
 };
 
 const getRelatedPostMeta = (roomData) => ({
-  postId: roomData.relatedPostId || roomData.postId || roomData.donateId || null,
-  postType: normalizeRelatedPostType(roomData.relatedPostType || roomData.postType),
+  postId:
+    roomData.relatedPostId || roomData.postId || roomData.donateId || null,
+  postType: normalizeRelatedPostType(
+    roomData.relatedPostType || roomData.postType,
+  ),
 });
 
 const findDonatePost = async (donateId) => {
@@ -225,7 +224,13 @@ const buildReviewStatusPayload = (eligibility, memberId) => ({
   already_reviewed: Boolean(eligibility.existingReview),
 });
 
-const insertReview = async ({ donateId, writerId, targetMemberId, rating, content }) => {
+const insertReview = async ({
+  donateId,
+  writerId,
+  targetMemberId,
+  rating,
+  content,
+}) => {
   try {
     const [result] = await db.query(
       `INSERT INTO REVIEW (donate_id, writer_id, target_member_id, rating, content, created_at)
