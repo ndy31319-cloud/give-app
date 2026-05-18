@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,30 @@ import { AppTextField } from '@/src/components/common/AppTextField';
 import { useAppContext } from '@/src/context/AppContext';
 import { reviewAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
+import { NeighborhoodLocation } from '@/src/types/app';
+import { formatLocationLabel } from '@/src/utils/location';
+
+function buildKakaoMapLinks(location: NeighborhoodLocation) {
+  const label = encodeURIComponent(formatLocationLabel(location));
+  const latitude = location.latitude;
+  const longitude = location.longitude;
+
+  return {
+    app: `kakaomap://look?p=${latitude},${longitude}`,
+    web: `https://map.kakao.com/link/map/${label},${latitude},${longitude}`,
+  };
+}
+
+async function openKakaoMap(location: NeighborhoodLocation) {
+  const links = buildKakaoMapLinks(location);
+
+  try {
+    const canOpenKakaoMap = await Linking.canOpenURL(links.app);
+    await Linking.openURL(canOpenKakaoMap ? links.app : links.web);
+  } catch {
+    await Linking.openURL(links.web);
+  }
+}
 
 export function ChatListScreen() {
   const { chatRooms } = useAppContext();
@@ -76,6 +101,24 @@ export function ChatRoomScreen() {
     [chatRoom?.postId, posts],
   );
   const messages = chatRoom ? messagesByChat[chatRoom.id] ?? [] : [];
+  const handleShareLocation = async () => {
+    if (!user?.location) {
+      Alert.alert('내 위치가 필요합니다', '마이페이지에서 내 동네를 먼저 설정해주세요.');
+      return;
+    }
+
+    setPlusOpen(false);
+    const locationLabel = formatLocationLabel(user.location);
+    const links = buildKakaoMapLinks(user.location);
+    const result = await sendMessage(chatRoom?.id ?? '', `위치 공유: ${locationLabel}\n카카오맵: ${links.web}`);
+
+    if (result.error) {
+      Alert.alert('위치 공유 실패', result.error);
+      return;
+    }
+
+    await openKakaoMap(user.location);
+  };
 
   if (!chatRoom) {
     return (
@@ -189,17 +232,22 @@ export function ChatRoomScreen() {
       <AppModal visible={plusOpen} onClose={() => setPlusOpen(false)}>
         <Text style={styles.modalTitle}>추가 기능</Text>
         <View style={styles.plusGrid}>
-          {[
-            ['image-outline', '사진'],
-            ['camera-outline', '카메라'],
-            ['location-outline', '위치공유'],
-            ['calendar-outline', '거래약속'],
-          ].map(([icon, label]) => (
-            <Pressable key={label} style={styles.plusAction} onPress={() => Alert.alert('안내', `${label} 기능은 추후 연동됩니다.`)}>
-              <Ionicons name={icon as any} size={24} color={colors.brand} />
-              <Text style={styles.plusActionText}>{label}</Text>
-            </Pressable>
-          ))}
+          <Pressable style={styles.plusAction} onPress={() => Alert.alert('안내', '사진 기능은 추후 연동됩니다.')}>
+            <Ionicons name="image-outline" size={24} color={colors.brand} />
+            <Text style={styles.plusActionText}>사진</Text>
+          </Pressable>
+          <Pressable style={styles.plusAction} onPress={() => Alert.alert('안내', '카메라 기능은 추후 연동됩니다.')}>
+            <Ionicons name="camera-outline" size={24} color={colors.brand} />
+            <Text style={styles.plusActionText}>카메라</Text>
+          </Pressable>
+          <Pressable style={styles.plusAction} onPress={handleShareLocation}>
+            <Ionicons name="location-outline" size={24} color={colors.brand} />
+            <Text style={styles.plusActionText}>위치 공유</Text>
+          </Pressable>
+          <Pressable style={styles.plusAction} onPress={handleShareLocation}>
+            <Ionicons name="calendar-outline" size={24} color={colors.brand} />
+            <Text style={styles.plusActionText}>약속장소</Text>
+          </Pressable>
         </View>
         <AppButton label="닫기" onPress={() => setPlusOpen(false)} />
       </AppModal>

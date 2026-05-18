@@ -1,25 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Linking,
   Pressable,
-  ScrollView,
   Text,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { AppButton } from '@/src/components/common/AppButton';
 import { AppHeader } from '@/src/components/common/AppHeader';
+import { buildCurrentLocation, buildKakaoMapUrl, KakaoMapPreview } from '@/src/components/common/KakaoMapPreview';
 import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { useAppContext } from '@/src/context/AppContext';
-import { mockSignupPresets, neighborhoodOptions } from '@/src/data/mockData';
+import { neighborhoodOptions } from '@/src/data/mockData';
 import { colors } from '@/src/theme/colors';
 import { styles } from '@/src/screens/auth.styles';
 import { NeighborhoodLocation } from '@/src/types/app';
 import { captureImage, pickImageFromLibrary } from '@/src/utils/imagePicker';
-import { searchLocations } from '@/src/utils/location';
+import { formatLocationLabel, searchLocations } from '@/src/utils/location';
 import {
   validateEmail,
   validateLoginIdentifier,
@@ -38,6 +40,74 @@ const vulnerableTypes = [
   { id: 'youth', label: '아동/청소년' },
   { id: 'other', label: '기타' },
 ];
+
+function splitPhone(phone = '') {
+  const digits = phone.replace(/\D/g, '').slice(0, 11);
+  return {
+    first: digits.slice(0, 3),
+    second: digits.slice(3, 7),
+    third: digits.slice(7, 11),
+  };
+}
+
+function joinPhone(phoneParts: { first: string; second: string; third: string }) {
+  return [phoneParts.first, phoneParts.second, phoneParts.third].filter(Boolean).join('-');
+}
+
+function PhoneFields({
+  value,
+  onChange,
+  error,
+}: {
+  value: string;
+  onChange: (phone: string) => void;
+  error?: string;
+}) {
+  const parts = splitPhone(value);
+
+  const update = (field: keyof typeof parts, nextValue: string) => {
+    const nextParts = {
+      ...parts,
+      [field]: nextValue.replace(/\D/g, '').slice(0, field === 'first' ? 3 : 4),
+    };
+    onChange(joinPhone(nextParts));
+  };
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.fieldLabel}>전화번호 *</Text>
+      <View style={styles.phoneRow}>
+        <View style={styles.phoneField}>
+          <AppTextField
+            keyboardType="number-pad"
+            value={parts.first}
+            onChangeText={(value) => update('first', value)}
+            placeholder="010"
+          />
+        </View>
+        <Text style={styles.phoneDash}>-</Text>
+        <View style={styles.phoneField}>
+          <AppTextField
+            keyboardType="number-pad"
+            value={parts.second}
+            onChangeText={(value) => update('second', value)}
+            placeholder="1234"
+          />
+        </View>
+        <Text style={styles.phoneDash}>-</Text>
+        <View style={styles.phoneField}>
+          <AppTextField
+            keyboardType="number-pad"
+            value={parts.third}
+            onChangeText={(value) => update('third', value)}
+            placeholder="5678"
+          />
+        </View>
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
+  );
+}
 
 function AuthShell({
   title,
@@ -109,38 +179,8 @@ function SignupForm({
     return Object.keys(nextErrors).length === 0;
   };
 
-  const applyPreset = (presetId: string) => {
-    const preset = mockSignupPresets.find((item) => item.id === presetId);
-    if (!preset) {
-      return;
-    }
-
-    setFormData({
-      name: preset.name,
-      nickname: preset.nickname,
-      email: preset.email,
-      phone: preset.phone,
-      birthdate: preset.birthdate,
-      password: preset.password,
-      confirmPassword: preset.password,
-    });
-    setErrors({});
-  };
-
   return (
     <View style={styles.form}>
-      <View style={styles.sampleSection}>
-        <Text style={styles.sampleTitle}>테스트용 예시 회원 정보 20개</Text>
-        <Text style={styles.supportText}>탭하면 이름, 닉네임, 전화번호, 생년월일, 이메일이 자동 입력됩니다.</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sampleList}>
-          {mockSignupPresets.map((preset) => (
-            <Pressable key={preset.id} onPress={() => applyPreset(preset.id)} style={styles.sampleChip}>
-              <Text style={styles.sampleChipName}>{preset.name}</Text>
-              <Text style={styles.sampleChipMeta}>{preset.nickname}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
       <AppTextField label="이름 *" value={formData.name} onChangeText={(value) => update('name', value)} error={errors.name} />
       <AppTextField label="닉네임 *" value={formData.nickname} onChangeText={(value) => update('nickname', value)} error={errors.nickname} />
       <AppTextField
@@ -151,13 +191,7 @@ function SignupForm({
         onChangeText={(value) => update('email', value)}
         error={errors.email}
       />
-      <AppTextField
-        label="전화번호 *"
-        keyboardType="phone-pad"
-        value={formData.phone}
-        onChangeText={(value) => update('phone', value)}
-        error={errors.phone}
-      />
+      <PhoneFields value={formData.phone} onChange={(value) => update('phone', value)} error={errors.phone} />
       <AppTextField
         label="생년월일 *"
         value={formData.birthdate}
@@ -308,7 +342,7 @@ export function SignupScreen() {
         <AppButton label="예, 맞습니다" onPress={() => router.push('/vulnerable-select')} />
         <AppButton label="아니요" variant="secondary" onPress={() => router.push('/personal-info')} />
         <Text style={styles.supportText}>
-          취약계층 인증은 선택사항이며, 나중에 마이페이지에서도 등록 가능합니다.
+          취약계층으로 가입하는 경우 인증 자료 첨부가 필수입니다.
         </Text>
       </View>
     </AuthShell>
@@ -364,6 +398,9 @@ export function VulnerableSelectScreen() {
 export function VulnerableInfoScreen() {
   const { mergeSignupDraft, signupDraft } = useAppContext();
   const [certificateImageName, setCertificateImageName] = useState(signupDraft.certificateImage?.name ?? '');
+  const [certificateError, setCertificateError] = useState('');
+  const [infoReady, setInfoReady] = useState(Boolean(signupDraft.name && signupDraft.phone));
+  const hasCertificate = Boolean(certificateImageName || signupDraft.certificateImage);
 
   const pickCertificate = async (source: 'camera' | 'gallery') => {
     const image = source === 'camera' ? await captureImage() : await pickImageFromLibrary();
@@ -373,6 +410,7 @@ export function VulnerableInfoScreen() {
 
     mergeSignupDraft({ certificateImage: image });
     setCertificateImageName(image.name);
+    setCertificateError('');
   };
 
   return (
@@ -381,19 +419,51 @@ export function VulnerableInfoScreen() {
         includeCertificate
         onNext={(payload) => {
           mergeSignupDraft({ ...payload, isVulnerable: true });
+          setInfoReady(true);
         }}
       />
       <View style={styles.uploadCard}>
-        <Text style={styles.uploadTitle}>취약계층 증빙 이미지</Text>
-        <Text style={styles.supportText}>카메라로 촬영하거나 갤러리에서 이미지를 선택할 수 있습니다.</Text>
+        <Text style={styles.uploadTitle}>취약계층 인증 서류 *</Text>
+        <Text style={styles.supportText}>취약계층 회원가입을 완료하려면 인증 서류 이미지를 반드시 첨부해야 합니다.</Text>
         {certificateImageName ? <Text style={styles.selectedFile}>{certificateImageName}</Text> : null}
         <View style={styles.inlineButtons}>
           <AppButton label="갤러리 선택" variant="secondary" onPress={() => pickCertificate('gallery')} />
           <AppButton label="카메라 촬영" variant="secondary" onPress={() => pickCertificate('camera')} />
         </View>
-        <AppButton label="동네 설정으로 이동" onPress={() => router.push('/location-setting')} />
+        {certificateError ? <Text style={styles.errorText}>{certificateError}</Text> : null}
+        <AppButton
+          label="동네 설정으로 이동"
+          onPress={() => {
+            if (!infoReady) {
+              setCertificateError('개인정보 입력 후 다음 버튼을 먼저 눌러주세요.');
+              return;
+            }
+            if (!hasCertificate) {
+              setCertificateError('취약계층 인증 자료를 첨부해주세요.');
+              return;
+            }
+            router.push('/location-setting');
+          }}
+        />
       </View>
     </AuthShell>
+  );
+}
+
+export function SignupCompleteScreen() {
+  return (
+    <AppScreen scroll contentContainerStyle={styles.loginContent}>
+      <View style={styles.completeCard}>
+        <View style={styles.logoCircle}>
+          <Ionicons name="checkmark" size={36} color="#fff" />
+        </View>
+        <Text style={styles.centerTitle}>회원가입이 완료되었습니다</Text>
+        <Text style={styles.centerDescription}>
+          이제 동네 기준으로 나눔과 요청 게시글을 확인할 수 있습니다.
+        </Text>
+      </View>
+      <AppButton label="홈으로 이동" onPress={() => router.replace('/(tabs)/index')} />
+    </AppScreen>
   );
 }
 
@@ -414,25 +484,81 @@ export function PersonalInfoScreen() {
 }
 
 export function LocationSettingScreen() {
-  const { completeSignup } = useAppContext();
+  const { completeSignup, signupDraft } = useAppContext();
   const [city, setCity] = useState('서울시');
   const [neighborhood, setNeighborhood] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<NeighborhoodLocation | null>(null);
+  const [signupNeighborhoods, setSignupNeighborhoods] = useState<NeighborhoodLocation[]>([]);
+  const [locating, setLocating] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const results = useMemo(
     () => searchLocations(neighborhoodOptions, city, neighborhood),
     [city, neighborhood],
   );
+  const selectedAlreadyAdded = Boolean(
+    selectedLocation &&
+      signupNeighborhoods.some(
+        (location) =>
+          location.id === selectedLocation.id ||
+          (location.dongName === selectedLocation.dongName && location.district === selectedLocation.district),
+      ),
+  );
+
+  const applySelectedLocation = (location: NeighborhoodLocation) => {
+    setSelectedLocation(location);
+    setCity(location.city);
+    setNeighborhood(location.neighborhood);
+  };
+
+  const setCurrentLocation = async () => {
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('위치 권한이 필요합니다', '현재 위치로 동네를 설정하려면 위치 권한을 허용해주세요.');
+        return;
+      }
+
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const addresses = await Location.reverseGeocodeAsync(current.coords).catch(() => []);
+      applySelectedLocation(buildCurrentLocation(current.coords, addresses[0]));
+    } catch {
+      Alert.alert('현재 위치 확인 실패', '잠시 후 다시 시도해주세요.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const addSelectedNeighborhood = () => {
+    if (!selectedLocation) {
+      Alert.alert('동네를 선택해주세요', '추가할 동네를 먼저 선택해주세요.');
+      return;
+    }
+    if (selectedAlreadyAdded) {
+      return;
+    }
+    setSignupNeighborhoods((prev) => [...prev, selectedLocation]);
+  };
 
   const handleComplete = async () => {
-    if (!selectedLocation) {
+    const representativeLocation = selectedLocation ?? signupNeighborhoods[0] ?? null;
+
+    if (signupDraft.isVulnerable && !signupDraft.certificateImage) {
+      Alert.alert('인증 서류가 필요합니다', '취약계층 회원가입은 인증 서류 첨부가 필수입니다.');
+      router.replace('/vulnerable-info');
+      return;
+    }
+
+    if (!representativeLocation) {
       Alert.alert('동네를 선택해주세요', '가입을 완료하려면 동네를 하나 선택해야 합니다.');
       return;
     }
 
     setLoading(true);
-    const result = await completeSignup(selectedLocation);
+    const result = await completeSignup(representativeLocation);
     setLoading(false);
 
     if (result.error) {
@@ -440,15 +566,20 @@ export function LocationSettingScreen() {
       return;
     }
 
-    router.replace('/(tabs)/index');
+    router.replace('/signup-complete');
   };
 
   return (
     <AuthShell title="내 동네 설정">
-      <View style={styles.form}>
-        <Text style={styles.centerDescription}>
-          주소를 `OO시 OO동` 형태로 입력하고, 반경 5km 이내 이웃 게시글을 기본으로 보게 됩니다.
+      <View style={styles.formCard}>
+        <Text style={styles.sectionText}>
+          현재 위치로 동네를 잡거나 주소를 검색해서 대표 동네를 설정할 수 있습니다. 기본 범위는 5km입니다.
         </Text>
+        <AppButton
+          label={locating ? '현재 위치 확인 중' : '현재 위치로 설정'}
+          onPress={setCurrentLocation}
+          loading={locating}
+        />
         <AppTextField label="시/도" value={city} onChangeText={setCity} placeholder="예: 서울시" />
         <AppTextField
           label="동"
@@ -464,13 +595,80 @@ export function LocationSettingScreen() {
         <Text style={styles.locationNoticeText}>기본 동네 범위는 5km로 설정됩니다.</Text>
       </View>
 
+      <View style={styles.formCard}>
+        <View style={styles.mapHeaderRow}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.settingsTitle}>회원가입 동네 목록</Text>
+            <Text style={styles.sectionText}>여러 동네를 추가하고 가입에 사용할 대표 동네를 선택하세요.</Text>
+          </View>
+          <AppButton
+            label={selectedAlreadyAdded ? '추가됨' : '동네 추가'}
+            variant="secondary"
+            disabled={!selectedLocation || selectedAlreadyAdded}
+            onPress={addSelectedNeighborhood}
+          />
+        </View>
+
+        {signupNeighborhoods.length ? (
+          <View style={styles.neighborhoodList}>
+            {signupNeighborhoods.map((location) => {
+              const active = selectedLocation?.id === location.id;
+              return (
+                <View key={location.id} style={[styles.neighborhoodRow, active && styles.neighborhoodRowActive]}>
+                  <Pressable style={{ flex: 1, gap: 4 }} onPress={() => applySelectedLocation(location)}>
+                    <Text style={[styles.resultTitle, active && styles.resultTitleActive]}>
+                      {formatLocationLabel(location)}
+                    </Text>
+                    <Text style={styles.resultDescription}>{active ? '대표 동네' : `반경 ${location.radiusKm}km`}</Text>
+                  </Pressable>
+                  {!active ? (
+                    <Pressable style={styles.smallIconButton} onPress={() => applySelectedLocation(location)}>
+                      <Ionicons name="checkmark-outline" size={18} color={colors.brand} />
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    style={styles.smallIconButton}
+                    onPress={() => {
+                      setSignupNeighborhoods((prev) => prev.filter((item) => item.id !== location.id));
+                      if (selectedLocation?.id === location.id) {
+                        setSelectedLocation(null);
+                      }
+                    }}>
+                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.sectionText}>아직 추가한 동네가 없습니다.</Text>
+        )}
+      </View>
+
+      <View style={styles.formCard}>
+        <View style={styles.mapHeaderRow}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.settingsTitle}>카카오맵 위치 확인</Text>
+            <Text style={styles.sectionText}>
+              {selectedLocation ? formatLocationLabel(selectedLocation) : '선택한 동네가 없습니다.'}
+            </Text>
+          </View>
+          {selectedLocation ? (
+            <Pressable style={styles.mapOpenButton} onPress={() => Linking.openURL(buildKakaoMapUrl(selectedLocation))}>
+              <Ionicons name="open-outline" size={18} color={colors.brand} />
+            </Pressable>
+          ) : null}
+        </View>
+        <KakaoMapPreview location={selectedLocation} onLocationChange={applySelectedLocation} />
+      </View>
+
       <View style={styles.resultList}>
         {results.map((location) => {
           const active = selectedLocation?.id === location.id;
           return (
             <Pressable
               key={location.id}
-              onPress={() => setSelectedLocation(location)}
+              onPress={() => applySelectedLocation(location)}
               style={[styles.resultCard, active && styles.resultCardActive]}>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={[styles.resultTitle, active && styles.resultTitleActive]}>{location.fullAddress}</Text>

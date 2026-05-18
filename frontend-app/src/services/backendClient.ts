@@ -166,6 +166,7 @@ export function mapBackendUser(raw: any): User {
     isVulnerable: Boolean(raw?.isVulnerable ?? roleCode === 'BENEFICIARY'),
     vulnerableTypes,
     location,
+    neighborhoods: [location],
     profileImage: raw?.profileImage,
     birthdate: raw?.birthdate,
     bio: raw?.bio,
@@ -209,6 +210,9 @@ export function mapBackendPost(raw: any, fallbackLocation?: NeighborhoodLocation
     title: raw?.title ?? '',
     description: raw?.description ?? raw?.content ?? '',
     category: raw?.category ?? 'household',
+    productId: raw?.productId ?? raw?.product_id ?? raw?.category_id,
+    itemName: raw?.itemName ?? raw?.item_name,
+    itemCondition: raw?.itemCondition ?? raw?.item_condition,
     location,
     status: mapBackendPostStatus(raw?.status),
     urgency: mapBackendUrgency(raw?.urgency),
@@ -234,6 +238,9 @@ export function mergeCreatedPost(
     title: string;
     description: string;
     category: string;
+    productId?: string;
+    itemName: string;
+    itemCondition: string;
     location: NeighborhoodLocation;
     images: UploadableImage[];
     urgency?: UrgencyLevel;
@@ -250,6 +257,9 @@ export function mergeCreatedPost(
     title: mapped.title || payload.title,
     description: mapped.description || payload.description,
     category: mapped.category || payload.category,
+    productId: mapped.productId ?? payload.productId,
+    itemName: mapped.itemName ?? payload.itemName,
+    itemCondition: mapped.itemCondition ?? payload.itemCondition,
     location: mapped.location ?? payload.location,
     urgency: mapped.urgency ?? payload.urgency,
     images: mapped.images.length ? mapped.images : payload.images.map((image) => image.uri),

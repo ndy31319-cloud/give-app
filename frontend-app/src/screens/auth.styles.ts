@@ -57,6 +57,19 @@ export const styles = StyleSheet.create({
   form: {
     gap: 16,
   },
+  formCard: {
+    gap: 16,
+    padding: 18,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sectionText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+  },
   sampleSection: {
     gap: 10,
     padding: 14,
@@ -134,6 +147,36 @@ export const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.textMuted,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  phoneField: {
+    flex: 1,
+  },
+  phoneDash: {
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.danger,
+  },
+  completeCard: {
+    alignItems: 'center',
+    gap: 14,
+    padding: 24,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   gridList: {
     gap: 12,
@@ -226,5 +269,48 @@ export const styles = StyleSheet.create({
   resultDescription: {
     fontSize: 13,
     color: colors.textMuted,
+  },
+  mapHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  mapOpenButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brandSoft,
+  },
+  settingsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  neighborhoodList: {
+    gap: 10,
+  },
+  neighborhoodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  neighborhoodRowActive: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  smallIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
   },
 });

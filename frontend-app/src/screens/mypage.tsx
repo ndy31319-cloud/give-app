@@ -1,29 +1,96 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Linking,
   Pressable,
   StyleSheet,
   Switch,
   Text,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 
 import { AppButton } from '@/src/components/common/AppButton';
 import { AppHeader } from '@/src/components/common/AppHeader';
+import { buildCurrentLocation, buildKakaoMapUrl, KakaoMapPreview } from '@/src/components/common/KakaoMapPreview';
 import { AppModal } from '@/src/components/common/AppModal';
 import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { useAppContext } from '@/src/context/AppContext';
-import { mockShareHistory, neighborhoodOptions } from '@/src/data/mockData';
+import { neighborhoodOptions } from '@/src/data/mockData';
 import { MypageStats, mypageAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { NeighborhoodLocation, ShareHistoryItem } from '@/src/types/app';
-import { getEffectiveQrStatus, getQrStatusLabel, getRemainingSeconds } from '@/src/utils/dynamicQr';
 import { pickImageFromLibrary } from '@/src/utils/imagePicker';
-import { formatCompactLocation, searchLocations } from '@/src/utils/location';
+import { formatCompactLocation, formatLocationLabel, searchLocations } from '@/src/utils/location';
+
+function splitPhone(phone = '') {
+  const digits = phone.replace(/\D/g, '').slice(0, 11);
+  return {
+    first: digits.slice(0, 3),
+    second: digits.slice(3, 7),
+    third: digits.slice(7, 11),
+  };
+}
+
+function joinPhone(phoneParts: { first: string; second: string; third: string }) {
+  return [phoneParts.first, phoneParts.second, phoneParts.third].filter(Boolean).join('-');
+}
+
+function PhoneFields({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (phone: string) => void;
+}) {
+  const parts = splitPhone(value);
+
+  const update = (field: keyof typeof parts, nextValue: string) => {
+    const nextParts = {
+      ...parts,
+      [field]: nextValue.replace(/\D/g, '').slice(0, field === 'first' ? 3 : 4),
+    };
+    onChange(joinPhone(nextParts));
+  };
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.inputLabel}>전화번호</Text>
+      <View style={styles.phoneRow}>
+        <View style={styles.phoneFieldWrap}>
+          <AppTextField
+            keyboardType="number-pad"
+            value={parts.first}
+            onChangeText={(value) => update('first', value)}
+            placeholder="010"
+          />
+        </View>
+        <Text style={styles.phoneDash}>-</Text>
+        <View style={styles.phoneFieldWrap}>
+          <AppTextField
+            keyboardType="number-pad"
+            value={parts.second}
+            onChangeText={(value) => update('second', value)}
+            placeholder="1234"
+          />
+        </View>
+        <Text style={styles.phoneDash}>-</Text>
+        <View style={styles.phoneFieldWrap}>
+          <AppTextField
+            keyboardType="number-pad"
+            value={parts.third}
+            onChangeText={(value) => update('third', value)}
+            placeholder="5678"
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
 
 function MenuRow({
   icon,
@@ -46,10 +113,8 @@ function MenuRow({
 }
 
 export function MyPageScreen() {
-  const { user, authToken, activeQrSession, deviceSimulation } = useAppContext();
+  const { user, authToken } = useAppContext();
   const [counts, setCounts] = useState({ shares: 0, requests: 0 });
-  const qrStatus = getEffectiveQrStatus(activeQrSession);
-  const remainingSeconds = getRemainingSeconds(activeQrSession?.expiresAt);
 
   useEffect(() => {
     let mounted = true;
@@ -105,23 +170,8 @@ export function MyPageScreen() {
         </View>
       </View>
 
-      <View style={styles.highlightPanel}>
-        <Text style={styles.highlightPanelTitle}>동적 QR 인증</Text>
-        <Text style={styles.highlightPanelText}>
-          {activeQrSession
-            ? `현재 상태는 ${getQrStatusLabel(qrStatus)}이며 ${
-                qrStatus === 'active' ? `${remainingSeconds}초 후 만료` : '새 발급이 필요'
-              }합니다.`
-            : '아직 발급된 동적 QR이 없습니다. 마이페이지에서 바로 발급하고 기부함 시뮬레이터까지 테스트할 수 있습니다.'}
-        </Text>
-        <Text style={[styles.highlightPanelText, { marginTop: 8 }]}>
-          디바이스 상태: {deviceSimulation.message}
-        </Text>
-      </View>
-
       <View style={styles.menuCard}>
         <MenuRow icon="location-outline" label="내 동네 설정" onPress={() => router.push('/my-location')} />
-        <MenuRow icon="qr-code-outline" label="동적 QR 인증" onPress={() => router.push('/qr')} />
         <MenuRow icon="hardware-chip-outline" label="기부함 디바이스 시뮬레이터" onPress={() => router.push('/device')} />
         <MenuRow icon="heart-outline" label="나의 나눔/활동" onPress={() => router.push('/my-shares')} />
         <MenuRow icon="bar-chart-outline" label="나눔통계" onPress={() => router.push('/my-stats')} />
@@ -166,7 +216,7 @@ export function ProfileEditScreen() {
       <View style={styles.formCard}>
         <AppTextField label="이름" value={formData.name} onChangeText={(value) => setFormData((prev) => ({ ...prev, name: value }))} />
         <AppTextField label="닉네임" value={formData.nickname} onChangeText={(value) => setFormData((prev) => ({ ...prev, nickname: value }))} />
-        <AppTextField label="전화번호" value={formData.phone} onChangeText={(value) => setFormData((prev) => ({ ...prev, phone: value }))} />
+        <PhoneFields value={formData.phone} onChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))} />
         <AppTextField label="이메일" value={formData.email} onChangeText={(value) => setFormData((prev) => ({ ...prev, email: value }))} />
         <AppTextField
           label="자기소개"
@@ -191,24 +241,149 @@ export function ProfileEditScreen() {
 }
 
 export function MyLocationScreen() {
-  const { user, updateLocation } = useAppContext();
+  const { addNeighborhood, removeNeighborhood, user, updateLocation } = useAppContext();
   const [city, setCity] = useState(user?.location.city ?? '서울시');
   const [neighborhood, setNeighborhood] = useState(user?.location.neighborhood ?? '');
   const [selectedLocation, setSelectedLocation] = useState<NeighborhoodLocation | null>(user?.location ?? null);
+  const [locating, setLocating] = useState(false);
 
   const results = useMemo(() => searchLocations(neighborhoodOptions, city, neighborhood), [city, neighborhood]);
+  const neighborhoods = user?.neighborhoods?.length ? user.neighborhoods : user?.location ? [user.location] : [];
+  const selectedAlreadyAdded = Boolean(
+    selectedLocation &&
+      neighborhoods.some(
+        (location) =>
+          location.id === selectedLocation.id ||
+          (location.dongName === selectedLocation.dongName && location.district === selectedLocation.district),
+      ),
+  );
+
+  const setCurrentLocation = async () => {
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('위치 권한이 필요합니다', '현재 위치로 동네를 설정하려면 위치 권한을 허용해주세요.');
+        return;
+      }
+
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const addresses = await Location.reverseGeocodeAsync(current.coords).catch(() => []);
+      const nextLocation = buildCurrentLocation(current.coords, addresses[0]);
+
+      setSelectedLocation(nextLocation);
+      setCity(nextLocation.city);
+      setNeighborhood(nextLocation.neighborhood);
+    } catch {
+      Alert.alert('현재 위치 확인 실패', '잠시 후 다시 시도해주세요.');
+    } finally {
+      setLocating(false);
+    }
+  };
 
   return (
     <AppScreen scroll contentContainerStyle={styles.pageContent}>
       <AppHeader title="내 동네 설정" />
       <View style={styles.formCard}>
         <Text style={styles.sectionText}>주소를 `OO시 OO동` 형태로 입력하고, 기본 범위 5km를 유지합니다.</Text>
+        <AppButton
+          label={locating ? '현재 위치 확인 중' : '현재 위치로 설정'}
+          onPress={setCurrentLocation}
+          loading={locating}
+        />
         <AppTextField label="시/도" value={city} onChangeText={setCity} placeholder="예: 서울시" />
         <AppTextField label="동" value={neighborhood} onChangeText={setNeighborhood} placeholder="예: 역삼동" />
       </View>
       <View style={styles.locationTip}>
         <Ionicons name="walk-outline" size={18} color={colors.brand} />
         <Text style={styles.tipText}>현재 동네 범위는 5km입니다.</Text>
+      </View>
+
+      <View style={styles.formCard}>
+        <View style={styles.mapHeaderRow}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.settingsTitle}>내 동네 목록</Text>
+            <Text style={styles.sectionText}>여러 동네를 추가하고 대표 동네를 선택할 수 있습니다.</Text>
+          </View>
+          <AppButton
+            label={selectedAlreadyAdded ? '추가됨' : '동네 추가'}
+            variant="secondary"
+            disabled={!selectedLocation || selectedAlreadyAdded}
+            onPress={async () => {
+              if (!selectedLocation) {
+                Alert.alert('동네를 선택해주세요', '추가할 동네를 먼저 선택해주세요.');
+                return;
+              }
+              const result = await addNeighborhood(selectedLocation);
+              if (result.error) {
+                Alert.alert('동네 추가 실패', result.error);
+              }
+            }}
+          />
+        </View>
+
+        {neighborhoods.length ? (
+          <View style={styles.neighborhoodList}>
+            {neighborhoods.map((location) => {
+              const active = user?.location.id === location.id;
+              return (
+                <View key={location.id} style={[styles.neighborhoodRow, active && styles.neighborhoodRowActive]}>
+                  <Pressable style={{ flex: 1, gap: 4 }} onPress={() => setSelectedLocation(location)}>
+                    <Text style={[styles.locationCardTitle, active && { color: colors.brand }]}>
+                      {formatLocationLabel(location)}
+                    </Text>
+                    <Text style={styles.chatTime}>{active ? '대표 동네' : `반경 ${location.radiusKm}km`}</Text>
+                  </Pressable>
+                  {!active ? (
+                    <Pressable
+                      style={styles.smallIconButton}
+                      onPress={async () => {
+                        const result = await updateLocation(location);
+                        if (result.error) {
+                          Alert.alert('대표 동네 변경 실패', result.error);
+                        }
+                      }}>
+                      <Ionicons name="checkmark-outline" size={18} color={colors.brand} />
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    style={styles.smallIconButton}
+                    onPress={() => removeNeighborhood(location.id)}
+                    disabled={neighborhoods.length <= 1}>
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color={neighborhoods.length <= 1 ? colors.textLight : colors.danger}
+                    />
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.sectionText}>아직 추가한 동네가 없습니다.</Text>
+        )}
+      </View>
+
+      <View style={styles.formCard}>
+        <View style={styles.mapHeaderRow}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.settingsTitle}>카카오맵 위치 확인</Text>
+            <Text style={styles.sectionText}>
+              {selectedLocation ? formatLocationLabel(selectedLocation) : '선택한 동네가 없습니다.'}
+            </Text>
+          </View>
+          {selectedLocation ? (
+            <Pressable
+              style={styles.mapOpenButton}
+              onPress={() => Linking.openURL(buildKakaoMapUrl(selectedLocation))}>
+              <Ionicons name="open-outline" size={18} color={colors.brand} />
+            </Pressable>
+          ) : null}
+        </View>
+        <KakaoMapPreview location={selectedLocation} onLocationChange={setSelectedLocation} />
       </View>
 
       <View style={styles.resultList}>
@@ -333,7 +508,7 @@ export function MyStatsScreen() {
 export function MySharesScreen() {
   const { authToken } = useAppContext();
   const [selectedItem, setSelectedItem] = useState<ShareHistoryItem | null>(null);
-  const [histories, setHistories] = useState<ShareHistoryItem[]>(mockShareHistory);
+  const [histories, setHistories] = useState<ShareHistoryItem[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -562,6 +737,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
   },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  phoneFieldWrap: {
+    flex: 1,
+  },
+  phoneDash: {
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
   statsSummary: {
     flexDirection: 'row',
     gap: 12,
@@ -635,6 +827,48 @@ const styles = StyleSheet.create({
   resultList: {
     gap: 12,
   },
+  mapHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  mapOpenButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brandSoft,
+  },
+  mapCard: {
+    height: 260,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  kakaoMap: {
+    flex: 1,
+    backgroundColor: colors.surfaceMuted,
+  },
+  mapPlaceholder: {
+    minHeight: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    padding: 18,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  mapPlaceholderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'center',
+  },
   locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -652,6 +886,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.text,
+  },
+  neighborhoodList: {
+    gap: 10,
+  },
+  neighborhoodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  neighborhoodRowActive: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  smallIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
   },
   segmentedRow: {
     flexDirection: 'row',

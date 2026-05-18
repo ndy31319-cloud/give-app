@@ -83,6 +83,7 @@ export interface User {
   isVulnerable: boolean;
   vulnerableTypes?: string[];
   location: NeighborhoodLocation;
+  neighborhoods?: NeighborhoodLocation[];
   profileImage?: string;
   birthdate?: string;
   bio?: string;
@@ -367,6 +368,8 @@ export interface Post {
   description: string;
   category: string;
   productId?: string;
+  itemName?: string;
+  itemCondition?: string;
   location: NeighborhoodLocation;
   status: PostStatus;
   urgency?: UrgencyLevel;
@@ -458,8 +461,23 @@ export interface CreatePostInput {
   title: string;
   description: string;
   category: string;
+  productId?: string;
+  itemName: string;
+  itemCondition: string;
   location: NeighborhoodLocation;
   images: UploadableImage[];
   aiAnalysis?: ImageAnalysisResult | null;
+  urgency?: UrgencyLevel;
+}
+
+export interface UpdatePostInput {
+  postId: string;
+  type: PostType;
+  title: string;
+  description: string;
+  category: string;
+  productId?: string;
+  itemName: string;
+  itemCondition: string;
   urgency?: UrgencyLevel;
 }

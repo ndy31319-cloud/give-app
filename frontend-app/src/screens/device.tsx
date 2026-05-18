@@ -7,7 +7,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 
 import { AppButton } from '@/src/components/common/AppButton';
 import { AppHeader } from '@/src/components/common/AppHeader';
@@ -193,9 +192,26 @@ function DeviceStepCard({
 }
 
 export function DynamicQrScreen() {
-  const { user, activeQrSession, deviceSimulation, issueDynamicQr } = useAppContext();
+  return <DeviceSimulatorScreen />;
+}
+
+export function DeviceSimulatorScreen() {
+  const {
+    user,
+    activeQrSession,
+    deviceSimulation,
+    issueDynamicQr,
+    startDeviceAuthentication,
+    confirmDeviceItemInserted,
+    resetDeviceSimulation,
+  } = useAppContext();
   const [now, setNow] = useState(Date.now());
+  const [tokenInput, setTokenInput] = useState('');
+  const [working, setWorking] = useState(false);
   const [issuing, setIssuing] = useState(false);
+
+  const activeStatus = getEffectiveQrStatus(activeQrSession);
+  const activeStepIndex = deviceStepOrder.indexOf(deviceSimulation.step);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -224,90 +240,6 @@ export function DynamicQrScreen() {
     };
   }, [activeQrSession, issueDynamicQr, user]);
 
-  const effectiveStatus = getEffectiveQrStatus(activeQrSession);
-
-  const handleIssueQr = async () => {
-    setIssuing(true);
-    const result = await issueDynamicQr('donation_access', 30);
-    setIssuing(false);
-
-    if (result.error) {
-      Alert.alert('QR 발급 실패', result.error);
-    }
-  };
-
-  if (!user) {
-    return (
-      <AppScreen scroll contentContainerStyle={styles.pageContent}>
-        <AppHeader title="동적 QR 인증" />
-        <View style={styles.emptyState}>
-          <Ionicons name="log-in-outline" size={42} color={colors.brand} />
-          <Text style={styles.emptyTitle}>로그인이 필요합니다</Text>
-          <Text style={styles.emptyText}>동적 QR 인증은 로그인한 회원만 발급할 수 있습니다.</Text>
-          <AppButton label="로그인으로 이동" onPress={() => router.replace('/login')} />
-        </View>
-      </AppScreen>
-    );
-  }
-
-  return (
-    <AppScreen scroll contentContainerStyle={styles.pageContent}>
-      <AppHeader title="동적 QR 인증" />
-
-      <View style={styles.heroCard}>
-        <View style={styles.heroIcon}>
-          <Ionicons name="qr-code-outline" size={28} color={colors.brand} />
-        </View>
-        <View style={{ flex: 1, gap: 6 }}>
-          <Text style={styles.heroTitle}>정적 QR 대신 시간 제한 QR</Text>
-          <Text style={styles.heroText}>
-            캡처·재사용 위험을 줄이기 위해 30초마다 만료되는 1회용 QR 인증 흐름을 적용했습니다.
-          </Text>
-        </View>
-      </View>
-
-      {activeQrSession ? <DynamicQrStatusCard session={activeQrSession} now={now} /> : null}
-
-      <View style={styles.actionCard}>
-        <Text style={styles.sectionTitle}>빠른 실행</Text>
-        <View style={styles.actionRow}>
-          <AppButton
-            label={effectiveStatus === 'active' ? '새 QR 다시 발급' : '새 QR 발급'}
-            onPress={handleIssueQr}
-            loading={issuing}
-            style={{ flex: 1 }}
-          />
-          <AppButton
-            label="디바이스 확인"
-            variant="secondary"
-            onPress={() => router.push('/device')}
-            style={{ flex: 1 }}
-          />
-        </View>
-        <Text style={styles.supportText}>
-          현재 디바이스 상태: {deviceStepLabels[deviceSimulation.step]}
-        </Text>
-      </View>
-    </AppScreen>
-  );
-}
-
-export function DeviceSimulatorScreen() {
-  const {
-    user,
-    activeQrSession,
-    deviceSimulation,
-    issueDynamicQr,
-    startDeviceAuthentication,
-    confirmDeviceItemInserted,
-    resetDeviceSimulation,
-  } = useAppContext();
-  const [tokenInput, setTokenInput] = useState('');
-  const [working, setWorking] = useState(false);
-
-  const activeStatus = getEffectiveQrStatus(activeQrSession);
-  const activeStepIndex = deviceStepOrder.indexOf(deviceSimulation.step);
-
   const handleStartWithToken = async (token: string) => {
     setWorking(true);
     const result = await startDeviceAuthentication(token);
@@ -329,9 +261,9 @@ export function DeviceSimulatorScreen() {
   };
 
   const handleIssueAndApply = async () => {
-    setWorking(true);
+    setIssuing(true);
     const issueResult = await issueDynamicQr('donation_access', 30);
-    setWorking(false);
+    setIssuing(false);
 
     if (issueResult.error) {
       Alert.alert('QR 발급 실패', issueResult.error);
@@ -357,10 +289,12 @@ export function DeviceSimulatorScreen() {
           <View style={{ flex: 1, gap: 6 }}>
             <Text style={styles.heroTitle}>QR 인증부터 완료 처리까지 테스트</Text>
             <Text style={styles.heroText}>
-              QR 인식 → 서버 검증 → 잠금 해제 → 물품 투입 → 데이터 갱신 → 완료 알림의 흐름을 반복 검증할 수 있습니다.
+              30초 만료 QR 발급부터 QR 인식, 서버 검증, 잠금 해제, 물품 투입, 데이터 갱신까지 한 화면에서 검증할 수 있습니다.
             </Text>
           </View>
         </View>
+
+        {activeQrSession ? <DynamicQrStatusCard session={activeQrSession} now={now} /> : null}
 
         <View style={styles.simulatorCard}>
           <View style={styles.simulatorTop}>
@@ -397,7 +331,7 @@ export function DeviceSimulatorScreen() {
               variant="secondary"
               onPress={handleIssueAndApply}
               disabled={!user}
-              loading={working}
+              loading={issuing}
             />
           </View>
           {!user ? (

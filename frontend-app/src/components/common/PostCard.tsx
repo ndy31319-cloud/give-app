@@ -16,10 +16,14 @@ interface PostCardProps {
 
 export function PostCard({ post, currentLocation, onPress }: PostCardProps) {
   const distance = currentLocation ? haversineDistanceKm(currentLocation, post.location) : null;
+  const completed = post.status === 'completed';
+  const statusLabel = getPostStatusLabel(post.status);
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-      <View style={styles.content}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, completed && styles.completedCard, pressed && styles.pressed]}>
+      <View style={[styles.content, completed && styles.completedContent]}>
         {post.images[0] ? (
           <Image source={{ uri: post.images[0] }} style={styles.image} contentFit="cover" />
         ) : (
@@ -34,13 +38,15 @@ export function PostCard({ post, currentLocation, onPress }: PostCardProps) {
                 {post.type === 'share' ? '나눔해요' : '필요해요'}
               </Text>
             </View>
-            {!isOpenPostStatus(post.status) ? (
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>{getPostStatusLabel(post.status)}</Text>
+            {!isOpenPostStatus(post.status) && statusLabel ? (
+              <View style={[styles.statusBadge, completed && styles.completedBadge]}>
+                <Text style={[styles.statusText, completed && styles.completedStatusText]}>
+                  {statusLabel}
+                </Text>
               </View>
             ) : null}
           </View>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={[styles.title, completed && styles.completedTitle]} numberOfLines={2}>
             {post.title}
           </Text>
           <View style={styles.metaRow}>
@@ -72,6 +78,12 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  completedCard: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  completedContent: {
+    opacity: 0.42,
   },
   pressed: {
     opacity: 0.96,
@@ -115,9 +127,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: colors.surfaceMuted,
   },
+  completedBadge: {
+    backgroundColor: colors.border,
+  },
   statusText: {
     fontSize: 12,
     fontWeight: '700',
+    color: colors.textMuted,
+  },
+  completedStatusText: {
     color: colors.textMuted,
   },
   title: {
@@ -125,6 +143,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '800',
     color: colors.text,
+  },
+  completedTitle: {
+    color: colors.textMuted,
   },
   metaRow: {
     flexDirection: 'row',

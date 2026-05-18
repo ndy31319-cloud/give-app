@@ -7,13 +7,13 @@ export function getPostStatusLabel(status: PostStatus) {
     case 'reserved':
       return '예약중';
     case 'storage_request':
-      return '보관 요청';
+      return '';
     case 'stored':
-      return '보관 완료';
+      return '';
     case 'pickup_pending':
       return '수령 대기';
     case 'completed':
-      return '완료';
+      return '나눔 완료';
     case 'canceled':
       return '취소';
     case 'hidden':

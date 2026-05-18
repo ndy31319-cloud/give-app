@@ -1,14 +1,27 @@
 import { NeighborhoodLocation, Post } from '@/src/types/app';
 
 export function formatLocationLabel(location: NeighborhoodLocation) {
-  return `${location.city} ${location.district} ${location.neighborhood}`.trim();
+  return `${location.city ?? ''} ${location.district ?? ''} ${location.neighborhood ?? location.dongName ?? ''}`.trim();
 }
 
 export function formatCompactLocation(location: NeighborhoodLocation) {
-  return `${location.city} ${location.neighborhood}`.trim();
+  return `${location.city ?? ''} ${location.neighborhood ?? location.dongName ?? ''}`.trim();
 }
 
 export function haversineDistanceKm(a: NeighborhoodLocation, b: NeighborhoodLocation) {
+  if (
+    typeof a.latitude !== 'number' ||
+    typeof a.longitude !== 'number' ||
+    typeof b.latitude !== 'number' ||
+    typeof b.longitude !== 'number' ||
+    !Number.isFinite(a.latitude) ||
+    !Number.isFinite(a.longitude) ||
+    !Number.isFinite(b.latitude) ||
+    !Number.isFinite(b.longitude)
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+
   const toRad = (value: number) => (value * Math.PI) / 180;
   const earthRadius = 6371;
   const dLat = toRad(b.latitude - a.latitude);
@@ -24,7 +37,7 @@ export function haversineDistanceKm(a: NeighborhoodLocation, b: NeighborhoodLoca
 }
 
 export function filterPostsByRadius(posts: Post[], origin: NeighborhoodLocation, radiusKm: number) {
-  return posts.filter((post) => haversineDistanceKm(origin, post.location) <= radiusKm);
+  return posts.filter((post) => post.location && haversineDistanceKm(origin, post.location) <= radiusKm);
 }
 
 export function searchLocations(options: NeighborhoodLocation[], city: string, neighborhood: string) {
@@ -32,10 +45,12 @@ export function searchLocations(options: NeighborhoodLocation[], city: string, n
   const neighborhoodQuery = neighborhood.trim().toLowerCase();
 
   return options.filter((option) => {
-    const cityMatch = cityQuery ? option.city.toLowerCase().includes(cityQuery) : true;
+    const cityText = String(option.city ?? '').toLowerCase();
+    const neighborhoodText = String(option.neighborhood ?? option.dongName ?? '').toLowerCase();
+    const addressText = String(option.fullAddress ?? '').toLowerCase();
+    const cityMatch = cityQuery ? cityText.includes(cityQuery) : true;
     const neighborhoodMatch = neighborhoodQuery
-      ? option.neighborhood.toLowerCase().includes(neighborhoodQuery) ||
-        option.fullAddress.toLowerCase().includes(neighborhoodQuery)
+      ? neighborhoodText.includes(neighborhoodQuery) || addressText.includes(neighborhoodQuery)
       : true;
 
     return cityMatch && neighborhoodMatch;

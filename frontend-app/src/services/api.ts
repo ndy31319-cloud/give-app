@@ -6,7 +6,6 @@ import {
   mockCertificationCodes,
   mockChatMessageRecords,
   mockChatRoomRecords,
-  mockChatRooms,
   mockCommunityComments,
   mockCommunityLikes,
   mockCommunityPosts,
@@ -14,13 +13,9 @@ import {
   mockDonateLikes,
   mockDonatePosts,
   mockMembers,
-  mockMessagesByChat,
   mockNotificationRecords,
-  mockNotifications,
   mockNotices,
   mockPickupRequests,
-  mockPolicies,
-  mockPosts,
   mockProducts,
   mockReports,
   mockRequestImages,
@@ -29,7 +24,6 @@ import {
   mockReviews,
   mockRoles,
   mockSearchHistory,
-  mockShareHistory,
 } from '@/src/data/mockData';
 import {
   CertificationCodeRecord,
@@ -329,6 +323,7 @@ function buildUserFromDraft(draft: SignupDraft, location: NeighborhoodLocation):
     certificateImage: draft.certificateImage ?? null,
     vulnerableTypes: draft.vulnerableTypes ?? [],
     isVulnerable: draft.isVulnerable ?? false,
+    neighborhoods: [location],
   });
 }
 
@@ -340,6 +335,9 @@ function createPostViewFromPayload(payload: CreatePostInput, user: User): Post {
     title: payload.title,
     description: payload.description,
     category: payload.category,
+    productId: payload.productId,
+    itemName: payload.itemName,
+    itemCondition: payload.itemCondition,
     location: payload.location,
     status: 'open',
     urgency: payload.type === 'need' ? payload.urgency ?? 'normal' : undefined,
@@ -1129,10 +1127,7 @@ export const chatAPI = {
     if (rooms) {
       return { data: rooms.map((room) => mapBackendChatRoom(room, memberId)), error: null };
     }
-    return {
-      data: mockChatRooms.filter((room) => room.donorId === memberId || room.requesterId === memberId),
-      error: null,
-    };
+    return { data: [], error: null };
   },
 
   async getRoom(chatRoomId: string): ApiResult<ChatRoom | null> {
@@ -1140,7 +1135,7 @@ export const chatAPI = {
     if (response?.data !== undefined) {
       return { data: response.data, error: null };
     }
-    return { data: mockChatRooms.find((room) => room.id === chatRoomId) ?? null, error: null };
+    return { data: null, error: null };
   },
 
   async getRoomRecord(chatRoomId: string): ApiResult<ChatRoomRecord | null> {
@@ -1168,7 +1163,7 @@ export const chatAPI = {
     if (messages) {
       return { data: messages.map((message) => mapBackendChatMessage(message, viewerId)), error: null };
     }
-    return { data: mockMessagesByChat[chatRoomId] ?? [], error: null };
+    return { data: [], error: null };
   },
 
   async listUnread(chatRoomId: string, memberId: string): ApiResult<ChatMessageRecord[]> {
@@ -1264,7 +1259,7 @@ export const policyAPI = {
     if (policies) {
       return { data: policies.map((policy) => mapBackendPolicy(policy)), error: null };
     }
-    return { data: mockPolicies, error: null };
+    return { data: [], error: null };
   },
 
   async listRecommended(authToken?: string): ApiResult<Policy[]> {
@@ -1314,8 +1309,8 @@ export const policyAPI = {
     }
     return {
       data: {
-        response: `"${message}" 상황이라면 긴급복지 생계지원과 주거급여를 먼저 확인해보시는 것을 추천드려요.`,
-        suggestedPolicies: mockPolicies.slice(0, 2),
+        response: '정책 서버 응답이 아직 연결되지 않았습니다.',
+        suggestedPolicies: [],
       },
       error: null,
     };
@@ -1409,7 +1404,7 @@ export const notificationAPI = {
     );
 
     if (backendResult.error) {
-      return { data: mockNotifications, error: backendResult.error };
+      return { data: [], error: backendResult.error };
     }
 
     if (backendResult.data) {
@@ -1420,7 +1415,7 @@ export const notificationAPI = {
     if (response?.data) {
       return { data: response.data, error: null };
     }
-    return { data: mockNotifications, error: null };
+    return { data: [], error: null };
   },
 
   async listRaw(memberId: string): ApiResult<NotificationRecord[]> {
@@ -1517,7 +1512,7 @@ export const mypageAPI = {
       return { data: response.data.histories.map(mapMypageHistory), error: null };
     }
 
-    return { data: mockShareHistory, error: null };
+    return { data: [], error: null };
   },
 
   async stats(period: MypageStats['period'], authToken?: string): ApiResult<MypageStats> {
@@ -1726,8 +1721,8 @@ export const postAPI = {
     formData.append('category_id', productId);
     formData.append('product_id', productId);
     formData.append('category', payload.category);
-    formData.append('item_name', payload.aiAnalysis?.detectedItem ?? payload.title);
-    formData.append('item_condition', '상태 미기재');
+    formData.append('item_name', payload.itemName);
+    formData.append('item_condition', payload.itemCondition);
     formData.append('status', 'open');
     formData.append('dong_name', payload.location.dongName);
     formData.append('latitude', String(payload.location.latitude));
@@ -1789,6 +1784,67 @@ export const postAPI = {
     };
   },
 
+  async updatePost(
+    postId: string,
+    payload: {
+      type: Post['type'];
+      title: string;
+      description: string;
+      category: string;
+      productId?: string;
+      itemName: string;
+      itemCondition: string;
+      urgency?: RequestPostRecord['urgency'];
+    },
+    context?: { authToken?: string | null; user?: User | null },
+  ) {
+    const authToken = context?.authToken ?? undefined;
+    const memberId = context?.user?.id ?? '';
+    const backendPostType = toBackendPostType(payload.type);
+    const productId = payload.productId ?? toProductId(payload.category);
+
+    const backendResult = await requestEnvelope<any>(`${backendConfig.endpoints.posts}/${postId}`, {
+      method: 'PATCH',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        post_type: backendPostType,
+        type: payload.type,
+        title: payload.title,
+        content: payload.description,
+        description: payload.description,
+        category_id: productId,
+        product_id: productId,
+        category: payload.category,
+        item_name: payload.itemName,
+        item_condition: payload.itemCondition,
+        urgency: payload.urgency,
+      }),
+    });
+
+    if (backendResult.error) {
+      return { data: null as Post | null, error: backendResult.error };
+    }
+
+    if (backendResult.data) {
+      return { data: mapBackendPost(backendResult.data), error: null as string | null };
+    }
+
+    const legacyResult =
+      payload.type === 'share'
+        ? await donateAPI.update(postId, memberId, { title: payload.title, content: payload.description })
+        : await requestAPI.update(postId, memberId, {
+            title: payload.title,
+            content: payload.description,
+            urgency: payload.urgency ?? 'normal',
+          });
+
+    if (legacyResult.error) {
+      return { data: null as Post | null, error: legacyResult.error };
+    }
+
+    return { data: null as Post | null, error: null as string | null };
+  },
+
   async checkHarmfulItem(
     image: UploadableImage,
     extras?: { title?: string; description?: string },
@@ -1819,22 +1875,41 @@ export const postAPI = {
       const rawAiResult = firstAnalysis?.raw_ai_result ?? firstAnalysis;
       const suggestedTitle =
         firstAnalysis?.suggested_title ??
+        firstAnalysis?.suggestedTitle ??
         rawAiResult?.suggested_title ??
+        rawAiResult?.suggestedTitle ??
         response.data.suggested_title ??
         response.data.suggestedTitle;
       const aiGeneratedPost =
         firstAnalysis?.ai_generated_post ??
+        firstAnalysis?.aiGeneratedPost ??
+        firstAnalysis?.suggested_description ??
+        firstAnalysis?.suggestedDescription ??
         rawAiResult?.ai_generated_post ??
-        response.data.ai_generated_post;
+        rawAiResult?.aiGeneratedPost ??
+        rawAiResult?.suggested_description ??
+        rawAiResult?.suggestedDescription ??
+        response.data.ai_generated_post ??
+        response.data.aiGeneratedPost ??
+        response.data.suggested_description ??
+        response.data.suggestedDescription;
       const extractedFeatures =
         firstAnalysis?.extracted_features ??
+        firstAnalysis?.extractedFeatures ??
         rawAiResult?.extracted_features ??
+        rawAiResult?.extractedFeatures ??
         response.data.extracted_features ??
+        response.data.extractedFeatures ??
         [];
       const category =
         firstAnalysis?.category ??
+        firstAnalysis?.recommended_category ??
+        firstAnalysis?.recommendedCategory ??
         rawAiResult?.category ??
+        rawAiResult?.recommended_category ??
+        rawAiResult?.recommendedCategory ??
         response.data.category ??
+        response.data.recommended_category ??
         response.data.recommendedCategory;
       const normalizedCategory = normalizeAiCategory(category);
 
@@ -1855,11 +1930,14 @@ export const postAPI = {
           recommendedCategory: normalizedCategory,
           recommendedCategoryLabel: category,
           suggestedTitle,
-          suggestedDescription: aiGeneratedPost ?? response.data.suggestedDescription,
+          suggestedDescription: aiGeneratedPost,
           isSameItem:
             firstAnalysis?.is_same_item ??
+            firstAnalysis?.isSameItem ??
             rawAiResult?.is_same_item ??
-            response.data.is_same_item,
+            rawAiResult?.isSameItem ??
+            response.data.is_same_item ??
+            response.data.isSameItem,
           extractedFeatures,
           aiGeneratedPost,
           rawAiResult: rawAiResult ?? response.data,
@@ -1881,7 +1959,7 @@ export const postAPI = {
     );
 
     if (response.error) {
-      return { data: mockPosts, error: response.error as string | null };
+      return { data: [], error: response.error as string | null };
     }
 
     const posts = Array.isArray(response.data)
@@ -1897,6 +1975,6 @@ export const postAPI = {
       };
     }
 
-    return { data: mockPosts, error: null as string | null };
+    return { data: [], error: null as string | null };
   },
 };
