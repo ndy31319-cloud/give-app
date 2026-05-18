@@ -5,6 +5,42 @@ const db = require("../db");
 
 const ROLE_GENERAL = 1;
 const ROLE_VULNERABLE = 3;
+const DEFAULT_PRODUCT_ID = 51;
+const CATEGORY_PRODUCT_ID_MAP = {
+  clothing: 1,
+  clothes: 1,
+  "의류": 1,
+  electronics: 2,
+  electronic: 2,
+  digital: 2,
+  "전자제품": 2,
+  "디지털": 2,
+  "디지털기기": 2,
+  household: 51,
+  kitchen: 51,
+  baby: 51,
+  "생활용품": 51,
+  "주방용품": 51,
+  "육아용품": 51,
+  furniture: 91,
+  "가구": 91,
+  books: 106,
+  book: 106,
+  "도서": 106,
+  "도서/문구": 106,
+  other: 106,
+  "기타": 106,
+};
+const MOCK_PRODUCT_ID_MAP = {
+  product_1: 1,
+  product_2: 51,
+  product_3: 51,
+  product_4: 106,
+  product_5: 2,
+  product_6: 91,
+  product_7: 51,
+  product_8: 2,
+};
 const ALLOWED_ITEM_CONDITIONS = new Set([
   "새상품",
   "사용감 적음",
@@ -43,6 +79,58 @@ const resolveAiPostGenerationApiUrl = (rawUrl) => {
   }
 
   return `${normalizedUrl}/api/post/generate-post`;
+};
+
+const parseNumericId = (value) => {
+  const normalizedValue = String(value || "").trim();
+  if (!/^\d+$/.test(normalizedValue)) {
+    return null;
+  }
+
+  const parsed = Number(normalizedValue);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const resolveProductId = async (connection, productId, category) => {
+  const normalizedProductId = String(productId || "").trim();
+  const mappedMockProductId = MOCK_PRODUCT_ID_MAP[normalizedProductId];
+
+  if (mappedMockProductId) {
+    return mappedMockProductId;
+  }
+
+  const directProductId = parseNumericId(productId);
+
+  if (directProductId) {
+    const [rows] = await connection.query(
+      "SELECT product_id FROM PRODUCT WHERE product_id = ? LIMIT 1",
+      [directProductId],
+    );
+
+    if (rows.length > 0) {
+      return directProductId;
+    }
+  }
+
+  const normalizedCategory = String(category || productId || "").trim();
+  const mappedProductId = CATEGORY_PRODUCT_ID_MAP[normalizedCategory];
+
+  if (mappedProductId) {
+    return mappedProductId;
+  }
+
+  if (normalizedCategory) {
+    const [rows] = await connection.query(
+      "SELECT product_id FROM PRODUCT WHERE category = ? OR product_name = ? ORDER BY product_id LIMIT 1",
+      [normalizedCategory, normalizedCategory],
+    );
+
+    if (rows.length > 0) {
+      return rows[0].product_id;
+    }
+  }
+
+  return DEFAULT_PRODUCT_ID;
 };
 
 const getUploadedImages = (req) => {
@@ -155,19 +243,141 @@ const insertPostImages = async (connection, tableName, idColumn, postId, imageFi
   );
 };
 
+const normalizeUploadUrl = (req, imageUrl) => {
+  if (!imageUrl) {
+    return null;
+  }
+
+  const rawUrl = String(imageUrl);
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return rawUrl;
+  }
+
+  const filename = rawUrl.split(/[\\/]/).pop();
+  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+};
+
 const getAllPosts = async (req, res) => {
   try {
     const sql = `
-      SELECT donate_id AS post_id, member_id, title, status, created_at, 'donate' AS post_type
-      FROM ITEM_DONATE
+      SELECT
+        d.donate_id AS post_id,
+        CONCAT('donate_', d.donate_id) AS id,
+        d.member_id,
+        m.name AS author_name,
+        m.nickname AS author_nickname,
+        d.title,
+        d.content,
+        d.dong_name,
+        d.latitude,
+        d.longitude,
+        d.status,
+        d.created_at,
+        d.updated_at,
+        i.product_id,
+        i.item_name,
+        i.item_condition,
+        p.category,
+        MIN(di.image_url) AS image_url,
+        'donate' AS post_type
+      FROM ITEM_DONATE d
+      LEFT JOIN MEMBER m ON m.member_id = d.member_id
+      LEFT JOIN ITEM i ON i.donate_id = d.donate_id
+      LEFT JOIN PRODUCT p ON p.product_id = i.product_id
+      LEFT JOIN ITEM_DONATE_IMAGE di ON di.donate_id = d.donate_id
+      GROUP BY
+        d.donate_id, d.member_id, m.name, m.nickname, d.title, d.content,
+        d.dong_name, d.latitude, d.longitude, d.status, d.created_at, d.updated_at,
+        i.product_id, i.item_name, i.item_condition, p.category
+
       UNION ALL
-      SELECT request_id AS post_id, member_id, title, status, created_at, 'request' AS post_type
-      FROM ITEM_REQUEST
+
+      SELECT
+        r.request_id AS post_id,
+        CONCAT('request_', r.request_id) AS id,
+        r.member_id,
+        m.name AS author_name,
+        m.nickname AS author_nickname,
+        r.title,
+        r.content,
+        r.dong_name,
+        r.latitude,
+        r.longitude,
+        r.status,
+        r.created_at,
+        r.updated_at,
+        i.product_id,
+        i.item_name,
+        i.item_condition,
+        p.category,
+        MIN(ri.image_url) AS image_url,
+        'request' AS post_type
+      FROM ITEM_REQUEST r
+      LEFT JOIN MEMBER m ON m.member_id = r.member_id
+      LEFT JOIN ITEM i ON i.request_id = r.request_id
+      LEFT JOIN PRODUCT p ON p.product_id = i.product_id
+      LEFT JOIN ITEM_REQUEST_IMAGE ri ON ri.request_id = r.request_id
+      GROUP BY
+        r.request_id, r.member_id, m.name, m.nickname, r.title, r.content,
+        r.dong_name, r.latitude, r.longitude, r.status, r.created_at, r.updated_at,
+        i.product_id, i.item_name, i.item_condition, p.category
+
       ORDER BY created_at DESC
     `;
 
     const [rows] = await db.query(sql);
-    return res.status(200).json(rows);
+    const posts = rows.map((row) => {
+      const imageUrl = normalizeUploadUrl(req, row.image_url);
+
+      return {
+        id: row.id,
+        post_id: row.post_id,
+        postId: row.post_id,
+        recordId: row.post_id,
+        post_type: row.post_type,
+        postType: row.post_type,
+        type: row.post_type,
+        member_id: row.member_id,
+        memberId: row.member_id,
+        author: {
+          id: row.member_id,
+          member_id: row.member_id,
+          name: row.author_name,
+          nickname: row.author_nickname,
+        },
+        title: row.title,
+        content: row.content,
+        description: row.content,
+        category: row.category,
+        product_id: row.product_id,
+        productId: row.product_id,
+        item_name: row.item_name,
+        itemName: row.item_name,
+        item_condition: row.item_condition,
+        itemCondition: row.item_condition,
+        dong_name: row.dong_name,
+        dongName: row.dong_name,
+        location: {
+          dongName: row.dong_name,
+          neighborhood: row.dong_name,
+          latitude: row.latitude,
+          longitude: row.longitude,
+        },
+        latitude: row.latitude,
+        longitude: row.longitude,
+        status: row.status,
+        image_url: imageUrl,
+        imageUrl,
+        image: imageUrl,
+        images: imageUrl ? [imageUrl] : [],
+        created_at: row.created_at,
+        createdAt: row.created_at,
+        updated_at: row.updated_at,
+        updatedAt: row.updated_at,
+      };
+    });
+
+    return res.status(200).json(posts);
   } catch (error) {
     console.error("게시글 목록 조회 오류:", error);
     return res.status(500).json({ message: "게시글 목록을 불러오지 못했습니다." });
@@ -232,12 +442,12 @@ const createPost = async (req, res) => {
   const connection = await db.getConnection();
 
   try {
-    const { title, content, item_name, item_condition, product_id } = req.body;
+    const { title, content, item_name, item_condition, product_id, category } = req.body;
     const member_id = req.user.member_id || req.user.id;
     const role_id = Number(req.user.role_id);
     const imageFiles = getUploadedImages(req);
     const normalizedItemCondition = normalizeItemCondition(item_condition);
-    const normalizedProductId = product_id || 1;
+    const normalizedProductId = await resolveProductId(connection, product_id, category);
 
     if (role_id !== ROLE_GENERAL && role_id !== ROLE_VULNERABLE) {
       return res.status(403).json({ message: "게시글 작성 권한이 없습니다." });
@@ -405,10 +615,9 @@ const getPostDetail = async (req, res) => {
 const updatePost = async (req, res) => {
   const postId = req.params.id;
   const postType = req.query.type;
-  const { title, content, item_name, item_condition, product_id, status } = req.body;
+  const { title, content, item_name, item_condition, product_id, category, status } = req.body;
   const member_id = req.user.member_id || req.user.id;
   const normalizedItemCondition = normalizeItemCondition(item_condition);
-  const normalizedProductId = product_id || 1;
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
     return res.status(400).json({ message: "type은 donate 또는 request여야 합니다." });
@@ -463,6 +672,7 @@ const updatePost = async (req, res) => {
     const itemUpdateParams = [];
 
     if (product_id !== undefined) {
+      const normalizedProductId = await resolveProductId(db, product_id, category);
       itemUpdateFields.push("product_id = ?");
       itemUpdateParams.push(normalizedProductId);
     }

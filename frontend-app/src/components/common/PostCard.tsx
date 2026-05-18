@@ -1,31 +1,57 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 
-import { Post } from '@/src/types/app';
-import { colors, radius } from '@/src/theme/colors';
-import { formatTimeAgo } from '@/src/utils/time';
-import { haversineDistanceKm } from '@/src/utils/location';
-import { getPostStatusLabel, isOpenPostStatus } from '@/src/utils/post';
+import { Post } from "@/src/types/app";
+import { colors, radius } from "@/src/theme/colors";
+import { formatTimeAgo } from "@/src/utils/time";
+import { haversineDistanceKm } from "@/src/utils/location";
+import { getPostStatusLabel, isOpenPostStatus } from "@/src/utils/post";
 
 interface PostCardProps {
   post: Post;
-  currentLocation?: Post['location'];
+  currentLocation?: Post["location"];
+  currentUserId?: string;
   onPress: () => void;
 }
 
-export function PostCard({ post, currentLocation, onPress }: PostCardProps) {
-  const distance = currentLocation ? haversineDistanceKm(currentLocation, post.location) : null;
-  const completed = post.status === 'completed';
+export function PostCard({
+  post,
+  currentLocation,
+  currentUserId,
+  onPress,
+}: PostCardProps) {
+  const distance = currentLocation
+    ? haversineDistanceKm(currentLocation, post.location)
+    : null;
+  const completed = post.status === "completed";
   const statusLabel = getPostStatusLabel(post.status);
 
+  const isMyPost = currentUserId
+    ? String(post.author?.id) === String(currentUserId)
+    : false;
+
+  const badgeLabel = isMyPost
+    ? "내가 쓴 글"
+    : post.type === "share"
+      ? "나눔해요"
+      : "필요해요";
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, completed && styles.completedCard, pressed && styles.pressed]}>
+      style={({ pressed }) => [
+        styles.card,
+        completed && styles.completedCard,
+        pressed && styles.pressed,
+      ]}
+    >
       <View style={[styles.content, completed && styles.completedContent]}>
         {post.images[0] ? (
-          <Image source={{ uri: post.images[0] }} style={styles.image} contentFit="cover" />
+          <Image
+            source={{ uri: post.images[0] }}
+            style={styles.image}
+            contentFit="cover"
+          />
         ) : (
           <View style={styles.imagePlaceholder}>
             <Ionicons name="image-outline" size={24} color={colors.textLight} />
@@ -33,36 +59,76 @@ export function PostCard({ post, currentLocation, onPress }: PostCardProps) {
         )}
         <View style={styles.main}>
           <View style={styles.row}>
-            <View style={[styles.badge, post.type === 'share' ? styles.shareBadge : styles.needBadge]}>
-              <Text style={[styles.badgeText, post.type === 'need' && styles.needBadgeText]}>
-                {post.type === 'share' ? '나눔해요' : '필요해요'}
+            <View
+              style={[
+                styles.badge,
+                isMyPost
+                  ? styles.myPostBadge
+                  : post.type === "share"
+                    ? styles.shareBadge
+                    : styles.needBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.badgeText,
+                  isMyPost
+                    ? styles.myPostBadgeText
+                    : post.type === "need" && styles.needBadgeText,
+                ]}
+              >
+                {badgeLabel}
               </Text>
             </View>
             {!isOpenPostStatus(post.status) && statusLabel ? (
-              <View style={[styles.statusBadge, completed && styles.completedBadge]}>
-                <Text style={[styles.statusText, completed && styles.completedStatusText]}>
+              <View
+                style={[styles.statusBadge, completed && styles.completedBadge]}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    completed && styles.completedStatusText,
+                  ]}
+                >
                   {statusLabel}
                 </Text>
               </View>
             ) : null}
           </View>
-          <Text style={[styles.title, completed && styles.completedTitle]} numberOfLines={2}>
+          <Text
+            style={[styles.title, completed && styles.completedTitle]}
+            numberOfLines={2}
+          >
             {post.title}
           </Text>
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Ionicons name="location-outline" size={14} color={colors.textMuted} />
+              <Ionicons
+                name="location-outline"
+                size={14}
+                color={colors.textMuted}
+              />
               <Text style={styles.metaText}>{post.location.neighborhood}</Text>
             </View>
             {distance !== null ? (
               <View style={styles.metaItem}>
-                <Ionicons name="walk-outline" size={14} color={colors.textMuted} />
+                <Ionicons
+                  name="walk-outline"
+                  size={14}
+                  color={colors.textMuted}
+                />
                 <Text style={styles.metaText}>{distance}km</Text>
               </View>
             ) : null}
             <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-              <Text style={styles.metaText}>{formatTimeAgo(post.createdAt)}</Text>
+              <Ionicons
+                name="time-outline"
+                size={14}
+                color={colors.textMuted}
+              />
+              <Text style={styles.metaText}>
+                {formatTimeAgo(post.createdAt)}
+              </Text>
             </View>
           </View>
         </View>
@@ -89,17 +155,17 @@ const styles = StyleSheet.create({
     opacity: 0.96,
   },
   content: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   main: {
     flex: 1,
     gap: 8,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   badge: {
@@ -113,13 +179,19 @@ const styles = StyleSheet.create({
   needBadge: {
     backgroundColor: colors.accentSoft,
   },
+  myPostBadge: {
+    backgroundColor: colors.surfaceMuted,
+  },
   badgeText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.brand,
   },
   needBadgeText: {
     color: colors.accent,
+  },
+  myPostBadgeText: {
+    color: colors.text,
   },
   statusBadge: {
     borderRadius: radius.pill,
@@ -132,7 +204,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.textMuted,
   },
   completedStatusText: {
@@ -141,20 +213,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: '800',
+    fontWeight: "800",
     color: colors.text,
   },
   completedTitle: {
     color: colors.textMuted,
   },
   metaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
   },
   metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   metaText: {
@@ -171,8 +243,8 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.surfaceMuted,
   },
 });

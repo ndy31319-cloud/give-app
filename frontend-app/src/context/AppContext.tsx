@@ -14,6 +14,14 @@ import {
   UpdatePostInput,
   User,
 } from '@/src/types/app';
+<<<<<<< Updated upstream
+=======
+import {
+  createMockUser,
+  mockNotifications,
+  mockPosts,
+} from '@/src/data/mockData';
+>>>>>>> Stashed changes
 import { authAPI, chatAPI, dynamicQrAPI, memberAPI, notificationAPI, postAPI } from '@/src/services/api';
 
 const initialDeviceSimulationState: DeviceSimulationState = {
@@ -47,7 +55,11 @@ interface AppContextValue {
   addNeighborhood: (location: NeighborhoodLocation) => Promise<{ error: string | null }>;
   removeNeighborhood: (locationId: string) => void;
   addPost: (payload: CreatePostInput) => Promise<{ error: string | null }>;
+<<<<<<< Updated upstream
   updatePost: (payload: UpdatePostInput) => Promise<{ error: string | null }>;
+=======
+  removePost: (post: Post) => Promise<{ error: string | null }>;
+>>>>>>> Stashed changes
   startChatWithPost: (post: Post) => Promise<{ roomId: string | null; error: string | null }>;
   sendMessage: (chatId: string, text: string) => Promise<{ error: string | null }>;
   markNotificationRead: (id: string) => void;
@@ -66,8 +78,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [signupDraft, setSignupDraft] = useState<SignupDraft>({});
+<<<<<<< Updated upstream
   const [posts, setPosts] = useState<Post[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+=======
+  const [posts, setPosts] = useState<Post[]>(mockPosts);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(mockNotifications);
+>>>>>>> Stashed changes
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
   const [activeQrSession, setActiveQrSession] = useState<DynamicQrSession | null>(null);
@@ -95,7 +112,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         setChatRooms([]);
         setMessagesByChat({});
+<<<<<<< Updated upstream
         setNotifications([]);
+=======
+        setNotifications(mockNotifications);
+>>>>>>> Stashed changes
         return;
       }
 
@@ -104,8 +125,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         notificationAPI.list(user.id, authToken ?? undefined),
       ]);
 
-      if (mounted && roomsResult.data?.length) {
-        setChatRooms(roomsResult.data);
+      if (mounted) {
+        setChatRooms(roomsResult.data ?? []);
       }
 
       if (mounted && notificationsResult.data?.length) {
@@ -114,6 +135,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const rooms = roomsResult.data ?? [];
       if (!rooms.length) {
+        if (mounted) {
+          setMessagesByChat({});
+        }
         return;
       }
 
@@ -315,6 +339,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
+<<<<<<< Updated upstream
   async function updatePost(payload: UpdatePostInput) {
     if (!user) {
       return { error: '로그인이 필요합니다.' };
@@ -334,10 +359,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user,
     });
 
+=======
+  async function removePost(post: Post) {
+    const result = await postAPI.deletePost(post, authToken ?? undefined);
+>>>>>>> Stashed changes
     if (result.error) {
       return { error: result.error };
     }
 
+<<<<<<< Updated upstream
     setPosts((prev) =>
       prev.map((post) =>
         post.id === payload.postId
@@ -359,6 +389,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ),
     );
 
+=======
+    setPosts((prev) => prev.filter((item) => item.id !== post.id));
+>>>>>>> Stashed changes
     return { error: null };
   }
 
@@ -663,7 +696,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addNeighborhood,
         removeNeighborhood,
         addPost,
+<<<<<<< Updated upstream
         updatePost,
+=======
+        removePost,
+>>>>>>> Stashed changes
         startChatWithPost,
         sendMessage,
         markNotificationRead,

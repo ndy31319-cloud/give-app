@@ -367,20 +367,9 @@ export const mockCommunityComments: CommunityCommentRecord[] = [
   { commentId: 'comment_2', postId: 'community_2', memberId: 'member_5', content: '저도 같이 참여하고 싶어요.', createdAt: isoDaysAgo(1), updatedAt: isoDaysAgo(1) },
 ];
 
-export const mockChatRoomRecords: ChatRoomRecord[] = [
-  { chatRoomId: 'chat_room_1', donorId: 'member_2', requesterId: 'member_1', donateId: 'donate_1', requestId: null, roomStatus: 'open', createdAt: isoHoursAgo(3) },
-  { chatRoomId: 'chat_room_2', donorId: 'member_9', requesterId: 'member_3', donateId: 'donate_4', requestId: null, roomStatus: 'open', createdAt: isoHoursAgo(18) },
-  { chatRoomId: 'chat_room_3', donorId: 'member_4', requesterId: 'member_1', donateId: null, requestId: 'request_1', roomStatus: 'closed', createdAt: isoDaysAgo(3) },
-];
+export const mockChatRoomRecords: ChatRoomRecord[] = [];
 
-export const mockChatMessageRecords: ChatMessageRecord[] = [
-  { messageId: 'message_1', chatRoomId: 'chat_room_1', senderId: 'member_2', content: '안녕하세요! 외투 아직 가능할까요?', messageType: 'TEXT', isRead: false, createdAt: isoHoursAgo(2.5) },
-  { messageId: 'message_2', chatRoomId: 'chat_room_1', senderId: 'member_1', content: '네 가능해요. 오늘 오후에 전달 가능합니다.', messageType: 'TEXT', isRead: true, createdAt: isoHoursAgo(2.3) },
-  { messageId: 'message_3', chatRoomId: 'chat_room_1', senderId: 'member_2', content: '좋아요! 3시에 역삼역 근처 괜찮으세요?', messageType: 'TEXT', isRead: false, createdAt: isoHoursAgo(2) },
-  { messageId: 'message_4', chatRoomId: 'chat_room_2', senderId: 'member_3', content: '노트북 상태가 어떤가요?', messageType: 'TEXT', isRead: false, createdAt: isoHoursAgo(16) },
-  { messageId: 'message_5', chatRoomId: 'chat_room_3', senderId: 'member_4', content: '아기 옷 몇 벌 챙겨둘게요.', messageType: 'TEXT', isRead: true, createdAt: isoDaysAgo(2) },
-  { messageId: 'message_6', chatRoomId: 'chat_room_3', senderId: 'member_1', content: '정말 감사합니다!', messageType: 'TEXT', isRead: true, createdAt: isoDaysAgo(2) },
-];
+export const mockChatMessageRecords: ChatMessageRecord[] = [];
 
 export const mockPolicies: Policy[] = [
   { id: 'policy_1', title: '긴급복지 생계지원', category: '생활비', agency: '보건복지부', content: '갑작스러운 위기상황으로 생계유지가 어려운 저소득 가구를 지원합니다.', targetCriteria: '기초생활수급자, 긴급 위기가구', description: '갑작스러운 위기상황으로 생계유지가 어려운 저소득 가구를 지원합니다.', target: '기초생활수급자, 긴급 위기가구', support: '월 최대 62만원', targetTypes: ['basic_livelihood', 'near_poverty'] },
@@ -414,7 +403,6 @@ export const mockPickupRequests: PickupRequestRecord[] = [
 ];
 
 export const mockNotificationRecords: NotificationRecord[] = [
-  { notificationId: 'notification_1', memberId: 'member_1', relatedType: 'chat_message', relatedId: 'chat_room_1', notificationType: 'chat_message', message: '하린맘님과의 채팅방에 새 메시지가 도착했습니다.', isRead: false, createdAt: isoHoursAgo(1) },
   { notificationId: 'notification_2', memberId: 'member_1', relatedType: 'donate', relatedId: 'donate_2', notificationType: 'donate_reserved', message: '생활용품 나눔글이 예약 상태로 변경되었습니다.', isRead: false, createdAt: isoHoursAgo(5) },
   { notificationId: 'notification_3', memberId: 'member_1', relatedType: 'review', relatedId: 'review_1', notificationType: 'review_created', message: '나눔 후기가 도착했습니다.', isRead: true, createdAt: isoDaysAgo(1) },
 ];

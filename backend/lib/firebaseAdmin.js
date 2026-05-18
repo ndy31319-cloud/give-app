@@ -55,7 +55,18 @@ const getFirebaseApp = () => {
   return firebaseApp;
 };
 
-const getFirestore = () => getFirebaseApp().firestore();
+const getFirestore = () => {
+  try {
+    return getFirebaseApp().firestore();
+  } catch (error) {
+    const firestoreError = new Error(
+      "Firebase configuration is invalid. Replace backend/serviceAccountKey.json with a real Firebase service account JSON.",
+    );
+    firestoreError.code = "FIREBASE_CONFIG_INVALID";
+    firestoreError.cause = error;
+    throw firestoreError;
+  }
+};
 
 module.exports = {
   admin,

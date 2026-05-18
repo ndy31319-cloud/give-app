@@ -167,12 +167,19 @@ export function HomeScreen() {
   const { user, posts } = useAppContext();
   const allowedHomePostType = user ? (isBeneficiaryUser(user) ? 'share' : 'need') : 'all';
   const homeFeed = useMemo(() => {
-    const filteredPosts = user
-      ? filterPostsByRadius(posts, user.location, user.location.radiusKm)
-      : posts;
-    const visiblePosts = filteredPosts.filter((post) =>
-      allowedHomePostType === 'all' ? true : post.type === allowedHomePostType,
-    );
+const filteredPosts = user
+  ? filterPostsByRadius(posts, user.location, user.location.radiusKm)
+  : posts;
+
+const visiblePosts = filteredPosts.filter((post) => {
+  const isMyPost = user ? String(post.author.id) === String(user.id) : false;
+
+  return (
+    isMyPost ||
+    allowedHomePostType === 'all' ||
+    post.type === allowedHomePostType
+  );
+});
 
     return {
       location: user?.location ?? null,
@@ -222,6 +229,7 @@ export function HomeScreen() {
                 key={post.id}
                 post={post}
                 currentLocation={homeFeed.location ?? undefined}
+                currentUserId={user?.id}
                 onPress={() => router.push(`/post/${post.id}`)}
               />
             ))
@@ -245,8 +253,9 @@ export function HomeScreen() {
 
 export function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { posts, startChatWithPost, user } = useAppContext();
+  const { posts, removePost, startChatWithPost, user } = useAppContext();
   const [isStartingChat, setIsStartingChat] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const post = posts.find((item) => item.id === id);
   const isMyPost = Boolean(user && post && String(post.author.id) === String(user.id));
   const statusLabel = post ? getPostStatusLabel(post.status) : '';
@@ -266,6 +275,34 @@ export function PostDetailScreen() {
     }
 
     router.push(`/chat/${result.roomId}`);
+  }
+
+  async function handleDeletePost() {
+    if (!post || isDeleting) {
+      return;
+    }
+
+    Alert.alert('게시글 삭제', '이 게시글을 삭제할까요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: async () => {
+          setIsDeleting(true);
+          const result = await removePost(post);
+          setIsDeleting(false);
+
+          if (result.error) {
+            Alert.alert('삭제 실패', result.error);
+            return;
+          }
+
+          Alert.alert('삭제 완료', '게시글이 삭제되었습니다.', [
+            { text: '확인', onPress: () => router.replace('/(tabs)') },
+          ]);
+        },
+      },
+    ]);
   }
 
   if (!post) {
@@ -361,16 +398,28 @@ export function PostDetailScreen() {
         ) : null}
       </View>
 
-      {!isMyPost ? (
-        <View style={styles.bottomActions}>
-          <AppButton
-            label={isStartingChat ? '연결 중' : '채팅하기'}
-            disabled={isStartingChat}
-            onPress={handleStartChat}
-            style={{ flex: 1 }}
-          />
-        </View>
-      ) : null}
+{isMyPost ? (
+  <View style={styles.bottomActions}>
+    <AppButton
+      label={isDeleting ? '삭제 중' : '게시글 삭제'}
+      variant="danger"
+      loading={isDeleting}
+      disabled={isDeleting}
+      onPress={handleDeletePost}
+      style={{ flex: 1 }}
+    />
+  </View>
+) : (
+  <View style={styles.bottomActions}>
+    <AppButton
+      label={isStartingChat ? '연결 중' : '채팅하기'}
+      variant="secondary"
+      disabled={isStartingChat}
+      onPress={handleStartChat}
+      style={{ flex: 1 }}
+    />
+  </View>
+)}
     </AppScreen>
   );
 }
@@ -439,7 +488,8 @@ export function WriteFormScreen() {
   const { type } = useLocalSearchParams<{ type?: string }>();
   const { user, addPost, authToken } = useAppContext();
   const postType = user ? (isBeneficiaryUser(user) ? 'need' : 'share') : type === 'need' ? 'need' : 'share';
-  const [selectedImages, setSelectedImages] = useState<UploadableImage[]>([]);
+const [selectedImages, setSelectedImages] = useState<UploadableImage[]>([]);
+const [skipImage, setSkipImage] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<ImageAnalysisResult | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -455,7 +505,7 @@ export function WriteFormScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const navigateToHome = () => {
-    router.replace('/(tabs)/index');
+    router.replace('/(tabs)');
   };
 
   const analyzeImage = async (images: UploadableImage[]) => {
@@ -490,7 +540,8 @@ export function WriteFormScreen() {
     }
 
     const analysis = result.data;
-    setSelectedImages(images);
+setSelectedImages(images);
+setSkipImage(false);
     setAiAnalysis(analysis);
     setImageConfirmed(false);
     if (analysis.recommendedCategory) {
@@ -512,6 +563,17 @@ export function WriteFormScreen() {
       const message = error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.';
       Alert.alert('사진 선택 중 오류가 발생했습니다', message);
     }
+  };
+
+  const handleSkipImage = () => {
+    setSelectedImages([]);
+    setAiAnalysis(null);
+    setSkipImage(true);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.image;
+      return next;
+    });
   };
 
   const handleAutoFill = () => {
@@ -544,8 +606,13 @@ export function WriteFormScreen() {
   const validate = () => {
     const nextErrors: Record<string, string> = {};
 
-    if (!selectedImages.length) nextErrors.image = '사진 등록이 필요합니다';
-    if (selectedImages.length && !imageConfirmed) nextErrors.image = 'AI 사진 등록 확인을 눌러주세요';
+if (postType === 'share' && !selectedImages.length) {
+  nextErrors.image = '사진 등록이 필요합니다';
+}
+
+if (selectedImages.length && !imageConfirmed) {
+  nextErrors.image = 'AI 사진 등록 확인을 눌러주세요';
+}
     if (!validateRequired(formData.title)) nextErrors.title = '제목을 입력해주세요';
     if (!validateRequired(formData.category)) nextErrors.category = '카테고리를 선택해주세요';
     if (!validateRequired(formData.productId)) nextErrors.productId = '하위 품목을 선택해주세요';
@@ -558,16 +625,27 @@ export function WriteFormScreen() {
 
   const handleSubmit = async () => {
     try {
+      if (submitting) {
+        return;
+      }
+
       if (!user) {
         Alert.alert('로그인이 필요합니다');
         return;
       }
-      if (!validate() || !selectedImages.length || !imageConfirmed) {
+      if (!validate()) {
         return;
       }
 
       const selectedProduct = mockProducts.find((product) => product.productId === formData.productId);
       setSubmitting(true);
+      const backendReady = await postAPI.checkBackendReady();
+      if (!backendReady.ok) {
+        setSubmitting(false);
+        Alert.alert('등록 실패', backendReady.error ?? '백엔드 서버에 연결할 수 없습니다.');
+        return;
+      }
+
       const result = await addPost({
         type: postType,
         title: formData.title,
@@ -577,8 +655,8 @@ export function WriteFormScreen() {
         itemCondition: formData.itemCondition,
         description: formData.description,
         location: user.location,
-        images: selectedImages,
-        aiAnalysis,
+images: selectedImages,
+aiAnalysis: selectedImages.length ? aiAnalysis : null,
       });
       setSubmitting(false);
 
@@ -646,6 +724,12 @@ export function WriteFormScreen() {
                 </Pressable>
               </View>
             </View>
+          ) : skipImage ? (
+            <View style={styles.uploadPrompt}>
+              <Ionicons name="image-outline" size={38} color={colors.textLight} />
+              <Text style={styles.sectionDescription}>사진 없이 필요한 물품 정보를 직접 작성합니다.</Text>
+              <AppButton label="사진 추가하기" variant="secondary" onPress={() => setSourceModalOpen(true)} />
+            </View>
           ) : (
             <View style={styles.uploadPrompt}>
               <Ionicons name="camera-outline" size={38} color={colors.textLight} />
@@ -655,6 +739,9 @@ export function WriteFormScreen() {
                   : '사진을 올리면 AI가 물품을 인식해 검색/작성에 도움을 줍니다.'}
               </Text>
               <AppButton label="사진 등록하기" onPress={() => setSourceModalOpen(true)} />
+              {postType === 'need' ? (
+                <AppButton label="사진 첨부 안 함" variant="secondary" onPress={handleSkipImage} />
+              ) : null}
               {errors.image ? <Text style={styles.errorText}>{errors.image}</Text> : null}
             </View>
           )}
@@ -689,7 +776,7 @@ export function WriteFormScreen() {
           {errors.image && selectedImages.length ? <Text style={styles.errorText}>{errors.image}</Text> : null}
         </View>
 
-        {selectedImages.length && imageConfirmed ? (
+{(selectedImages.length > 0 && imageConfirmed) || skipImage ? (
           <View style={styles.formCard}>
             <SectionTitle
               title="2. 게시글 작성"
@@ -821,7 +908,12 @@ export function WriteFormScreen() {
               </Pressable>
             </View>
 
-            <AppButton label="게시글 등록" onPress={handleSubmit} loading={submitting} />
+            <AppButton
+              label={submitting ? '등록 중' : '게시글 등록'}
+              onPress={handleSubmit}
+              loading={submitting}
+              disabled={submitting}
+            />
           </View>
         ) : null}
       </View>
@@ -1105,6 +1197,7 @@ export function SearchScreen() {
               key={post.id}
               post={post}
               currentLocation={user?.location}
+              currentUserId={user?.id}
               onPress={() => router.push(`/post/${post.id}`)}
             />
           ))}

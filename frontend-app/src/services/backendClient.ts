@@ -100,6 +100,29 @@ export async function requestEnvelope<T>(path: string, init?: RequestInit) {
   }
 }
 
+export async function pingBackend() {
+  if (!isBackendEnabled()) {
+    return { ok: true, error: null as string | null };
+  }
+
+  try {
+    const response = await fetch(`${backendConfig.baseUrl}${backendConfig.endpoints.posts}`, {
+      method: 'GET',
+      headers: buildAuthHeaders(),
+    });
+
+    return {
+      ok: response.ok,
+      error: response.ok ? null : `HTTP ${response.status}`,
+    };
+  } catch {
+    return {
+      ok: false,
+      error: '백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.',
+    };
+  }
+}
+
 export function toLocationString(location: NeighborhoodLocation) {
   return location.fullAddress || `${location.city} ${location.district} ${location.neighborhood}`.trim();
 }
@@ -197,15 +220,16 @@ export function mapBackendPost(raw: any, fallbackLocation?: NeighborhoodLocation
   const type = backendType === 'need' || backendType === 'request' ? 'need' : 'share';
   const authorRaw = raw?.author ?? {};
   const location = locationFromUnknown(raw?.location ?? raw?.dongName ?? raw?.dong_name, fallbackLocation?.dongName);
-  const postId = raw?.id ?? raw?.postId ?? raw?.post_id ?? raw?.recordId ?? raw?.donate_id ?? raw?.request_id;
+  const displayId = raw?.id ?? raw?.postId ?? raw?.post_id ?? raw?.recordId ?? raw?.donate_id ?? raw?.request_id;
+  const recordId = raw?.recordId ?? raw?.record_id ?? raw?.postId ?? raw?.post_id ?? raw?.donate_id ?? raw?.request_id ?? displayId;
   const rawImages = raw?.images ?? raw?.imageUrls ?? raw?.image_urls;
   const images = Array.isArray(rawImages)
     ? rawImages
     : [raw?.image ?? raw?.imageUrl ?? raw?.image_url].filter(Boolean);
 
   return {
-    id: String(postId ?? `post_${Date.now()}`),
-    recordId: String(postId ?? `post_${Date.now()}`),
+    id: String(displayId ?? `post_${Date.now()}`),
+    recordId: String(recordId ?? displayId ?? `post_${Date.now()}`),
     type,
     title: raw?.title ?? '',
     description: raw?.description ?? raw?.content ?? '',
@@ -220,7 +244,7 @@ export function mapBackendPost(raw: any, fallbackLocation?: NeighborhoodLocation
     author: {
       id: String(authorRaw?.id ?? authorRaw?.userId ?? raw?.memberId ?? raw?.member_id ?? 'user_unknown'),
       name: authorRaw?.name ?? '사용자',
-      nickname: authorRaw?.nickname ?? raw?.nickname,
+      nickname: authorRaw?.nickname ?? raw?.authorNickname ?? raw?.author_nickname ?? raw?.nickname,
       temperature: Number(authorRaw?.temperature ?? 36.5),
       profileImage: authorRaw?.profileImage,
     },

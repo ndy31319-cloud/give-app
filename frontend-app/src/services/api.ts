@@ -3,8 +3,11 @@ import {
   findLocationByDongName,
   mapMemberToUser,
   mockCertificationCodes,
+<<<<<<< Updated upstream
   mockChatMessageRecords,
   mockChatRoomRecords,
+=======
+>>>>>>> Stashed changes
   mockCommunityComments,
   mockCommunityLikes,
   mockCommunityPosts,
@@ -70,6 +73,7 @@ import {
   mapBackendPost,
   mapBackendUser,
   mergeCreatedPost,
+  pingBackend,
   requestEnvelope,
   toBackendFilePart,
   toLocationString,
@@ -326,8 +330,19 @@ function toBackendPostType(type: CreatePostInput['type']) {
   return type === 'share' ? 'donate' : 'request';
 }
 
+const backendProductIdByCategory: Record<string, string> = {
+  clothing: '1',
+  electronics: '2',
+  digital: '2',
+  household: '51',
+  kitchen: '51',
+  baby: '51',
+  furniture: '91',
+  books: '106',
+};
+
 function toProductId(category: string) {
-  return mockProducts.find((product) => product.category === category)?.productId ?? category;
+  return backendProductIdByCategory[category] ?? category.match(/\d+/)?.[0] ?? '51';
 }
 
 function buildUserFromDraft(draft: SignupDraft, location: NeighborhoodLocation): User {
@@ -1114,29 +1129,7 @@ export const chatAPI = {
       };
     }
 
-    const relatedPost = payload.relatedPost;
-    const otherUserId = payload.participantIds[0] ?? relatedPost?.author.id ?? '';
-    const roomId = `mock_room_${payload.relatedPostId}_${payload.currentUserId}_${otherUserId}`;
-
-    return {
-      data: {
-        id: roomId,
-        roomStatus: 'open',
-        donorId: relatedPost?.type === 'share' ? otherUserId : payload.currentUserId,
-        requesterId: relatedPost?.type === 'need' ? otherUserId : payload.currentUserId,
-        userId: otherUserId,
-        userName: relatedPost?.author.name ?? '상대방',
-        userNickname: relatedPost?.author.nickname,
-        userLocation: relatedPost?.location.neighborhood ?? '동네 정보 없음',
-        postId: payload.relatedPostId,
-        postType: payload.relatedPostType,
-        lastMessage: '',
-        timeLabel: '방금',
-        unreadCount: 0,
-        mannerTemperature: relatedPost?.author.temperature ?? 36.5,
-      },
-      error: null,
-    };
+    return { data: null as never, error: '채팅방을 만들 수 없습니다. 백엔드 채팅 API를 확인해주세요.' };
   },
 
   async listRooms(memberId: string, authToken?: string): ApiResult<ChatRoom[]> {
@@ -1169,10 +1162,7 @@ export const chatAPI = {
   },
 
   async getRoomRecord(chatRoomId: string): ApiResult<ChatRoomRecord | null> {
-    return {
-      data: mockChatRoomRecords.find((room) => room.chatRoomId === chatRoomId) ?? null,
-      error: null,
-    };
+    return { data: null, error: null };
   },
 
   async listMessages(chatRoomId: string, authToken?: string, viewerId = ''): ApiResult<ChatMessage[]> {
@@ -1197,15 +1187,7 @@ export const chatAPI = {
   },
 
   async listUnread(chatRoomId: string, memberId: string): ApiResult<ChatMessageRecord[]> {
-    return {
-      data: mockChatMessageRecords.filter(
-        (message) =>
-          message.chatRoomId === chatRoomId &&
-          !message.isRead &&
-          message.senderId !== memberId,
-      ),
-      error: null,
-    };
+    return { data: [], error: null };
   },
 
   async sendMessage(payload: {
@@ -1240,18 +1222,7 @@ export const chatAPI = {
       };
     }
 
-    return {
-      data: {
-        id: `message_${Date.now()}`,
-        sender: 'me',
-        senderId: payload.senderId,
-        text: payload.content,
-        messageType: payload.messageType ?? 'TEXT',
-        timeLabel: '방금',
-        isRead: false,
-      },
-      error: null,
-    };
+    return { data: null as never, error: '메시지를 보낼 수 없습니다. 백엔드 채팅 API를 확인해주세요.' };
   },
 
   async markAsRead(chatRoomId: string, memberId: string, authToken?: string): ApiResult<{ success: boolean }> {
@@ -1731,6 +1702,10 @@ export const authAPI = {
 };
 
 export const postAPI = {
+  async checkBackendReady() {
+    return pingBackend();
+  },
+
   async createPost(
     payload: CreatePostInput,
     context?: { authToken?: string | null; user?: User | null },
@@ -1885,13 +1860,27 @@ export const postAPI = {
     formData.append('title', extras?.title ?? '');
     formData.append('description', extras?.description ?? '');
 
-    const response = await requestEnvelope<any>(backendConfig.endpoints.harmfulCheck, {
+    const response = await fetch(`${backendConfig.baseUrl}${backendConfig.endpoints.harmfulCheck}`, {
       method: 'POST',
       headers: token ? buildAuthHeaders(token) : undefined,
       body: formData,
-    });
+    })
+      .then(async (fetchResponse) => {
+        const raw = await fetchResponse.json().catch(() => null);
+        return {
+          data: raw,
+          error: fetchResponse.ok ? null : raw?.message ?? raw?.error ?? `HTTP ${fetchResponse.status}`,
+        };
+      })
+      .catch(() => ({
+        data: null,
+        error: '백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.',
+      }));
 
-    if (response.error) {
+    const hasHarmfulResult =
+      Array.isArray(response.data?.problematic_images) && response.data.problematic_images.length > 0;
+
+    if (response.error && !hasHarmfulResult) {
       return { data: null as ImageAnalysisResult | null, error: response.error };
     }
 
@@ -2006,5 +1995,24 @@ export const postAPI = {
     }
 
     return { data: [], error: null as string | null };
+  },
+
+  async deletePost(post: Post, authToken?: string) {
+    const backendType = post.type === 'need' ? 'request' : 'donate';
+    const recordId = post.recordId || post.id.replace(/^(donate|request)_/, '');
+
+    const response = await requestEnvelope<{ message?: string }>(
+      `${backendConfig.endpoints.posts}/${recordId}?type=${backendType}`,
+      {
+        method: 'DELETE',
+        headers: buildAuthHeaders(authToken),
+      },
+    );
+
+    if (response.error) {
+      return { data: null as { success: boolean } | null, error: response.error };
+    }
+
+    return { data: { success: true }, error: null as string | null };
   },
 };
