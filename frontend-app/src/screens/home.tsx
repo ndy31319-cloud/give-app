@@ -17,12 +17,12 @@ import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { PostCard } from '@/src/components/common/PostCard';
 import { useAppContext } from '@/src/context/AppContext';
-import { categoryOptions, createMockUser } from '@/src/data/mockData';
+import { categoryOptions, mockProducts } from '@/src/data/mockData';
 import { postAPI } from '@/src/services/api';
 import { colors } from '@/src/theme/colors';
 import { styles } from '@/src/screens/home.styles';
 import { ImageAnalysisResult, SearchFilters, UploadableImage } from '@/src/types/app';
-import { captureImage, pickImageFromLibrary } from '@/src/utils/imagePicker';
+import { captureImage, pickImageFromLibrary, pickImagesFromLibrary } from '@/src/utils/imagePicker';
 import {
   filterPostsByRadius,
   formatCompactLocation,
@@ -77,57 +77,62 @@ function FilterModal({
 }) {
   return (
     <AppModal visible={visible} onClose={onClose}>
-      <Text style={styles.modalTitle}>검색 필터</Text>
-      <Text style={styles.modalDescription}>원하는 조건으로 검색 결과를 좁혀보세요.</Text>
+      <ScrollView
+        style={styles.filterModalScroll}
+        contentContainerStyle={styles.filterModalContent}
+        showsVerticalScrollIndicator={false}>
+        <Text style={styles.modalTitle}>검색 필터</Text>
+        <Text style={styles.modalDescription}>원하는 조건으로 검색 결과를 좁혀보세요.</Text>
 
-      <SectionTitle title="게시글 유형" />
-      <View style={styles.optionGroup}>
-        {[
-          { value: 'all', label: '전체' },
-          { value: 'share', label: '나눔해요' },
-          { value: 'need', label: '필요해요' },
-        ].map((item) => (
-          <Pressable
-            key={item.value}
-            onPress={() => onChange({ ...filters, type: item.value as SearchFilters['type'] })}
-            style={[styles.optionButton, filters.type === item.value && styles.optionButtonActive]}>
-            <Text style={[styles.optionLabel, filters.type === item.value && styles.optionLabelActive]}>{item.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+        <SectionTitle title="게시글 유형" />
+        <View style={styles.optionGroup}>
+          {[
+            { value: 'all', label: '전체' },
+            { value: 'share', label: '나눔해요' },
+            { value: 'need', label: '필요해요' },
+          ].map((item) => (
+            <Pressable
+              key={item.value}
+              onPress={() => onChange({ ...filters, type: item.value as SearchFilters['type'] })}
+              style={[styles.optionButton, filters.type === item.value && styles.optionButtonActive]}>
+              <Text style={[styles.optionLabel, filters.type === item.value && styles.optionLabelActive]}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </View>
 
-      <SectionTitle title="상태" />
-      <View style={styles.optionGroup}>
-        {[
-          { value: 'all', label: '전체' },
-          { value: 'open', label: '나눔 가능' },
-          { value: 'reserved', label: '예약중' },
-          { value: 'completed', label: '완료' },
-        ].map((item) => (
-          <Pressable
-            key={item.value}
-            onPress={() => onChange({ ...filters, status: item.value as SearchFilters['status'] })}
-            style={[styles.optionButton, filters.status === item.value && styles.optionButtonActive]}>
-            <Text style={[styles.optionLabel, filters.status === item.value && styles.optionLabelActive]}>{item.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+        <SectionTitle title="상태" />
+        <View style={styles.optionGroup}>
+          {[
+            { value: 'all', label: '전체' },
+            { value: 'open', label: '나눔 가능' },
+            { value: 'reserved', label: '예약중' },
+            { value: 'completed', label: '나눔 완료' },
+          ].map((item) => (
+            <Pressable
+              key={item.value}
+              onPress={() => onChange({ ...filters, status: item.value as SearchFilters['status'] })}
+              style={[styles.optionButton, filters.status === item.value && styles.optionButtonActive]}>
+              <Text style={[styles.optionLabel, filters.status === item.value && styles.optionLabelActive]}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </View>
 
-      <SectionTitle title="동네 범위" description="기본값은 5km입니다." />
-      <View style={styles.optionGroup}>
-        {[1, 3, 5, 10].map((distanceKm) => (
-          <Pressable
-            key={distanceKm}
-            onPress={() => onChange({ ...filters, distanceKm })}
-            style={[styles.optionButton, filters.distanceKm === distanceKm && styles.optionButtonActive]}>
-            <Text style={[styles.optionLabel, filters.distanceKm === distanceKm && styles.optionLabelActive]}>
-              {distanceKm}km 이내
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+        <SectionTitle title="동네 범위" description="기본값은 5km입니다." />
+        <View style={styles.optionGroup}>
+          {[1, 3, 5, 10].map((distanceKm) => (
+            <Pressable
+              key={distanceKm}
+              onPress={() => onChange({ ...filters, distanceKm })}
+              style={[styles.optionButton, filters.distanceKm === distanceKm && styles.optionButtonActive]}>
+              <Text style={[styles.optionLabel, filters.distanceKm === distanceKm && styles.optionLabelActive]}>
+                {distanceKm}km 이내
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
-      <AppButton label="닫기" onPress={onClose} />
+        <AppButton label="닫기" onPress={onClose} />
+      </ScrollView>
     </AppModal>
   );
 }
@@ -136,6 +141,18 @@ function pickLabelForAnalysis(analysis: ImageAnalysisResult | null) {
   if (!analysis) return 'AI 분석 전';
   if (analysis.isHarmful) return '유해 가능';
   return `AI 인식: ${analysis.detectedItem}`;
+}
+
+const itemConditionOptions = [
+  '새 상품',
+  '거의 새것',
+  '사용감 적음',
+  '사용감 있음',
+  '수리/확인 필요',
+];
+
+function productsForCategory(category: string) {
+  return mockProducts.filter((product) => product.category === category);
 }
 
 function showUnexpectedError(title = '오류가 발생했습니다') {
@@ -148,25 +165,20 @@ async function pickImage(source: 'camera' | 'gallery') {
 
 export function HomeScreen() {
   const { user, posts } = useAppContext();
-  const previewLocation = useMemo(() => createMockUser().location, []);
   const allowedHomePostType = user ? (isBeneficiaryUser(user) ? 'share' : 'need') : 'all';
   const homeFeed = useMemo(() => {
-    const baseLocation = user?.location ?? previewLocation;
-    const radiusKm = user?.location.radiusKm ?? previewLocation.radiusKm;
-    const nearbyPosts = filterPostsByRadius(posts, baseLocation, radiusKm).filter((post) =>
-      allowedHomePostType === 'all' ? true : post.type === allowedHomePostType,
-    );
-    const fallbackPosts = posts.filter((post) =>
+    const filteredPosts = user
+      ? filterPostsByRadius(posts, user.location, user.location.radiusKm)
+      : posts;
+    const visiblePosts = filteredPosts.filter((post) =>
       allowedHomePostType === 'all' ? true : post.type === allowedHomePostType,
     );
 
     return {
-      location: baseLocation,
-      radiusKm,
-      posts: nearbyPosts.length > 0 ? nearbyPosts : fallbackPosts,
-      isPreviewMode: !user || nearbyPosts.length === 0,
+      location: user?.location ?? null,
+      posts: visiblePosts,
     };
-  }, [allowedHomePostType, posts, previewLocation, user]);
+  }, [allowedHomePostType, posts, user]);
 
   return (
     <AppScreen>
@@ -177,12 +189,10 @@ export function HomeScreen() {
               <Ionicons name="location" size={18} color={colors.brand} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.locationTitle}>
-                  {user ? formatCompactLocation(user.location) : `${formatCompactLocation(homeFeed.location)} 미리보기`}
+                  {user ? formatCompactLocation(user.location) : '동네 미설정'}
                 </Text>
                 <Text style={styles.locationSubtitle}>
-                  {user
-                    ? `동네 반경 ${user.location.radiusKm}km`
-                    : `첫 화면 샘플 더미데이터 · 반경 ${homeFeed.radiusKm}km`}
+                  {user ? `동네 반경 ${user.location.radiusKm}km` : '로그인 후 동네 기준 게시글을 볼 수 있어요'}
                 </Text>
               </View>
             </Pressable>
@@ -206,25 +216,12 @@ export function HomeScreen() {
           style={styles.feedScroll}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}>
-          {homeFeed.isPreviewMode ? (
-            <View style={styles.previewBanner}>
-              <Ionicons name="information-circle-outline" size={18} color={colors.brand} />
-              <Text style={styles.previewBannerText}>
-                {user
-                  ? isBeneficiaryUser(user)
-                    ? '취약계층 회원에게는 나눔해요 게시글만 보여주고 있어요.'
-                    : '일반회원에게는 필요해요 게시글만 보여주고 있어요.'
-                  : '첫 홈 화면에서는 샘플 더미데이터를 먼저 보여주고 있어요.'}
-              </Text>
-            </View>
-          ) : null}
-
           {homeFeed.posts.length > 0 ? (
             homeFeed.posts.map((post) => (
               <PostCard
                 key={post.id}
                 post={post}
-                currentLocation={homeFeed.location}
+                currentLocation={homeFeed.location ?? undefined}
                 onPress={() => router.push(`/post/${post.id}`)}
               />
             ))
@@ -232,7 +229,7 @@ export function HomeScreen() {
             <View style={styles.homeEmptyState}>
               <Ionicons name="document-text-outline" size={28} color={colors.textLight} />
               <Text style={styles.homeEmptyStateTitle}>표시할 게시글이 아직 없어요.</Text>
-              <Text style={styles.homeEmptyStateDescription}>첫 글을 등록해서 홈 화면을 채워보세요.</Text>
+              <Text style={styles.homeEmptyStateDescription}>백엔드에서 받아온 게시글이나 직접 등록한 글이 여기에 표시됩니다.</Text>
             </View>
           )}
         </ScrollView>
@@ -251,6 +248,8 @@ export function PostDetailScreen() {
   const { posts, startChatWithPost, user } = useAppContext();
   const [isStartingChat, setIsStartingChat] = useState(false);
   const post = posts.find((item) => item.id === id);
+  const isMyPost = Boolean(user && post && String(post.author.id) === String(user.id));
+  const statusLabel = post ? getPostStatusLabel(post.status) : '';
 
   async function handleStartChat() {
     if (!post || isStartingChat) {
@@ -287,8 +286,14 @@ export function PostDetailScreen() {
       <AppHeader
         title="게시글 상세"
         right={
-          <Pressable style={styles.headerIcon}>
-            <Ionicons name="share-social-outline" size={20} color={colors.text} />
+          <Pressable
+            style={styles.headerIcon}
+            onPress={() => {
+              if (isMyPost) {
+                router.push(`/post/edit/${post.id}`);
+              }
+            }}>
+            <Ionicons name={isMyPost ? 'create-outline' : 'share-social-outline'} size={20} color={colors.text} />
           </Pressable>
         }
       />
@@ -314,9 +319,9 @@ export function PostDetailScreen() {
               {post.type === 'share' ? '나눔해요' : '필요해요'}
             </Text>
           </View>
-          {!isOpenPostStatus(post.status) ? (
+          {!isOpenPostStatus(post.status) && statusLabel ? (
             <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>{getPostStatusLabel(post.status)}</Text>
+              <Text style={styles.statusText}>{statusLabel}</Text>
             </View>
           ) : null}
         </View>
@@ -325,6 +330,13 @@ export function PostDetailScreen() {
         <Text style={styles.detailDescription}>{post.description}</Text>
 
         <View style={styles.metaCard}>
+          <View style={styles.metaLine}>
+            <Ionicons name="cube-outline" size={18} color={colors.brand} />
+            <Text style={styles.metaLineText}>
+              {post.itemName ?? post.aiDetectedItem ?? '물품 정보 미기재'}
+              {post.itemCondition ? ` · ${post.itemCondition}` : ''}
+            </Text>
+          </View>
           <View style={styles.metaLine}>
             <Ionicons name="location-outline" size={18} color={colors.brand} />
             <Text style={styles.metaLineText}>{formatLocationLabel(post.location)}</Text>
@@ -349,20 +361,16 @@ export function PostDetailScreen() {
         ) : null}
       </View>
 
-      <View style={styles.bottomActions}>
-        <AppButton
-          label={isStartingChat ? '연결 중' : '채팅하기'}
-          variant="secondary"
-          disabled={isStartingChat}
-          onPress={handleStartChat}
-          style={{ flex: 1 }}
-        />
-        <AppButton
-          label={post.type === 'share' ? '나눔 신청' : '나눔하기'}
-          onPress={() => Alert.alert('안내', '이 기능은 채팅 연결 중심으로 이어집니다.')}
-          style={{ flex: 1 }}
-        />
-      </View>
+      {!isMyPost ? (
+        <View style={styles.bottomActions}>
+          <AppButton
+            label={isStartingChat ? '연결 중' : '채팅하기'}
+            disabled={isStartingChat}
+            onPress={handleStartChat}
+            style={{ flex: 1 }}
+          />
+        </View>
+      ) : null}
     </AppScreen>
   );
 }
@@ -431,14 +439,17 @@ export function WriteFormScreen() {
   const { type } = useLocalSearchParams<{ type?: string }>();
   const { user, addPost, authToken } = useAppContext();
   const postType = user ? (isBeneficiaryUser(user) ? 'need' : 'share') : type === 'need' ? 'need' : 'share';
-  const [selectedImage, setSelectedImage] = useState<UploadableImage | null>(null);
+  const [selectedImages, setSelectedImages] = useState<UploadableImage[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<ImageAnalysisResult | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [imageConfirmed, setImageConfirmed] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     category: '',
+    productId: '',
+    itemCondition: '',
     description: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -447,7 +458,12 @@ export function WriteFormScreen() {
     router.replace('/(tabs)/index');
   };
 
-  const analyzeImage = async (image: UploadableImage) => {
+  const analyzeImage = async (images: UploadableImage[]) => {
+    const image = images[0];
+    if (!image) {
+      return;
+    }
+
     setChecking(true);
     let result;
     try {
@@ -474,8 +490,9 @@ export function WriteFormScreen() {
     }
 
     const analysis = result.data;
-    setSelectedImage(image);
+    setSelectedImages(images);
     setAiAnalysis(analysis);
+    setImageConfirmed(false);
     if (analysis.recommendedCategory) {
       setFormData((prev) => ({ ...prev, category: prev.category || analysis.recommendedCategory || '' }));
     }
@@ -484,12 +501,12 @@ export function WriteFormScreen() {
   const handleChooseImage = async (source: 'camera' | 'gallery') => {
     try {
       setSourceModalOpen(false);
-      const image = await pickImage(source);
-      if (!image) {
+      const images = source === 'gallery' ? await pickImagesFromLibrary() : await pickImage(source).then((image) => (image ? [image] : null));
+      if (!images?.length) {
         return;
       }
 
-      await analyzeImage(image);
+      await analyzeImage(images);
     } catch {
       showUnexpectedError('사진 선택 중 오류가 발생했습니다');
     }
@@ -510,6 +527,8 @@ export function WriteFormScreen() {
       title: nextTitle ?? prev.title,
       description: nextDescription ?? prev.description,
       category: aiAnalysis.recommendedCategory ?? prev.category,
+      productId: prev.productId,
+      itemCondition: prev.itemCondition,
     }));
     setErrors((prev) => {
       const next = { ...prev };
@@ -523,9 +542,12 @@ export function WriteFormScreen() {
   const validate = () => {
     const nextErrors: Record<string, string> = {};
 
-    if (!selectedImage) nextErrors.image = '사진 등록이 필요합니다';
+    if (!selectedImages.length) nextErrors.image = '사진 등록이 필요합니다';
+    if (selectedImages.length && !imageConfirmed) nextErrors.image = 'AI 사진 등록 확인을 눌러주세요';
     if (!validateRequired(formData.title)) nextErrors.title = '제목을 입력해주세요';
     if (!validateRequired(formData.category)) nextErrors.category = '카테고리를 선택해주세요';
+    if (!validateRequired(formData.productId)) nextErrors.productId = '하위 품목을 선택해주세요';
+    if (!validateRequired(formData.itemCondition)) nextErrors.itemCondition = '물품 상태를 선택해주세요';
     if (!validateRequired(formData.description)) nextErrors.description = '설명을 입력해주세요';
 
     setErrors(nextErrors);
@@ -538,18 +560,22 @@ export function WriteFormScreen() {
         Alert.alert('로그인이 필요합니다');
         return;
       }
-      if (!validate() || !selectedImage) {
+      if (!validate() || !selectedImages.length || !imageConfirmed) {
         return;
       }
 
+      const selectedProduct = mockProducts.find((product) => product.productId === formData.productId);
       setSubmitting(true);
       const result = await addPost({
         type: postType,
         title: formData.title,
         category: formData.category,
+        productId: formData.productId,
+        itemName: selectedProduct?.productName ?? aiAnalysis?.detectedItem ?? formData.title,
+        itemCondition: formData.itemCondition,
         description: formData.description,
         location: user.location,
-        images: [selectedImage],
+        images: selectedImages,
         aiAnalysis,
       });
       setSubmitting(false);
@@ -598,12 +624,21 @@ export function WriteFormScreen() {
             title="1. 사진 등록"
             description="게시글 작성 전 사진부터 등록합니다. 카메라 촬영 또는 갤러리 선택이 가능합니다."
           />
-          {selectedImage ? (
+          {selectedImages.length ? (
             <View style={styles.photoPreviewCard}>
-              <Image source={{ uri: selectedImage.uri }} style={styles.photoPreview} contentFit="cover" />
+              <Image source={{ uri: selectedImages[0].uri }} style={styles.photoPreview} contentFit="cover" />
               <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.writeOptionTitle}>{selectedImage.name}</Text>
+                <Text style={styles.writeOptionTitle}>
+                  사진 {selectedImages.length}장 첨부됨
+                </Text>
                 <Text style={styles.sectionDescription}>{pickLabelForAnalysis(aiAnalysis)}</Text>
+                {selectedImages.length > 1 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailRow}>
+                    {selectedImages.map((image) => (
+                      <Image key={image.uri} source={{ uri: image.uri }} style={styles.thumbnailImage} contentFit="cover" />
+                    ))}
+                  </ScrollView>
+                ) : null}
                 <Pressable style={styles.changePhotoButton} onPress={() => setSourceModalOpen(true)}>
                   <Text style={styles.changePhotoText}>사진 변경</Text>
                 </Pressable>
@@ -622,9 +657,37 @@ export function WriteFormScreen() {
             </View>
           )}
           {checking ? <Text style={styles.analysisLoading}>AI가 사진을 판독하고 있어요...</Text> : null}
+          {selectedImages.length && !checking ? (
+            <View style={styles.aiPhotoConfirmCard}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={styles.aiSuggestionTitle}>
+                  {imageConfirmed ? 'AI 사진 등록 확인 완료' : 'AI 사진 판독 완료'}
+                </Text>
+                <Text style={styles.sectionDescription}>
+                  {imageConfirmed
+                    ? '이 사진으로 게시글을 작성할 수 있습니다.'
+                    : 'AI 결과를 확인한 뒤 사진 등록을 확정해주세요.'}
+                </Text>
+              </View>
+              <AppButton
+                label={imageConfirmed ? '확인됨' : 'AI 사진 등록 확인'}
+                variant={imageConfirmed ? 'secondary' : 'primary'}
+                disabled={imageConfirmed}
+                onPress={() => {
+                  setImageConfirmed(true);
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.image;
+                    return next;
+                  });
+                }}
+              />
+            </View>
+          ) : null}
+          {errors.image && selectedImages.length ? <Text style={styles.errorText}>{errors.image}</Text> : null}
         </View>
 
-        {selectedImage ? (
+        {selectedImages.length && imageConfirmed ? (
           <View style={styles.formCard}>
             <SectionTitle
               title="2. 게시글 작성"
@@ -679,7 +742,7 @@ export function WriteFormScreen() {
                   return (
                     <Pressable
                       key={category.id}
-                      onPress={() => setFormData((prev) => ({ ...prev, category: category.id }))}
+                      onPress={() => setFormData((prev) => ({ ...prev, category: category.id, productId: '' }))}
                       style={[styles.categoryChip, active && styles.categoryChipActive]}>
                       <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{category.label}</Text>
                     </Pressable>
@@ -687,6 +750,49 @@ export function WriteFormScreen() {
                 })}
               </ScrollView>
               {errors.category ? <Text style={styles.errorText}>{errors.category}</Text> : null}
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <Text style={styles.fieldLabel}>하위 품목</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+                {productsForCategory(formData.category).map((product) => {
+                  const active = formData.productId === product.productId;
+                  return (
+                    <Pressable
+                      key={product.productId}
+                      onPress={() => setFormData((prev) => ({ ...prev, productId: product.productId }))}
+                      style={[styles.categoryChip, active && styles.categoryChipActive]}>
+                      <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                        {product.productName}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              {formData.category && !productsForCategory(formData.category).length ? (
+                <Text style={styles.sectionDescription}>등록된 하위 품목이 없습니다.</Text>
+              ) : null}
+              {errors.productId ? <Text style={styles.errorText}>{errors.productId}</Text> : null}
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <Text style={styles.fieldLabel}>물품 상태</Text>
+              <View style={styles.optionWrap}>
+                {itemConditionOptions.map((condition) => {
+                  const active = formData.itemCondition === condition;
+                  return (
+                    <Pressable
+                      key={condition}
+                      onPress={() => setFormData((prev) => ({ ...prev, itemCondition: condition }))}
+                      style={[styles.categoryChip, active && styles.categoryChipActive]}>
+                      <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                        {condition}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {errors.itemCondition ? <Text style={styles.errorText}>{errors.itemCondition}</Text> : null}
             </View>
 
             <AppTextField
@@ -723,6 +829,189 @@ export function WriteFormScreen() {
   );
 }
 
+export function PostEditScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { posts, updatePost, user } = useAppContext();
+  const post = posts.find((item) => item.id === id);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState({
+    title: post?.title ?? '',
+    category: post?.category ?? '',
+    productId: post?.productId ?? '',
+    itemCondition: post?.itemCondition ?? '',
+    description: post?.description ?? '',
+    urgency: post?.urgency ?? 'normal',
+  });
+
+  if (!post) {
+    return (
+      <AppScreen>
+        <AppHeader title="게시글 수정" />
+        <View style={styles.homeEmptyState}>
+          <Ionicons name="document-text-outline" size={28} color={colors.textLight} />
+          <Text style={styles.homeEmptyStateTitle}>게시글을 찾을 수 없습니다.</Text>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  if (!user || String(post.author.id) !== String(user.id)) {
+    return (
+      <AppScreen>
+        <AppHeader title="게시글 수정" />
+        <View style={styles.homeEmptyState}>
+          <Ionicons name="lock-closed-outline" size={28} color={colors.textLight} />
+          <Text style={styles.homeEmptyStateTitle}>수정 권한이 없습니다.</Text>
+          <Text style={styles.homeEmptyStateDescription}>내가 작성한 게시글만 수정할 수 있습니다.</Text>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  const validateEdit = () => {
+    const nextErrors: Record<string, string> = {};
+    if (!validateRequired(formData.title)) nextErrors.title = '제목을 입력해주세요';
+    if (!validateRequired(formData.category)) nextErrors.category = '카테고리를 선택해주세요';
+    if (!validateRequired(formData.productId)) nextErrors.productId = '하위 품목을 선택해주세요';
+    if (!validateRequired(formData.itemCondition)) nextErrors.itemCondition = '물품 상태를 선택해주세요';
+    if (!validateRequired(formData.description)) nextErrors.description = '설명을 입력해주세요';
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const submitEdit = async () => {
+    if (!validateEdit()) {
+      return;
+    }
+
+    const selectedProduct = mockProducts.find((product) => product.productId === formData.productId);
+    setSubmitting(true);
+    const result = await updatePost({
+      postId: post.id,
+      type: post.type,
+      title: formData.title,
+      category: formData.category,
+      productId: formData.productId,
+      itemName: selectedProduct?.productName ?? post.itemName ?? formData.title,
+      itemCondition: formData.itemCondition,
+      description: formData.description,
+      urgency: post.type === 'need' ? formData.urgency : undefined,
+    });
+    setSubmitting(false);
+
+    if (result.error) {
+      Alert.alert('수정 실패', result.error);
+      return;
+    }
+
+    Alert.alert('수정 완료', '게시글 정보가 수정되었습니다.', [
+      { text: '확인', onPress: () => router.replace(`/post/${post.id}`) },
+    ]);
+  };
+
+  return (
+    <AppScreen scroll contentContainerStyle={{ paddingBottom: 30 }}>
+      <AppHeader
+        title="게시글 수정"
+        right={
+          <Pressable style={styles.headerDone} onPress={submitEdit}>
+            <Text style={styles.headerDoneText}>저장</Text>
+          </Pressable>
+        }
+      />
+
+      <View style={styles.section}>
+        <View style={styles.warningCard}>
+          <Ionicons name="image-outline" size={18} color={colors.warning} />
+          <Text style={styles.warningText}>이미지는 등록 후 변경하지 않는 정책으로, 텍스트 정보만 수정할 수 있습니다.</Text>
+        </View>
+
+        {post.images[0] ? (
+          <Image source={{ uri: post.images[0] }} style={styles.editImagePreview} contentFit="cover" />
+        ) : null}
+
+        <View style={styles.formCard}>
+          <AppTextField
+            label="제목"
+            value={formData.title}
+            onChangeText={(value) => setFormData((prev) => ({ ...prev, title: value }))}
+            error={errors.title}
+          />
+
+          <View style={{ gap: 8 }}>
+            <Text style={styles.fieldLabel}>카테고리</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+              {categoryOptions.filter((category) => category.id !== 'all').map((category) => {
+                const active = formData.category === category.id;
+                return (
+                  <Pressable
+                    key={category.id}
+                    onPress={() => setFormData((prev) => ({ ...prev, category: category.id, productId: '' }))}
+                    style={[styles.categoryChip, active && styles.categoryChipActive]}>
+                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{category.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {errors.category ? <Text style={styles.errorText}>{errors.category}</Text> : null}
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <Text style={styles.fieldLabel}>하위 품목</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+              {productsForCategory(formData.category).map((product) => {
+                const active = formData.productId === product.productId;
+                return (
+                  <Pressable
+                    key={product.productId}
+                    onPress={() => setFormData((prev) => ({ ...prev, productId: product.productId }))}
+                    style={[styles.categoryChip, active && styles.categoryChipActive]}>
+                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                      {product.productName}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {errors.productId ? <Text style={styles.errorText}>{errors.productId}</Text> : null}
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <Text style={styles.fieldLabel}>물품 상태</Text>
+            <View style={styles.optionWrap}>
+              {itemConditionOptions.map((condition) => {
+                const active = formData.itemCondition === condition;
+                return (
+                  <Pressable
+                    key={condition}
+                    onPress={() => setFormData((prev) => ({ ...prev, itemCondition: condition }))}
+                    style={[styles.categoryChip, active && styles.categoryChipActive]}>
+                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                      {condition}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {errors.itemCondition ? <Text style={styles.errorText}>{errors.itemCondition}</Text> : null}
+          </View>
+
+          <AppTextField
+            label="설명"
+            multiline
+            value={formData.description}
+            onChangeText={(value) => setFormData((prev) => ({ ...prev, description: value }))}
+            error={errors.description}
+          />
+
+          <AppButton label="수정 저장" onPress={submitEdit} loading={submitting} />
+        </View>
+      </View>
+    </AppScreen>
+  );
+}
+
 export function SearchScreen() {
   const { user, posts } = useAppContext();
   const [query, setQuery] = useState('');
@@ -737,13 +1026,13 @@ export function SearchScreen() {
   const allowedSearchPostType = user ? (isBeneficiaryUser(user) ? 'share' : 'need') : 'all';
 
   const results = useMemo(() => {
-    if (!user) return [];
+    if (!user?.location) return [];
 
     return filterPostsByRadius(posts, user.location, filters.distanceKm).filter((post) => {
       if (allowedSearchPostType !== 'all' && post.type !== allowedSearchPostType) return false;
       if (filters.type !== 'all' && post.type !== filters.type) return false;
       if (filters.status !== 'all' && post.status !== filters.status) return false;
-      if (query && !post.title.toLowerCase().includes(query.toLowerCase())) return false;
+      if (query && !String(post.title ?? '').toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     });
   }, [allowedSearchPostType, filters, posts, query, user]);

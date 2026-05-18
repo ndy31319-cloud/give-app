@@ -157,6 +157,12 @@ export const styles = StyleSheet.create({
     height: 260,
     backgroundColor: colors.surfaceMuted,
   },
+  editImagePreview: {
+    width: '100%',
+    height: 180,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
+  },
   detailContent: {
     padding: spacing.lg,
     gap: spacing.lg,
@@ -389,6 +395,15 @@ export const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surfaceMuted,
   },
+  thumbnailRow: {
+    gap: 8,
+  },
+  thumbnailImage: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceMuted,
+  },
   uploadPrompt: {
     alignItems: 'center',
     gap: 12,
@@ -424,6 +439,14 @@ export const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.brandSoft,
   },
+  aiPhotoConfirmCard: {
+    gap: 12,
+    padding: 16,
+    borderRadius: radius.md,
+    backgroundColor: colors.brandSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   aiSuggestionTitle: {
     fontSize: 15,
     fontWeight: '800',
@@ -453,6 +476,11 @@ export const styles = StyleSheet.create({
     color: colors.text,
   },
   categoryRow: {
+    gap: 10,
+  },
+  optionWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   categoryChip: {
@@ -561,6 +589,13 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.textMuted,
+  },
+  filterModalScroll: {
+    maxHeight: '100%',
+  },
+  filterModalContent: {
+    gap: 14,
+    paddingBottom: 12,
   },
   optionGroup: {
     gap: 10,

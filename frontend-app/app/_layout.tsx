@@ -17,6 +17,7 @@ export default function RootLayout() {
         <Stack.Screen name="vulnerable-info" options={{ headerShown: false }} />
         <Stack.Screen name="personal-info" options={{ headerShown: false }} />
         <Stack.Screen name="location-setting" options={{ headerShown: false }} />
+        <Stack.Screen name="signup-complete" options={{ headerShown: false }} />
         <Stack.Screen name="search" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ headerShown: false }} />
         <Stack.Screen name="qr" options={{ headerShown: false }} />
@@ -24,6 +25,7 @@ export default function RootLayout() {
         <Stack.Screen name="qr-pass" options={{ headerShown: false }} />
         <Stack.Screen name="device-simulator" options={{ headerShown: false }} />
         <Stack.Screen name="post/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="post/edit/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="write/index" options={{ headerShown: false }} />
         <Stack.Screen name="write/form" options={{ headerShown: false }} />

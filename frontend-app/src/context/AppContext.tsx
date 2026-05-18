@@ -11,15 +11,9 @@ import {
   NotificationItem,
   Post,
   SignupDraft,
+  UpdatePostInput,
   User,
 } from '@/src/types/app';
-import {
-  createMockUser,
-  mockChatRooms,
-  mockMessagesByChat,
-  mockNotifications,
-  mockPosts,
-} from '@/src/data/mockData';
 import { authAPI, chatAPI, dynamicQrAPI, memberAPI, notificationAPI, postAPI } from '@/src/services/api';
 
 const initialDeviceSimulationState: DeviceSimulationState = {
@@ -50,7 +44,10 @@ interface AppContextValue {
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<{ error: string | null }>;
   updateLocation: (location: NeighborhoodLocation) => Promise<{ error: string | null }>;
+  addNeighborhood: (location: NeighborhoodLocation) => Promise<{ error: string | null }>;
+  removeNeighborhood: (locationId: string) => void;
   addPost: (payload: CreatePostInput) => Promise<{ error: string | null }>;
+  updatePost: (payload: UpdatePostInput) => Promise<{ error: string | null }>;
   startChatWithPost: (post: Post) => Promise<{ roomId: string | null; error: string | null }>;
   sendMessage: (chatId: string, text: string) => Promise<{ error: string | null }>;
   markNotificationRead: (id: string) => void;
@@ -69,10 +66,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [signupDraft, setSignupDraft] = useState<SignupDraft>({});
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(mockNotifications);
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>(mockChatRooms);
-  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>(mockMessagesByChat);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
   const [activeQrSession, setActiveQrSession] = useState<DynamicQrSession | null>(null);
   const [deviceSimulation, setDeviceSimulation] = useState<DeviceSimulationState>(initialDeviceSimulationState);
   const deviceTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -88,17 +85,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     async function hydrateAppData() {
       const postsResult = await postAPI.listAll(authToken ?? undefined);
-      if (mounted && postsResult.data?.length) {
-        setPosts(postsResult.data);
+      if (mounted) {
+        setPosts(postsResult.data ?? []);
       }
 
       if (!user) {
         if (!mounted) {
           return;
         }
-        setChatRooms(mockChatRooms);
-        setMessagesByChat(mockMessagesByChat);
-        setNotifications(mockNotifications);
+        setChatRooms([]);
+        setMessagesByChat({});
+        setNotifications([]);
         return;
       }
 
@@ -160,7 +157,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return { error: result.error ?? '로그인에 실패했습니다.' };
     }
 
-    setUser(result.data.user ?? createMockUser());
+    setUser(result.data.user);
     setAuthToken(result.data.token);
     return { error: null };
   }
@@ -227,6 +224,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
+  async function addNeighborhood(location: NeighborhoodLocation) {
+    if (!user) {
+      return { error: '로그인이 필요합니다.' };
+    }
+
+    setUser((prev) => {
+      if (!prev) return prev;
+      const currentNeighborhoods = prev.neighborhoods?.length ? prev.neighborhoods : [prev.location];
+      const exists = currentNeighborhoods.some(
+        (item) =>
+          item.id === location.id ||
+          (item.dongName === location.dongName && item.district === location.district),
+      );
+
+      return {
+        ...prev,
+        neighborhoods: exists ? currentNeighborhoods : [...currentNeighborhoods, location],
+      };
+    });
+
+    return { error: null };
+  }
+
+  function removeNeighborhood(locationId: string) {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const currentNeighborhoods = prev.neighborhoods?.length ? prev.neighborhoods : [prev.location];
+      if (currentNeighborhoods.length <= 1) {
+        return {
+          ...prev,
+          neighborhoods: currentNeighborhoods,
+        };
+      }
+
+      const nextNeighborhoods = currentNeighborhoods.filter(
+        (location) => location.id !== locationId,
+      );
+      const fallbackNeighborhoods = nextNeighborhoods.length ? nextNeighborhoods : [prev.location];
+      const nextLocation = prev.location.id === locationId ? fallbackNeighborhoods[0] : prev.location;
+
+      return {
+        ...prev,
+        location: nextLocation,
+        dongName: nextLocation.dongName,
+        neighborhoods: fallbackNeighborhoods,
+      };
+    });
+  }
+
   async function addPost(payload: CreatePostInput) {
     const result = await postAPI.createPost(payload, {
       authToken,
@@ -243,6 +289,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       title: payload.title,
       description: payload.description,
       category: payload.category,
+      productId: payload.productId,
+      itemName: payload.itemName,
+      itemCondition: payload.itemCondition,
       location: payload.location,
       status: 'open',
       urgency: payload.type === 'need' ? payload.urgency ?? 'normal' : undefined,
@@ -263,6 +312,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     setPosts((prev) => [newPost, ...prev]);
+    return { error: null };
+  }
+
+  async function updatePost(payload: UpdatePostInput) {
+    if (!user) {
+      return { error: '로그인이 필요합니다.' };
+    }
+
+    const currentPost = posts.find((post) => post.id === payload.postId);
+    if (!currentPost) {
+      return { error: '게시글을 찾을 수 없습니다.' };
+    }
+
+    if (String(currentPost.author.id) !== String(user.id)) {
+      return { error: '내가 작성한 게시글만 수정할 수 있습니다.' };
+    }
+
+    const result = await postAPI.updatePost(payload.postId, payload, {
+      authToken,
+      user,
+    });
+
+    if (result.error) {
+      return { error: result.error };
+    }
+
+    setPosts((prev) =>
+      prev.map((post) =>
+        post.id === payload.postId
+          ? {
+              ...post,
+              ...(result.data ?? {}),
+              title: payload.title,
+              description: payload.description,
+              category: payload.category,
+              productId: payload.productId,
+              itemName: payload.itemName,
+              itemCondition: payload.itemCondition,
+              urgency: payload.type === 'need' ? payload.urgency ?? post.urgency : post.urgency,
+              images: post.images,
+              imageFiles: post.imageFiles,
+              updatedAt: new Date().toISOString(),
+            }
+          : post,
+      ),
+    );
+
     return { error: null };
   }
 
@@ -564,7 +660,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
         updateProfile,
         updateLocation,
+        addNeighborhood,
+        removeNeighborhood,
         addPost,
+        updatePost,
         startChatWithPost,
         sendMessage,
         markNotificationRead,

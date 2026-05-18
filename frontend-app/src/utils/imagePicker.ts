@@ -52,6 +52,26 @@ export async function pickImageFromLibrary() {
   return assetToUploadableImage(result.assets[0]);
 }
 
+export async function pickImagesFromLibrary() {
+  const granted = await ensurePermission('mediaLibrary', ImagePicker.requestMediaLibraryPermissionsAsync);
+  if (!granted) {
+    return null;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    quality: 0.9,
+    allowsMultipleSelection: true,
+    selectionLimit: 5,
+  });
+
+  if (result.canceled || !result.assets.length) {
+    return null;
+  }
+
+  return result.assets.map(assetToUploadableImage);
+}
+
 export async function captureImage() {
   const granted = await ensurePermission('camera', ImagePicker.requestCameraPermissionsAsync);
   if (!granted) {

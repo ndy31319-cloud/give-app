@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/src/components/common/AppButton';
@@ -6,8 +6,9 @@ import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { PillTabs } from '@/src/components/common/PillTabs';
 import { useAppContext } from '@/src/context/AppContext';
-import { mockPolicies } from '@/src/data/mockData';
+import { policyAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
+import { Policy } from '@/src/types/app';
 
 function PolicyCard({
   title,
@@ -41,9 +42,10 @@ function PolicyCard({
 }
 
 export function PolicyScreen() {
-  const { user } = useAppContext();
+  const { authToken, user } = useAppContext();
   const [activeTab, setActiveTab] = useState<'ai' | 'category' | 'chatbot'>('ai');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [policies, setPolicies] = useState<Policy[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([
     {
@@ -54,38 +56,57 @@ export function PolicyScreen() {
 
   const categories = ['생활비', '주거', '의료', '교육', '양육', '일자리', '복지'];
 
-  const aiPolicies = useMemo(() => {
-    if (!user?.isVulnerable || !user.vulnerableTypes?.length) {
-      return mockPolicies.slice(0, 3);
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPolicies() {
+      const result = await policyAPI.listPolicies();
+      if (mounted) {
+        setPolicies(result.data ?? []);
+      }
     }
 
-    const matched = mockPolicies.filter((policy) =>
+    loadPolicies();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const aiPolicies = useMemo(() => {
+    if (!user?.isVulnerable || !user.vulnerableTypes?.length) {
+      return policies.slice(0, 3);
+    }
+
+    const matched = policies.filter((policy) =>
       policy.targetTypes?.some((type) => user.vulnerableTypes?.includes(type)),
     );
 
-    return matched.length ? matched : mockPolicies.slice(0, 3);
-  }, [user]);
+    return matched.length ? matched : policies.slice(0, 3);
+  }, [policies, user]);
 
   const categoryPolicies = useMemo(() => {
-    if (!selectedCategories.length) return mockPolicies;
-    return mockPolicies.filter((policy) => selectedCategories.includes(policy.category));
-  }, [selectedCategories]);
+    if (!selectedCategories.length) return policies;
+    return policies.filter((policy) => selectedCategories.includes(policy.category));
+  }, [policies, selectedCategories]);
 
-  const sendChat = () => {
+  const sendChat = async () => {
     const trimmed = chatInput.trim();
     if (!trimmed) return;
 
     setMessages((prev) => [...prev, { sender: 'user', text: trimmed }]);
     setChatInput('');
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'bot',
-          text: `"${trimmed}" 상황이라면 긴급복지 생계지원과 주거급여를 먼저 확인해보시는 것을 추천드려요.`,
-        },
-      ]);
-    }, 450);
+    const result = await policyAPI.askChatbot(
+      trimmed,
+      messages.map((message) => ({ role: message.sender, message: message.text })),
+      authToken ?? undefined,
+    );
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: 'bot',
+        text: result.data?.response ?? result.error ?? '정책 챗봇 응답을 받을 수 없습니다.',
+      },
+    ]);
   };
 
   return (
