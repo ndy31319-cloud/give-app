@@ -15,6 +15,29 @@ const formatPhoneNumber = (phone) => {
 
 const normalizeLoginIdentifier = (value) => String(value || "").trim();
 
+const getIdentifierMismatch = (identifier) => {
+  if (identifier.includes("@")) {
+    return {
+      field: "email",
+      message: "등록되지 않은 이메일입니다.",
+    };
+  }
+
+  const digitCount = identifier.replace(/\D/g, "").length;
+
+  if (digitCount >= 9) {
+    return {
+      field: "phone",
+      message: "등록되지 않은 전화번호입니다.",
+    };
+  }
+
+  return {
+    field: "identifier",
+    message: "등록되지 않은 이메일 또는 전화번호입니다.",
+  };
+};
+
 const formatUser = (user) => ({
   id: user.member_id,
   memberId: user.member_id,
@@ -58,18 +81,24 @@ router.post("/login", async (req, res) => {
     const user = users[0];
 
     if (!user) {
+      const mismatch = getIdentifierMismatch(identifier);
+
       return res.status(401).json({
         success: false,
-        message: "존재하지 않는 계정입니다.",
+        field: mismatch.field,
+        message: mismatch.message,
       });
     }
 
-    const isMatch = await bcrypt.compare(memberPw, user.member_pw);
+    const storedPassword = String(user.member_pw || "");
+    const isHashedPassword = /^\$2[aby]\$/.test(storedPassword);
+    const isMatch = isHashedPassword ? await bcrypt.compare(memberPw, storedPassword) : false;
 
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "비밀번호가 일치하지 않습니다.",
+        field: "password",
+        message: "비밀번호가 올바르지 않습니다.",
       });
     }
 

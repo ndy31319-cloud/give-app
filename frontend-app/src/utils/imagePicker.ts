@@ -42,7 +42,7 @@ export async function pickImageFromLibrary() {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
-    allowsEditing: true,
+    legacy: true,
   });
 
   if (result.canceled || !result.assets[0]) {
@@ -63,6 +63,7 @@ export async function pickImagesFromLibrary() {
     quality: 0.9,
     allowsMultipleSelection: true,
     selectionLimit: 5,
+    legacy: true,
   });
 
   if (result.canceled || !result.assets.length) {

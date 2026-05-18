@@ -403,14 +403,20 @@ export function VulnerableInfoScreen() {
   const hasCertificate = Boolean(certificateImageName || signupDraft.certificateImage);
 
   const pickCertificate = async (source: 'camera' | 'gallery') => {
-    const image = source === 'camera' ? await captureImage() : await pickImageFromLibrary();
-    if (!image) {
-      return;
-    }
+    try {
+      const image = source === 'camera' ? await captureImage() : await pickImageFromLibrary();
+      if (!image) {
+        return;
+      }
 
-    mergeSignupDraft({ certificateImage: image });
-    setCertificateImageName(image.name);
-    setCertificateError('');
+      mergeSignupDraft({ certificateImage: image });
+      setCertificateImageName(image.name);
+      setCertificateError('');
+    } catch (error) {
+      console.error('Certificate image picker failed:', error);
+      const message = error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.';
+      Alert.alert('증빙 이미지 선택 중 오류가 발생했습니다', message);
+    }
   };
 
   return (

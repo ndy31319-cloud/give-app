@@ -2,6 +2,31 @@
 
 ## 2026-04-14 이후 작업 요약
 
+### 2026-05-18
+- 로그인 실패 메시지와 비밀번호 검증 방식을 정리했다.
+  - `POST /api/auth/login`에서 평문 비밀번호 fallback 로그인을 제거하고 bcrypt 해시 비밀번호만 허용하도록 유지했다.
+  - 로그인 identifier가 이메일 형태인데 계정이 없으면 `등록되지 않은 이메일입니다.`를 반환하도록 했다.
+  - 로그인 identifier가 전화번호 형태인데 계정이 없으면 `등록되지 않은 전화번호입니다.`를 반환하도록 했다.
+  - 비밀번호가 틀리면 `비밀번호가 올바르지 않습니다.`를 반환하도록 했다.
+  - 실패 응답에 `field` 값을 함께 내려 추후 프론트에서 입력칸별 오류 표시로 확장할 수 있게 했다.
+- `frontend-app`의 mock 로그인도 실제 로그인 정책에 맞췄다.
+  - 백엔드가 꺼져 mock 로그인 경로를 타더라도 이메일/전화번호 identifier로 사용자를 찾도록 바꿨다.
+  - mock 로그인에서도 비밀번호를 확인하고, 틀리면 `비밀번호가 올바르지 않습니다.`를 반환하도록 했다.
+- Android 에뮬레이터 갤러리 선택 문제를 수정했다.
+  - 노트북 에뮬레이터에서 `android.provider.action.PICK_IMAGES`를 처리할 Activity가 없어 갤러리가 열리지 않는 문제를 확인했다.
+  - `expo-image-picker`의 갤러리 호출에 `legacy: true`를 추가해 새 Android Photo Picker 대신 기존 파일 선택 방식을 사용하도록 했다.
+  - 갤러리 선택에서 Android cropper 단계 오류를 피하기 위해 라이브러리 선택 시 `allowsEditing: true`를 제거했다.
+- 이미지 선택 오류 확인을 쉽게 만들었다.
+  - 글쓰기 사진 선택, 이미지 검색 사진 선택, 취약계층 증빙 이미지 선택, 마이페이지 프로필 사진 선택에서 실제 에러 메시지를 Alert와 console에 표시하도록 했다.
+  - 덕분에 갤러리 문제의 실제 원인인 `No Activity found to handle Intent ... PICK_IMAGES` 메시지를 확인할 수 있었다.
+- AI 이미지 판독 실패 원인을 확인했다.
+  - 앱의 갤러리 문제와 별개로, 사진 선택 후 AI 판독은 `앱 -> 백엔드 -> AI 서버` 순서로 동작한다.
+  - `Request failed with status code 404`는 백엔드가 호출하는 AI 서버 주소 또는 AI 서버의 실제 API 경로가 맞지 않을 때 발생할 수 있음을 확인했다.
+  - AI 서버가 꺼져 있거나 ngrok 주소가 바뀐 경우 `.env`의 AI 서버 주소를 최신값으로 맞추고 백엔드를 재시작해야 한다고 정리했다.
+- 검증:
+  - `backend/routes/auth.js`에 대해 `node --check` 문법 검사를 통과했다.
+  - `frontend-app`에서 `npm run lint`를 통과했다.
+
 ### 2026-04-20
 - Firebase Admin 기반 채팅 백엔드 구조를 추가했다.
 - `backend/routes/chat.js`에 채팅방 생성, 채팅방 목록 조회, 메시지 조회, 메시지 전송 API를 구현했다.

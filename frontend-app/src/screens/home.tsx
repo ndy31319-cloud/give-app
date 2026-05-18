@@ -507,8 +507,10 @@ export function WriteFormScreen() {
       }
 
       await analyzeImage(images);
-    } catch {
-      showUnexpectedError('사진 선택 중 오류가 발생했습니다');
+    } catch (error) {
+      console.error('Image picker failed:', error);
+      const message = error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.';
+      Alert.alert('사진 선택 중 오류가 발생했습니다', message);
     }
   };
 
@@ -1054,8 +1056,10 @@ export function SearchScreen() {
       }
 
       setAnalysisLabel(result.data.detectedItem);
-    } catch {
-      showUnexpectedError('이미지 검색 중 오류가 발생했습니다');
+    } catch (error) {
+      console.error('Image search picker failed:', error);
+      const message = error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.';
+      Alert.alert('이미지 검색 중 오류가 발생했습니다', message);
     }
   };
 

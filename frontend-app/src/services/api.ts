@@ -1,6 +1,5 @@
 import {
   categoryOptions,
-  findMockMemberByPhone,
   findLocationByDongName,
   mapMemberToUser,
   mockCertificationCodes,
@@ -291,6 +290,34 @@ function createMemberToken(member: MemberRecord) {
   return `mock_token_${member.memberId}_${Date.now()}`;
 }
 
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function getIdentifierMismatchMessage(identifier: string) {
+  if (identifier.includes('@')) {
+    return '등록되지 않은 이메일입니다.';
+  }
+
+  if (normalizePhone(identifier).length >= 9) {
+    return '등록되지 않은 전화번호입니다.';
+  }
+
+  return '등록되지 않은 이메일 또는 전화번호입니다.';
+}
+
+function findMockMemberByIdentifier(identifier: string) {
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+  const normalizedPhone = normalizePhone(identifier);
+
+  return mockMembers.find((member) => {
+    const memberEmail = member.email.toLowerCase();
+    const memberPhone = normalizePhone(member.phone);
+
+    return memberEmail === normalizedIdentifier || memberPhone === normalizedPhone;
+  });
+}
+
 function resolveRoleName(roleId: string): RoleCode {
   return mockRoles.find((role) => role.roleId === roleId)?.roleName ?? 'USER';
 }
@@ -359,13 +386,12 @@ function createPostViewFromPayload(payload: CreatePostInput, user: User): Post {
 }
 
 export const memberAPI = {
-  async login(payload: { phone: string; password: string }): ApiResult<{ user: User; token: string }> {
+  async login(payload: { identifier: string; password: string }): ApiResult<{ user: User; token: string }> {
     const response = await safeFetch<{ data?: { user: User; token: string } }>('/api/auth/login', {
       method: 'POST',
       headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
-        email: payload.phone,
-        phone: payload.phone,
+        identifier: payload.identifier,
         password: payload.password,
       }),
     });
@@ -375,9 +401,13 @@ export const memberAPI = {
     }
 
     await sleep(400);
-    const member = findMockMemberByPhone(payload.phone);
+    const member = findMockMemberByIdentifier(payload.identifier);
     if (!member) {
-      return { data: null as never, error: '등록된 전화번호를 찾을 수 없습니다.' };
+      return { data: null as never, error: getIdentifierMismatchMessage(payload.identifier) };
+    }
+
+    if (member.memberPw !== payload.password) {
+      return { data: null as never, error: '비밀번호가 올바르지 않습니다.' };
     }
 
     return {
@@ -1646,7 +1676,7 @@ export const authAPI = {
       };
     }
 
-    return memberAPI.login({ phone: identifier, password: payload.password });
+    return memberAPI.login({ identifier, password: payload.password });
   },
 
   async signup(draft: SignupDraft, location: NeighborhoodLocation) {

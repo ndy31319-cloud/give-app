@@ -193,9 +193,15 @@ export function ProfileEditScreen() {
   });
 
   const changeProfileImage = async () => {
-    const image = await pickImageFromLibrary();
-    if (image) {
-      setFormData((prev) => ({ ...prev, profileImage: image.uri }));
+    try {
+      const image = await pickImageFromLibrary();
+      if (image) {
+        setFormData((prev) => ({ ...prev, profileImage: image.uri }));
+      }
+    } catch (error) {
+      console.error('Profile image picker failed:', error);
+      const message = error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.';
+      Alert.alert('프로필 사진 선택 중 오류가 발생했습니다', message);
     }
   };
 
