@@ -89,6 +89,34 @@ export const styles = StyleSheet.create({
     paddingBottom: 120,
     gap: 10,
   },
+  feedFilterBar: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 2,
+  },
+  feedFilterButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  feedFilterButtonActive: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  feedFilterText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textMuted,
+  },
+  feedFilterTextActive: {
+    color: colors.brand,
+  },
   previewBanner: {
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -383,6 +411,33 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  aiWritingToggleGroup: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  aiWritingToggleButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  aiWritingToggleButtonActive: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  aiWritingToggleText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textMuted,
+  },
+  aiWritingToggleTextActive: {
+    color: colors.brand,
   },
   photoPreviewCard: {
     flexDirection: 'row',

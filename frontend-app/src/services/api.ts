@@ -3,11 +3,6 @@ import {
   findLocationByDongName,
   mapMemberToUser,
   mockCertificationCodes,
-<<<<<<< Updated upstream
-  mockChatMessageRecords,
-  mockChatRoomRecords,
-=======
->>>>>>> Stashed changes
   mockCommunityComments,
   mockCommunityLikes,
   mockCommunityPosts,

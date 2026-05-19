@@ -129,6 +129,7 @@ function AuthShell({
 function SignupForm({
   includeCertificate,
   onNext,
+  beforeSubmit,
 }: {
   includeCertificate: boolean;
   onNext: (payload: {
@@ -140,6 +141,7 @@ function SignupForm({
     password: string;
     confirmPassword: string;
   }) => void;
+  beforeSubmit?: (helpers: { submitForm: () => boolean }) => React.ReactNode;
 }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -179,6 +181,15 @@ function SignupForm({
     return Object.keys(nextErrors).length === 0;
   };
 
+  const submitForm = () => {
+    if (!validate()) {
+      return false;
+    }
+
+    onNext(formData);
+    return true;
+  };
+
   return (
     <View style={styles.form}>
       <AppTextField label="이름 *" value={formData.name} onChangeText={(value) => update('name', value)} error={errors.name} />
@@ -200,7 +211,7 @@ function SignupForm({
         error={errors.birthdate}
       />
       {includeCertificate ? (
-        <Text style={styles.supportText}>다음 화면에서 증명서 이미지를 선택적으로 첨부할 수 있습니다.</Text>
+        <Text style={styles.supportText}>개인정보 입력 후 인증 서류를 등록하고 다음 단계로 진행해주세요.</Text>
       ) : null}
       <AppTextField
         label="비밀번호 *"
@@ -216,12 +227,11 @@ function SignupForm({
         onChangeText={(value) => update('confirmPassword', value)}
         error={errors.confirmPassword}
       />
+      {beforeSubmit?.({ submitForm })}
       <AppButton
         label="다음"
         onPress={() => {
-          if (validate()) {
-            onNext(formData);
-          }
+          submitForm();
         }}
       />
     </View>
@@ -427,31 +437,40 @@ export function VulnerableInfoScreen() {
           mergeSignupDraft({ ...payload, isVulnerable: true });
           setInfoReady(true);
         }}
+        beforeSubmit={({ submitForm }) => (
+          <>
+            <View style={styles.uploadCard}>
+              <Text style={styles.uploadTitle}>취약계층 인증 서류 *</Text>
+              <Text style={styles.supportText}>취약계층 회원가입을 완료하려면 인증 서류 이미지를 반드시 첨부해야 합니다.</Text>
+              {certificateImageName ? <Text style={styles.selectedFile}>{certificateImageName}</Text> : null}
+              <View style={styles.inlineButtons}>
+                <AppButton label="갤러리 선택" variant="secondary" onPress={() => pickCertificate('gallery')} />
+                <AppButton label="카메라 촬영" variant="secondary" onPress={() => pickCertificate('camera')} />
+              </View>
+              {certificateError ? <Text style={styles.errorText}>{certificateError}</Text> : null}
+            </View>
+
+            <View style={styles.locationActionCard}>
+              <Text style={styles.uploadTitle}>동네 설정</Text>
+              <Text style={styles.supportText}>개인정보와 인증 서류 등록을 완료한 뒤 대표 동네를 설정합니다.</Text>
+              <AppButton
+                label="동네 설정으로 이동"
+                onPress={() => {
+                  const validInfo = infoReady || submitForm();
+                  if (!validInfo) {
+                    return;
+                  }
+                  if (!hasCertificate) {
+                    setCertificateError('취약계층 인증 자료를 첨부해주세요.');
+                    return;
+                  }
+                  router.push('/location-setting');
+                }}
+              />
+            </View>
+          </>
+        )}
       />
-      <View style={styles.uploadCard}>
-        <Text style={styles.uploadTitle}>취약계층 인증 서류 *</Text>
-        <Text style={styles.supportText}>취약계층 회원가입을 완료하려면 인증 서류 이미지를 반드시 첨부해야 합니다.</Text>
-        {certificateImageName ? <Text style={styles.selectedFile}>{certificateImageName}</Text> : null}
-        <View style={styles.inlineButtons}>
-          <AppButton label="갤러리 선택" variant="secondary" onPress={() => pickCertificate('gallery')} />
-          <AppButton label="카메라 촬영" variant="secondary" onPress={() => pickCertificate('camera')} />
-        </View>
-        {certificateError ? <Text style={styles.errorText}>{certificateError}</Text> : null}
-        <AppButton
-          label="동네 설정으로 이동"
-          onPress={() => {
-            if (!infoReady) {
-              setCertificateError('개인정보 입력 후 다음 버튼을 먼저 눌러주세요.');
-              return;
-            }
-            if (!hasCertificate) {
-              setCertificateError('취약계층 인증 자료를 첨부해주세요.');
-              return;
-            }
-            router.push('/location-setting');
-          }}
-        />
-      </View>
     </AuthShell>
   );
 }
