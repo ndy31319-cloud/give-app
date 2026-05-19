@@ -211,6 +211,14 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  locationActionCard: {
+    gap: 12,
+    padding: 18,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   uploadTitle: {
     fontSize: 16,
     fontWeight: '700',

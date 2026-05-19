@@ -32,6 +32,8 @@ import { getPostStatusLabel, isOpenPostStatus } from '@/src/utils/post';
 import { formatTimeAgo } from '@/src/utils/time';
 import { validateRequired } from '@/src/utils/validation';
 
+type HomeStatusFilter = 'active' | 'includeCompleted';
+
 function isBeneficiaryUser(user?: { isVulnerable?: boolean; roleCode?: string; vulnerableTypes?: string[] } | null) {
   return Boolean(user && (user.isVulnerable || user.roleCode === 'BENEFICIARY' || user.vulnerableTypes?.length));
 }
@@ -165,6 +167,7 @@ async function pickImage(source: 'camera' | 'gallery') {
 
 export function HomeScreen() {
   const { user, posts } = useAppContext();
+  const [statusFilter, setStatusFilter] = useState<HomeStatusFilter>('active');
   const allowedHomePostType = user ? (isBeneficiaryUser(user) ? 'share' : 'need') : 'all';
   const homeFeed = useMemo(() => {
 const filteredPosts = user
@@ -173,6 +176,7 @@ const filteredPosts = user
 
 const visiblePosts = filteredPosts.filter((post) => {
   const isMyPost = user ? String(post.author.id) === String(user.id) : false;
+  if (statusFilter === 'active' && post.status === 'completed') return false;
 
   return (
     isMyPost ||
@@ -185,7 +189,7 @@ const visiblePosts = filteredPosts.filter((post) => {
       location: user?.location ?? null,
       posts: visiblePosts,
     };
-  }, [allowedHomePostType, posts, user]);
+  }, [allowedHomePostType, posts, statusFilter, user]);
 
   return (
     <AppScreen>
@@ -223,6 +227,22 @@ const visiblePosts = filteredPosts.filter((post) => {
           style={styles.feedScroll}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}>
+          <View style={styles.feedFilterBar}>
+            {[
+              { value: 'active', label: '거래중만 보기' },
+              { value: 'includeCompleted', label: '완료된 글도 보기' },
+            ].map((item) => {
+              const active = statusFilter === item.value;
+              return (
+                <Pressable
+                  key={item.value}
+                  onPress={() => setStatusFilter(item.value as HomeStatusFilter)}
+                  style={[styles.feedFilterButton, active && styles.feedFilterButtonActive]}>
+                  <Text style={[styles.feedFilterText, active && styles.feedFilterTextActive]}>{item.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
           {homeFeed.posts.length > 0 ? (
             homeFeed.posts.map((post) => (
               <PostCard
@@ -490,6 +510,7 @@ export function WriteFormScreen() {
   const postType = user ? (isBeneficiaryUser(user) ? 'need' : 'share') : type === 'need' ? 'need' : 'share';
 const [selectedImages, setSelectedImages] = useState<UploadableImage[]>([]);
 const [skipImage, setSkipImage] = useState(false);
+  const [aiWritingEnabled, setAiWritingEnabled] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState<ImageAnalysisResult | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -544,7 +565,7 @@ setSelectedImages(images);
 setSkipImage(false);
     setAiAnalysis(analysis);
     setImageConfirmed(false);
-    if (analysis.recommendedCategory) {
+    if (aiWritingEnabled && analysis.recommendedCategory) {
       setFormData((prev) => ({ ...prev, category: prev.category || analysis.recommendedCategory || '' }));
     }
   };
@@ -701,8 +722,33 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
 
         <View style={styles.photoGate}>
           <SectionTitle
-            title="1. 사진 등록"
-            description="게시글 작성 전 사진부터 등록합니다. 카메라 촬영 또는 갤러리 선택이 가능합니다."
+            title="1. AI 추천 글쓰기"
+            description="사진 등록 전에 AI가 제목과 본문 작성을 도와줄지 선택합니다."
+          />
+          <View style={styles.aiWritingToggleGroup}>
+            {[
+              { value: true, label: '사용' },
+              { value: false, label: '사용 안 함' },
+            ].map((item) => {
+              const active = aiWritingEnabled === item.value;
+              return (
+                <Pressable
+                  key={item.label}
+                  onPress={() => setAiWritingEnabled(item.value)}
+                  style={[styles.aiWritingToggleButton, active && styles.aiWritingToggleButtonActive]}>
+                  <Text style={[styles.aiWritingToggleText, active && styles.aiWritingToggleTextActive]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.photoGate}>
+          <SectionTitle
+            title="2. 사진 등록"
+            description="카메라 촬영 또는 갤러리 선택이 가능합니다."
           />
           {selectedImages.length ? (
             <View style={styles.photoPreviewCard}>
@@ -711,7 +757,9 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
                 <Text style={styles.writeOptionTitle}>
                   사진 {selectedImages.length}장 첨부됨
                 </Text>
-                <Text style={styles.sectionDescription}>{pickLabelForAnalysis(aiAnalysis)}</Text>
+                <Text style={styles.sectionDescription}>
+                  {aiWritingEnabled ? pickLabelForAnalysis(aiAnalysis) : '사진 등록 완료'}
+                </Text>
                 {selectedImages.length > 1 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbnailRow}>
                     {selectedImages.map((image) => (
@@ -750,16 +798,18 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
             <View style={styles.aiPhotoConfirmCard}>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={styles.aiSuggestionTitle}>
-                  {imageConfirmed ? 'AI 사진 등록 확인 완료' : 'AI 사진 판독 완료'}
+                  {imageConfirmed ? '사진 등록 확인 완료' : aiWritingEnabled ? 'AI 사진 판독 완료' : '사진 등록 완료'}
                 </Text>
                 <Text style={styles.sectionDescription}>
                   {imageConfirmed
                     ? '이 사진으로 게시글을 작성할 수 있습니다.'
-                    : 'AI 결과를 확인한 뒤 사진 등록을 확정해주세요.'}
+                    : aiWritingEnabled
+                      ? 'AI 결과를 확인한 뒤 사진 등록을 확정해주세요.'
+                      : '사진 등록을 확정해주세요.'}
                 </Text>
               </View>
               <AppButton
-                label={imageConfirmed ? '확인됨' : 'AI 사진 등록 확인'}
+                label={imageConfirmed ? '확인됨' : aiWritingEnabled ? 'AI 사진 등록 확인' : '사진 등록 확인'}
                 variant={imageConfirmed ? 'secondary' : 'primary'}
                 disabled={imageConfirmed}
                 onPress={() => {
@@ -779,11 +829,11 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
 {(selectedImages.length > 0 && imageConfirmed) || skipImage ? (
           <View style={styles.formCard}>
             <SectionTitle
-              title="2. 게시글 작성"
+              title="3. 게시글 작성"
               description="안전 판독이 완료되면 바로 글을 작성할 수 있습니다."
             />
 
-            {aiAnalysis ? (
+            {aiWritingEnabled && aiAnalysis ? (
               <View style={styles.aiSuggestionCard}>
                 <Text style={styles.aiSuggestionTitle}>AI 인식 결과</Text>
                 {aiAnalysis.suggestedTitle ? (
@@ -903,9 +953,6 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
                 <Text style={styles.locationSummaryTitle}>{user ? formatLocationLabel(user.location) : '동네 미설정'}</Text>
                 <Text style={styles.locationSummarySub}>현재 동네 기준 반경 {user?.location.radiusKm ?? 5}km</Text>
               </View>
-              <Pressable onPress={() => router.push('/my-location')}>
-                <Text style={styles.changePhotoText}>변경</Text>
-              </Pressable>
             </View>
 
             <AppButton
