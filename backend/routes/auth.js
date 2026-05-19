@@ -107,13 +107,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-<<<<<<< Updated upstream
-    const storedPassword = String(user.member_pw || "");
-    const isHashedPassword = /^\$2[aby]\$/.test(storedPassword);
-    const isMatch = isHashedPassword ? await bcrypt.compare(memberPw, storedPassword) : false;
-=======
     const isMatch = await verifyPassword(memberPw, user.member_pw);
->>>>>>> Stashed changes
 
     if (!isMatch) {
       return res.status(401).json({
