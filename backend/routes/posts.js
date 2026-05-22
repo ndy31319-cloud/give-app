@@ -25,8 +25,8 @@ router.post(
   postController.createPost,
 );
 router.get("/:id", postController.getPostDetail);
+router.patch("/:id", authenticateToken, postController.updatePost);
 router.patch("/:id/status", authenticateToken, postController.updatePost);
-router.put("/:id", authenticateToken, postController.updatePost);
 router.delete("/:id", authenticateToken, postController.deletePost);
 
 module.exports = router;

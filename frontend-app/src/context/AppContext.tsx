@@ -310,6 +310,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         nickname: data.nickname ?? user.nickname,
         phone: data.phone ?? user.phone ?? '',
         dongName: data.dongName ?? user.dongName,
+        email: data.email ?? user.email,
+        bio: data.bio ?? user.bio,
+        profileImage: data.profileImage ?? user.profileImage,
       },
       authToken ?? undefined,
     );

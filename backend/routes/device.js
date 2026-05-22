@@ -88,7 +88,7 @@ const requireKioskAccess = (req, res, next) => {
   if (providedKey !== expectedKey) {
     return res.status(403).json({
       success: false,
-      message: "í‚¤ì˜¤ìŠ¤í¬ ì¸ì¦ ì •ë³´ê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.",
+      message: "?¤ì˜¤?¤í¬ ?¸ì¦ ?•ë³´ê°€ ?¬ë°”ë¥´ì? ?ŠìŠµ?ˆë‹¤.",
     });
   }
 
@@ -115,7 +115,7 @@ router.post("/qr/kiosk-login", requireKioskAccess, async (req, res) => {
   if (!token) {
     return res.status(400).json({
       success: false,
-      message: "QR í† í°ì„ ì…ë ¥í•´ì£¼ì„¸ìš”.",
+      message: "QR ? í°???…ë ¥?´ì£¼?¸ìš”.",
     });
   }
 
@@ -124,7 +124,7 @@ router.post("/qr/kiosk-login", requireKioskAccess, async (req, res) => {
   if (!session) {
     return res.status(404).json({
       success: false,
-      message: "ìœ íš¨í•œ QR ì„¸ì…˜ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
+      message: "? íš¨??QR ?¸ì…˜??ì°¾ì„ ???†ìŠµ?ˆë‹¤.",
     });
   }
 
@@ -132,7 +132,7 @@ router.post("/qr/kiosk-login", requireKioskAccess, async (req, res) => {
     return res.status(409).json({
       success: false,
       data: toResponseSession(session),
-      message: "ì´ë¯¸ ì‚¬ìš©ë˜ì—ˆê±°ë‚˜ ë§Œë£Œëœ QRì…ë‹ˆë‹¤.",
+      message: "?´ë? ?¬ìš©?˜ì—ˆê±°ë‚˜ ë§Œë£Œ??QR?…ë‹ˆ??",
     });
   }
 
@@ -147,7 +147,7 @@ router.post("/qr/kiosk-login", requireKioskAccess, async (req, res) => {
     if (members.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "QRì— ì—°ê²°ëœ íšŒì› ì •ë³´ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
+        message: "QR???°ê²°???Œì› ?•ë³´ë¥?ì°¾ì„ ???†ìŠµ?ˆë‹¤.",
       });
     }
 
@@ -178,18 +178,18 @@ router.post("/qr/kiosk-login", requireKioskAccess, async (req, res) => {
         kioskSession,
         kiosk_session: kioskSession,
       },
-      message: "í‚¤ì˜¤ìŠ¤í¬ QR ë¡œê·¸ì¸ì— ì„±ê³µí–ˆìŠµë‹ˆë‹¤.",
+      message: "?¤ì˜¤?¤í¬ QR ë¡œê·¸?¸ì— ?±ê³µ?ˆìŠµ?ˆë‹¤.",
     });
   } catch (error) {
     console.error("Kiosk QR login error:", error);
     return res.status(500).json({
       success: false,
-      message: "í‚¤ì˜¤ìŠ¤í¬ QR ë¡œê·¸ì¸ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.",
+      message: "?¤ì˜¤?¤í¬ QR ë¡œê·¸?¸ì— ?¤íŒ¨?ˆìŠµ?ˆë‹¤.",
     });
   }
 });
 
-router.post("/qr/issue", authenticateToken, (req, res) => {
+router.post("/qr/issue", authenticateToken, async (req, res) => {
   const memberId = String(req.body.memberId || req.body.member_id || getMemberId(req));
   const purpose = normalizePurpose(req.body.purpose);
   const ttlSeconds = normalizeTtl(req.body.ttlSeconds || req.body.ttl_seconds);
@@ -218,29 +218,105 @@ router.post("/qr/issue", authenticateToken, (req, res) => {
 
   sessionsByToken.set(token, session);
 
+  try {
+    await db.query(
+      `UPDATE DYNAMIC_QR
+       SET status = 'expired'
+       WHERE member_id = ? AND purpose = ? AND status = 'active'`,
+      [memberId, purpose],
+    );
+    const [result] = await db.query(
+      `INSERT INTO DYNAMIC_QR
+        (member_id, purpose, token, display_code, status, ttl_seconds, issued_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [memberId, purpose, token, session.displayCode, session.status, ttlSeconds, new Date(issuedAtMs), new Date(expiresAtMs)],
+    );
+
+    session.id = String(result.insertId);
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error("Issue QR DB error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "µ¿Àû QR ¹ß±Ş¿¡ ½ÇÆĞÇß½À´Ï´Ù.",
+      });
+    }
+  }
+
   return res.status(201).json({
     success: true,
     data: toResponseSession(session),
-    message: "ë™ì  QRì´ ë°œê¸‰ë˜ì—ˆìŠµë‹ˆë‹¤.",
+    message: "µ¿Àû QRÀ» ¹ß±ŞÇß½À´Ï´Ù.",
   });
 });
 
-router.post("/qr/validate", authenticateToken, (req, res) => {
+const loadDbQrSession = async (token) => {
+  const [rows] = await db.query(
+    `SELECT qr_id, member_id, purpose, token, display_code, status,
+            issued_at, expires_at, used_at, ttl_seconds
+     FROM DYNAMIC_QR
+     WHERE token = ?
+     LIMIT 1`,
+    [token],
+  );
+
+  if (!rows[0]) {
+    return null;
+  }
+
+  const row = rows[0];
+  const session = {
+    id: String(row.qr_id),
+    memberId: String(row.member_id),
+    purpose: row.purpose,
+    token: row.token,
+    displayCode: row.display_code,
+    issuedAt: toIsoString(row.issued_at),
+    expiresAt: toIsoString(row.expires_at),
+    status: row.status,
+    ttlSeconds: Number(row.ttl_seconds ?? defaultTtlSeconds),
+    usedAt: row.used_at ? toIsoString(row.used_at) : null,
+  };
+
+  expireIfNeeded(session);
+  if (session.status === "expired" && row.status === "active") {
+    await db.query("UPDATE DYNAMIC_QR SET status = 'expired' WHERE qr_id = ?", [row.qr_id]);
+  }
+
+  return session;
+};
+
+router.post("/qr/validate", authenticateToken, async (req, res) => {
   const token = String(req.body.token || "").trim();
 
   if (!token) {
     return res.status(400).json({
       success: false,
-      message: "QR í† í°ì„ ì…ë ¥í•´ì£¼ì„¸ìš”.",
+      message: "QR ÅäÅ«À» ÀÔ·ÂÇØÁÖ¼¼¿ä.",
     });
   }
 
-  const session = findSession(token);
+  let session = null;
+  try {
+    session = await loadDbQrSession(token);
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error("Validate QR DB error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "QR °ËÁõ¿¡ ½ÇÆĞÇß½À´Ï´Ù.",
+      });
+    }
+  }
+
+  if (!session) {
+    session = findSession(token);
+  }
 
   if (!session) {
     return res.status(404).json({
       success: false,
-      message: "ìœ íš¨í•œ QR ì„¸ì…˜ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
+      message: "À¯È¿ÇÑ QR ¼¼¼ÇÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.",
     });
   }
 
@@ -248,33 +324,48 @@ router.post("/qr/validate", authenticateToken, (req, res) => {
     return res.status(409).json({
       success: false,
       data: toResponseSession(session),
-      message: "ì´ë¯¸ ì‚¬ìš©ë˜ì—ˆê±°ë‚˜ ë§Œë£Œëœ QRì…ë‹ˆë‹¤.",
+      message: "ÀÌ¹Ì »ç¿ëÇß°Å³ª ¸¸·áµÈ QRÀÔ´Ï´Ù.",
     });
   }
 
   return res.status(200).json({
     success: true,
     data: toResponseSession(session),
-    message: "QR ê²€ì¦ì— ì„±ê³µí–ˆìŠµë‹ˆë‹¤.",
+    message: "QR °ËÁõ¿¡ ¼º°øÇß½À´Ï´Ù.",
   });
 });
 
-router.post("/qr/consume", authenticateToken, (req, res) => {
+router.post("/qr/consume", authenticateToken, async (req, res) => {
   const token = String(req.body.token || "").trim();
 
   if (!token) {
     return res.status(400).json({
       success: false,
-      message: "QR í† í°ì„ ì…ë ¥í•´ì£¼ì„¸ìš”.",
+      message: "QR ÅäÅ«À» ÀÔ·ÂÇØÁÖ¼¼¿ä.",
     });
   }
 
-  const session = findSession(token);
+  let session = null;
+  try {
+    session = await loadDbQrSession(token);
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error("Consume QR DB error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "QR »ç¿ë Ã³¸®¿¡ ½ÇÆĞÇß½À´Ï´Ù.",
+      });
+    }
+  }
+
+  if (!session) {
+    session = findSession(token);
+  }
 
   if (!session) {
     return res.status(404).json({
       success: false,
-      message: "ìœ íš¨í•œ QR ì„¸ì…˜ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
+      message: "À¯È¿ÇÑ QR ¼¼¼ÇÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.",
     });
   }
 
@@ -282,17 +373,32 @@ router.post("/qr/consume", authenticateToken, (req, res) => {
     return res.status(409).json({
       success: false,
       data: toResponseSession(session),
-      message: "ì´ë¯¸ ì‚¬ìš©ë˜ì—ˆê±°ë‚˜ ë§Œë£Œëœ QRì…ë‹ˆë‹¤.",
+      message: "ÀÌ¹Ì »ç¿ëÇß°Å³ª ¸¸·áµÈ QRÀÔ´Ï´Ù.",
     });
   }
 
   session.status = "used";
   session.usedAt = new Date().toISOString();
 
+  try {
+    await db.query(
+      "UPDATE DYNAMIC_QR SET status = 'used', used_at = NOW() WHERE token = ?",
+      [token],
+    );
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error("Consume QR update DB error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "QR »ç¿ë Ã³¸®¿¡ ½ÇÆĞÇß½À´Ï´Ù.",
+      });
+    }
+  }
+
   return res.status(200).json({
     success: true,
     data: toResponseSession(session),
-    message: "QR ì‚¬ìš© ì²˜ë¦¬ê°€ ì™„ë£Œë˜ì—ˆìŠµë‹ˆë‹¤.",
+    message: "QR »ç¿ë Ã³¸®°¡ ¿Ï·áµÇ¾ú½À´Ï´Ù.",
   });
 });
 
@@ -301,7 +407,7 @@ router.get("/relay", authenticateToken, (req, res) => {
     success: true,
     data: {
       locked: true,
-      message: "ì ê¸ˆ ìœ ì§€ ìƒíƒœì…ë‹ˆë‹¤.",
+      message: "? ê¸ˆ ? ì? ?íƒœ?…ë‹ˆ??",
     },
   });
 });
@@ -311,7 +417,7 @@ router.get("/sensor", authenticateToken, (req, res) => {
     success: true,
     data: {
       itemDetected: false,
-      message: "ë¬¼í’ˆ ê°ì§€ë¥¼ ëŒ€ê¸° ì¤‘ì…ë‹ˆë‹¤.",
+      message: "ë¬¼í’ˆ ê°ì?ë¥??€ê¸?ì¤‘ì…?ˆë‹¤.",
     },
   });
 });

@@ -50,6 +50,11 @@ export const backendConfig = {
     mypageContact: process.env.EXPO_PUBLIC_MYPAGE_CONTACT_PATH ?? '/api/mypage/contact',
     memberMe: process.env.EXPO_PUBLIC_MEMBER_ME_PATH ?? '/api/members/me',
     memberLocation: process.env.EXPO_PUBLIC_MEMBER_LOCATION_PATH ?? '/api/members/me/location',
+    memberProfileImage:
+      process.env.EXPO_PUBLIC_MEMBER_PROFILE_IMAGE_PATH ?? '/api/members/me/profile-image',
+    notifications: process.env.EXPO_PUBLIC_NOTIFICATIONS_PATH ?? '/api/notifications',
+    notificationSettings:
+      process.env.EXPO_PUBLIC_NOTIFICATION_SETTINGS_PATH ?? '/api/notifications/settings/me',
   },
 };
 
@@ -190,7 +195,7 @@ export function mapBackendUser(raw: any): User {
     vulnerableTypes,
     location,
     neighborhoods: [location],
-    profileImage: raw?.profileImage,
+    profileImage: raw?.profileImage ?? raw?.profile_image,
     birthdate: raw?.birthdate,
     bio: raw?.bio,
     createdAt: raw?.createdAt,

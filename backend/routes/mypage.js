@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
@@ -88,7 +88,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
   try {
     const [memberRows] = await db.query(
       `SELECT member_id, name, nickname, email, phone, role_id, dong_name,
-              created_at
+              bio, profile_image, created_at
        FROM MEMBER
        WHERE member_id = ?`,
       [memberId],
@@ -97,7 +97,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
     if (memberRows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "회원 정보를 찾을 수 없습니다.",
+        message: "?뚯썝 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.",
       });
     }
 
@@ -122,9 +122,9 @@ router.get("/summary", authenticateToken, async (req, res) => {
           role_id: member.role_id,
           dongName: member.dong_name,
           dong_name: member.dong_name,
-          profileImage: null,
-          profile_image: null,
-          bio: null,
+          profileImage: member.profile_image,
+          profile_image: member.profile_image,
+          bio: member.bio,
           createdAt: toIsoString(member.created_at),
           created_at: toIsoString(member.created_at),
         },
@@ -154,16 +154,16 @@ router.get("/summary", authenticateToken, async (req, res) => {
           : null,
         device: {
           status: "idle",
-          message: "디바이스가 대기 중입니다.",
+          message: "?붾컮?댁뒪媛 ?湲?以묒엯?덈떎.",
         },
       },
-      message: "마이페이지 요약 조회에 성공했습니다.",
+      message: "留덉씠?섏씠吏 ?붿빟 議고쉶???깃났?덉뒿?덈떎.",
     });
   } catch (error) {
     console.error("Mypage summary error:", error);
     return res.status(500).json({
       success: false,
-      message: "마이페이지 요약을 불러오지 못했습니다.",
+      message: "留덉씠?섏씠吏 ?붿빟??遺덈윭?ㅼ? 紐삵뻽?듬땲??",
     });
   }
 });
@@ -225,13 +225,13 @@ router.get("/histories", authenticateToken, async (req, res) => {
         histories,
         total: histories.length,
       },
-      message: "내역 조회에 성공했습니다.",
+      message: "?댁뿭 議고쉶???깃났?덉뒿?덈떎.",
     });
   } catch (error) {
     console.error("Mypage histories error:", error);
     return res.status(500).json({
       success: false,
-      message: "내역을 불러오는 데 실패했습니다.",
+      message: "?댁뿭??遺덈윭?ㅻ뒗 ???ㅽ뙣?덉뒿?덈떎.",
     });
   }
 });
@@ -297,13 +297,13 @@ router.get("/stats", authenticateToken, async (req, res) => {
         monthlyStats,
         monthly_stats: monthlyStats,
       },
-      message: "나눔통계 조회에 성공했습니다.",
+      message: "나눔 통계 조회에 성공했습니다.",
     });
   } catch (error) {
     console.error("Mypage stats error:", error);
     return res.status(500).json({
       success: false,
-      message: "나눔통계를 불러오지 못했습니다.",
+      message: "나눔 통계를 불러오지 못했습니다.",
     });
   }
 });
@@ -321,25 +321,59 @@ router.post("/contact", authenticateToken, async (req, res) => {
     });
   }
 
-  const contact = {
-    inquiryId: inMemoryContacts.length + 1,
-    inquiry_id: inMemoryContacts.length + 1,
-    memberId,
-    member_id: memberId,
-    subject,
-    email,
-    message,
-    createdAt: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  };
+  try {
+    const [result] = await db.query(
+      `INSERT INTO ADMIN_INQUIRY (member_id, subject, email, message, status, created_at)
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      [memberId, subject, email, message, "pending"],
+    );
 
-  inMemoryContacts.push(contact);
+    return res.status(201).json({
+      success: true,
+      data: {
+        inquiryId: result.insertId,
+        inquiry_id: result.insertId,
+        memberId,
+        member_id: memberId,
+        subject,
+        email,
+        message,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      },
+      message: "문의가 접수되었습니다.",
+    });
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error("Mypage contact error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "문의 접수에 실패했습니다.",
+      });
+    }
 
-  return res.status(201).json({
-    success: true,
-    data: contact,
-    message: "문의가 접수되었습니다.",
-  });
+    const contact = {
+      inquiryId: inMemoryContacts.length + 1,
+      inquiry_id: inMemoryContacts.length + 1,
+      memberId,
+      member_id: memberId,
+      subject,
+      email,
+      message,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
+    inMemoryContacts.push(contact);
+
+    return res.status(201).json({
+      success: true,
+      data: contact,
+      message: "문의가 접수되었습니다.",
+    });
+  }
 });
 
 module.exports = router;

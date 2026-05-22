@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
+const upload = require("../uploads/upload");
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "give-local-development-secret";
@@ -43,6 +44,20 @@ const formatPhoneNumber = (phone) => {
   return cleaned.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1-$2-$3");
 };
 
+const normalizeUploadUrl = (req, imageUrl) => {
+  if (!imageUrl) {
+    return null;
+  }
+
+  const rawUrl = String(imageUrl);
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return rawUrl;
+  }
+
+  const filename = rawUrl.split(/[\\/]/).pop();
+  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+};
+
 const isNicknameTaken = async (nickname, excludeMemberId = null) => {
   const normalizedNickname = String(nickname || "").trim();
 
@@ -53,14 +68,14 @@ const isNicknameTaken = async (nickname, excludeMemberId = null) => {
   if (excludeMemberId) {
     const [rows] = await db.query(
       "SELECT member_id FROM MEMBER WHERE nickname = ? AND member_id != ? LIMIT 1",
-      [normalizedNickname, excludeMemberId]
+      [normalizedNickname, excludeMemberId],
     );
     return rows.length > 0;
   }
 
   const [rows] = await db.query(
     "SELECT member_id FROM MEMBER WHERE nickname = ? LIMIT 1",
-    [normalizedNickname]
+    [normalizedNickname],
   );
   return rows.length > 0;
 };
@@ -70,11 +85,11 @@ const buildInClause = (ids) => ids.map(() => "?").join(", ");
 const deleteMemberRelatedData = async (connection, memberId) => {
   const [donateRows] = await connection.query(
     "SELECT donate_id FROM ITEM_DONATE WHERE member_id = ?",
-    [memberId]
+    [memberId],
   );
   const [requestRows] = await connection.query(
     "SELECT request_id FROM ITEM_REQUEST WHERE member_id = ?",
-    [memberId]
+    [memberId],
   );
 
   const donateIds = donateRows.map((row) => row.donate_id);
@@ -85,15 +100,15 @@ const deleteMemberRelatedData = async (connection, memberId) => {
 
     await connection.query(
       `DELETE FROM ITEM_DONATE_IMAGE WHERE donate_id IN (${donateInClause})`,
-      donateIds
+      donateIds,
     );
     await connection.query(
       `DELETE FROM ITEM WHERE donate_id IN (${donateInClause})`,
-      donateIds
+      donateIds,
     );
     await connection.query(
       `DELETE FROM ITEM_DONATE WHERE donate_id IN (${donateInClause})`,
-      donateIds
+      donateIds,
     );
   }
 
@@ -102,21 +117,21 @@ const deleteMemberRelatedData = async (connection, memberId) => {
 
     await connection.query(
       `DELETE FROM ITEM_REQUEST_IMAGE WHERE request_id IN (${requestInClause})`,
-      requestIds
+      requestIds,
     );
     await connection.query(
       `DELETE FROM ITEM WHERE request_id IN (${requestInClause})`,
-      requestIds
+      requestIds,
     );
     await connection.query(
       `DELETE FROM ITEM_REQUEST WHERE request_id IN (${requestInClause})`,
-      requestIds
+      requestIds,
     );
   }
 
   await connection.query(
     "UPDATE CERTIFICATION_CODE SET member_id = NULL WHERE member_id = ?",
-    [memberId]
+    [memberId],
   );
 };
 
@@ -129,7 +144,7 @@ const deleteMemberWithRelations = async (memberId) => {
 
     const [result] = await connection.query(
       "DELETE FROM MEMBER WHERE member_id = ?",
-      [memberId]
+      [memberId],
     );
 
     if (result.affectedRows === 0) {
@@ -164,7 +179,9 @@ router.get("/nickname-check", async (req, res) => {
     return res.status(200).json({
       success: true,
       available: !taken,
-      message: taken ? "This nickname is already taken." : "Nickname is available.",
+      message: taken
+        ? "This nickname is already taken."
+        : "Nickname is available.",
     });
   } catch (error) {
     console.error("Nickname check error:", error);
@@ -177,7 +194,16 @@ router.get("/nickname-check", async (req, res) => {
 });
 
 router.post("/signup", async (req, res) => {
-  const { phone, member_pw, name, email, qr_code, dong_name, nickname, isVulnerable } = req.body;
+  const {
+    phone,
+    member_pw,
+    name,
+    email,
+    qr_code,
+    dong_name,
+    nickname,
+    isVulnerable,
+  } = req.body;
 
   try {
     if (!phone || !member_pw || !name || !email || !dong_name || !nickname) {
@@ -193,13 +219,14 @@ router.post("/signup", async (req, res) => {
     if (!pwRegex.test(member_pw)) {
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters and include a number and special character.",
+        message:
+          "Password must be at least 8 characters and include a number and special character.",
       });
     }
 
     const [existingUsers] = await db.query(
       "SELECT member_id FROM MEMBER WHERE phone = ? OR email = ?",
-      [formattedPhone, email]
+      [formattedPhone, email],
     );
 
     if (existingUsers.length > 0) {
@@ -226,7 +253,7 @@ router.post("/signup", async (req, res) => {
     if (qr_code) {
       const [certData] = await db.query(
         "SELECT code_id FROM CERTIFICATION_CODE WHERE code_id = ? AND is_used = FALSE",
-        [qr_code]
+        [qr_code],
       );
 
       if (certData.length === 0) {
@@ -238,7 +265,7 @@ router.post("/signup", async (req, res) => {
 
       role_id = 3;
     }
-    
+
     if (!qr_code && allowDevelopmentVulnerableSignup) {
       role_id = 3;
     }
@@ -247,7 +274,15 @@ router.post("/signup", async (req, res) => {
     const [result] = await db.query(
       `INSERT INTO MEMBER (role_id, member_pw, name, email, phone, dong_name, nickname)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [role_id, hashedPassword, name, email, formattedPhone, dong_name, nickname]
+      [
+        role_id,
+        hashedPassword,
+        name,
+        email,
+        formattedPhone,
+        dong_name,
+        nickname,
+      ],
     );
 
     if (qr_code) {
@@ -257,7 +292,7 @@ router.post("/signup", async (req, res) => {
              used_at = NOW(),
              member_id = ?
          WHERE code_id = ?`,
-        [result.insertId, qr_code]
+        [result.insertId, qr_code],
       );
     }
 
@@ -308,10 +343,11 @@ router.get("/me", authenticateToken, async (req, res) => {
 
   try {
     const [rows] = await db.query(
-      `SELECT member_id, name, nickname, email, phone, role_id, dong_name, created_at
+      `SELECT member_id, name, nickname, email, phone, role_id, dong_name,
+              bio, profile_image, created_at
        FROM MEMBER
        WHERE member_id = ?`,
-      [member_id]
+      [member_id],
     );
 
     if (rows.length === 0) {
@@ -321,23 +357,11 @@ router.get("/me", authenticateToken, async (req, res) => {
     return res.status(200).json(rows[0]);
   } catch (error) {
     console.error("Load member error:", error);
-    return res.status(500).json({ message: "Failed to load member information." });
+    return res
+      .status(500)
+      .json({ message: "Failed to load member information." });
   }
 });
-
-const normalizeUploadUrl = (req, imageUrl) => {
-  if (!imageUrl) {
-    return null;
-  }
-
-  const rawUrl = String(imageUrl);
-  if (/^https?:\/\//i.test(rawUrl)) {
-    return rawUrl;
-  }
-
-  const filename = rawUrl.split(/[\\/]/).pop();
-  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
-};
 
 router.get("/me/posts", authenticateToken, async (req, res) => {
   const member_id = req.user.member_id || req.user.id;
@@ -487,7 +511,17 @@ router.get("/me/likes", authenticateToken, async (req, res) => {
 
 router.patch("/me", authenticateToken, async (req, res) => {
   const member_id = req.user.member_id || req.user.id;
-  const { name, nickname, email, phone, member_pw, password } = req.body;
+  const {
+    name,
+    nickname,
+    email,
+    phone,
+    member_pw,
+    password,
+    bio,
+    profileImage,
+    profile_image,
+  } = req.body;
   const updateFields = [];
   const queryParams = [];
 
@@ -511,7 +545,7 @@ router.patch("/me", authenticateToken, async (req, res) => {
     if (email) {
       const [exist] = await db.query(
         "SELECT member_id FROM MEMBER WHERE email = ? AND member_id != ?",
-        [email, member_id]
+        [email, member_id],
       );
 
       if (exist.length > 0) {
@@ -526,15 +560,30 @@ router.patch("/me", authenticateToken, async (req, res) => {
       const formattedPhone = formatPhoneNumber(phone);
       const [exist] = await db.query(
         "SELECT member_id FROM MEMBER WHERE phone = ? AND member_id != ?",
-        [formattedPhone, member_id]
+        [formattedPhone, member_id],
       );
 
       if (exist.length > 0) {
-        return res.status(400).json({ message: "Phone number is already in use." });
+        return res
+          .status(400)
+          .json({ message: "Phone number is already in use." });
       }
 
       updateFields.push("phone = ?");
       queryParams.push(formattedPhone);
+    }
+
+    if (bio !== undefined) {
+      updateFields.push("bio = ?");
+      queryParams.push(String(bio || "").trim());
+    }
+
+    const nextProfileImage =
+      profileImage !== undefined ? profileImage : profile_image;
+
+    if (nextProfileImage !== undefined) {
+      updateFields.push("profile_image = ?");
+      queryParams.push(nextProfileImage || null);
     }
 
     const nextPassword = member_pw || password;
@@ -544,7 +593,8 @@ router.patch("/me", authenticateToken, async (req, res) => {
 
       if (!pwRegex.test(nextPassword)) {
         return res.status(400).json({
-          message: "Password must be at least 8 characters and include a number and special character.",
+          message:
+            "Password must be at least 8 characters and include a number and special character.",
         });
       }
 
@@ -554,7 +604,9 @@ router.patch("/me", authenticateToken, async (req, res) => {
     }
 
     if (updateFields.length === 0) {
-      return res.status(400).json({ message: "No profile fields were provided." });
+      return res
+        .status(400)
+        .json({ message: "No profile fields were provided." });
     }
 
     queryParams.push(member_id);
@@ -566,10 +618,11 @@ router.patch("/me", authenticateToken, async (req, res) => {
     }
 
     const [memberRows] = await db.query(
-      `SELECT member_id, name, nickname, email, phone, role_id, dong_name, created_at
+      `SELECT member_id, name, nickname, email, phone, role_id, dong_name,
+              bio, profile_image, created_at
        FROM MEMBER
        WHERE member_id = ?`,
-      [member_id]
+      [member_id],
     );
 
     return res.status(200).json({
@@ -579,13 +632,69 @@ router.patch("/me", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Update member error:", error);
-    return res.status(500).json({ message: "Failed to update member information." });
+    return res
+      .status(500)
+      .json({ message: "Failed to update member information." });
   }
 });
 
+router.patch(
+  "/me/profile-image",
+  authenticateToken,
+  upload.fields([
+    { name: "profileImage", maxCount: 1 },
+    { name: "profile_image", maxCount: 1 },
+    { name: "image", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const member_id = req.user.member_id || req.user.id;
+    const imageFile =
+      req.files?.profileImage?.[0] ||
+      req.files?.profile_image?.[0] ||
+      req.files?.image?.[0] ||
+      req.file;
+
+    if (!imageFile) {
+      return res.status(400).json({
+        success: false,
+        message: "Profile image file is required.",
+      });
+    }
+
+    const profileImage = normalizeUploadUrl(req, imageFile.path);
+
+    try {
+      const [result] = await db.query(
+        "UPDATE MEMBER SET profile_image = ? WHERE member_id = ?",
+        [profileImage, member_id],
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Member not found." });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          profileImage,
+          profile_image: profileImage,
+        },
+        message: "Profile image updated successfully.",
+      });
+    } catch (error) {
+      console.error("Update profile image error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update profile image.",
+      });
+    }
+  },
+);
+
 router.patch("/me/location", authenticateToken, async (req, res) => {
   const member_id = req.user.member_id || req.user.id;
-  const dong_name = req.body.dong_name || req.body.dongName || req.body.location;
+  const dong_name =
+    req.body.dong_name || req.body.dongName || req.body.location;
   const { latitude, longitude } = req.body;
 
   if (!dong_name) {
@@ -609,7 +718,7 @@ router.patch("/me/location", authenticateToken, async (req, res) => {
       `UPDATE MEMBER
        SET ${updateFields.join(", ")}
        WHERE member_id = ?`,
-      queryParams
+      queryParams,
     );
 
     if (result.affectedRows === 0) {
@@ -640,10 +749,14 @@ router.delete("/me", authenticateToken, async (req, res) => {
       return res.status(404).json({ message: "Member not found." });
     }
 
-    return res.status(200).json({ message: "Member account deleted successfully." });
+    return res
+      .status(200)
+      .json({ message: "Member account deleted successfully." });
   } catch (error) {
     console.error("Delete self error:", error);
-    return res.status(500).json({ message: "Failed to delete member account." });
+    return res
+      .status(500)
+      .json({ message: "Failed to delete member account." });
   }
 });
 
@@ -670,7 +783,7 @@ router.delete(
       console.error("Admin delete error:", error);
       return res.status(500).json({ message: "Failed to delete member." });
     }
-  }
+  },
 );
 
 router.delete(
@@ -706,7 +819,7 @@ router.delete(
 
         const [members] = await db.query(
           `SELECT member_id FROM MEMBER WHERE ${conditions.join(" OR ")} LIMIT 1`,
-          params
+          params,
         );
 
         if (members.length === 0) {
@@ -742,7 +855,7 @@ router.delete(
         message: "Failed to run development cleanup.",
       });
     }
-  }
+  },
 );
 
 module.exports = router;

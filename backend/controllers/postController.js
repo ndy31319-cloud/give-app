@@ -614,8 +614,15 @@ const getPostDetail = async (req, res) => {
 
 const updatePost = async (req, res) => {
   const postId = req.params.id;
-  const postType = req.query.type;
   const { title, content, item_name, item_condition, product_id, category, status } = req.body;
+  const postType =
+    req.query.type ||
+    req.body.post_type ||
+    (req.body.type === "share"
+      ? "donate"
+      : req.body.type === "need"
+        ? "request"
+        : req.body.type);
   const member_id = req.user.member_id || req.user.id;
   const normalizedItemCondition = normalizeItemCondition(item_condition);
 

@@ -6,16 +6,25 @@ let firebaseApp;
 
 const buildCredential = () => {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    const serviceAccount = JSON.parse(
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+    );
 
     if (serviceAccount.private_key) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+      serviceAccount.private_key = serviceAccount.private_key.replace(
+        /\\n/g,
+        "\n",
+      );
     }
 
     return admin.credential.cert(serviceAccount);
   }
 
-  const serviceAccountPath = path.join(__dirname, "..", "serviceAccountKey.json");
+  const serviceAccountPath = path.join(
+    __dirname,
+    "..",
+    "serviceAccountKey.json",
+  );
 
   if (fs.existsSync(serviceAccountPath)) {
     const serviceAccount = JSON.parse(
@@ -31,7 +40,7 @@ const buildCredential = () => {
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
-      "Firebase configuration is missing. Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY."
+      "Firebase configuration is missing. Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY.",
     );
   }
 
