@@ -74,9 +74,6 @@ function CodeLogin() {
           {isLoading ? '인증 중...' : '인증하기'}
         </button>
 
-        <p className="text-center text-[18px] text-gray-400 mt-8">
-          테스트 회원코드: 1111
-        </p>
       </form>
     </div>
   );

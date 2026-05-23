@@ -7,8 +7,8 @@ function LoginBuyer() {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
 
-  const [email, setEmail] = useState('1111@test.com');
-  const [password, setPassword] = useState('1111');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (event) => {

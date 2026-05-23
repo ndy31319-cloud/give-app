@@ -6,8 +6,11 @@ function SignupBuyer() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
-    nickname: '',
+    id: '',
+    password: '',
+    passwordConfirm: '',
     phone: '',
+    region: '',
   });
   const [issuedCode, setIssuedCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,8 +26,13 @@ function SignupBuyer() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!formData.name.trim()) {
-      alert('이름을 입력해주세요.');
+    if (!formData.name.trim() || !formData.id.trim() || !formData.password.trim()) {
+      alert('필수 정보를 모두 입력해주세요.');
+      return;
+    }
+
+    if (formData.password !== formData.passwordConfirm) {
+      alert('비밀번호가 일치하지 않습니다.');
       return;
     }
 
@@ -32,8 +40,10 @@ function SignupBuyer() {
       setIsLoading(true);
       const result = await signupMember({
         name: formData.name.trim(),
-        nickname: formData.nickname.trim() || formData.name.trim(),
+        id: formData.id.trim(),
+        password: formData.password,
         phone: formData.phone.trim(),
+        region: formData.region.trim(),
       });
       setIssuedCode(result.code || result.certificate_number);
     } catch (error) {
@@ -86,40 +96,76 @@ function SignupBuyer() {
               </p>
             </div>
 
-            <div className="space-y-7">
-              <div>
-                <label className="text-[20px] font-bold text-[#333] block mb-3">이름</label>
+            <div className="space-y-6 flex-1 overflow-y-auto pr-2 max-h-[600px]">
+              <div className="space-y-2">
+                <label className="text-[16px] font-bold text-[#333] ml-1">이름</label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
                   placeholder="이름을 입력하세요"
-                  className="w-full border-2 border-gray-100 rounded-[20px] px-6 py-5 text-[24px] outline-none focus:border-[#0047FF]"
+                  className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#0047FF] transition-colors"
                 />
               </div>
 
-              <div>
-                <label className="text-[20px] font-bold text-[#333] block mb-3">닉네임</label>
+              <div className="space-y-2">
+                <label className="text-[16px] font-bold text-[#333] ml-1">아이디</label>
                 <input
                   type="text"
-                  name="nickname"
-                  value={formData.nickname}
+                  name="id"
+                  value={formData.id}
                   onChange={handleChange}
-                  placeholder="닉네임을 입력하세요"
-                  className="w-full border-2 border-gray-100 rounded-[20px] px-6 py-5 text-[24px] outline-none focus:border-[#0047FF]"
+                  placeholder="아이디를 입력하세요"
+                  className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#0047FF] transition-colors"
                 />
               </div>
 
-              <div>
-                <label className="text-[20px] font-bold text-[#333] block mb-3">전화번호</label>
+              <div className="space-y-2">
+                <label className="text-[16px] font-bold text-[#333] ml-1">비밀번호</label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="비밀번호를 입력하세요"
+                  className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#0047FF] transition-colors"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[16px] font-bold text-[#333] ml-1">비밀번호 확인</label>
+                <input
+                  type="password"
+                  name="passwordConfirm"
+                  value={formData.passwordConfirm}
+                  onChange={handleChange}
+                  placeholder="비밀번호를 다시 입력하세요"
+                  className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#0047FF] transition-colors"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[16px] font-bold text-[#333] ml-1">전화번호</label>
                 <input
                   type="tel"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
                   placeholder="전화번호를 입력하세요"
-                  className="w-full border-2 border-gray-100 rounded-[20px] px-6 py-5 text-[24px] outline-none focus:border-[#0047FF]"
+                  className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#0047FF] transition-colors"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[16px] font-bold text-[#333] ml-1">사는 지역</label>
+                <input
+                  type="text"
+                  name="region"
+                  value={formData.region}
+                  onChange={handleChange}
+                  placeholder="거주하시는 지역을 입력하세요 (예: 서울 강남구)"
+                  className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#0047FF] transition-colors"
                 />
               </div>
             </div>
@@ -129,7 +175,7 @@ function SignupBuyer() {
               disabled={isLoading}
               className="w-full bg-[#0047FF] text-white py-6 rounded-[24px] text-[30px] font-bold mt-12 transition-all active:scale-[0.98] disabled:opacity-60"
             >
-              {isLoading ? '발급 중...' : '회원코드 발급받기'}
+              {isLoading ? '가입 중...' : '가입 완료'}
             </button>
           </form>
         )}

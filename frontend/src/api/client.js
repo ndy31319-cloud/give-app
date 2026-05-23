@@ -41,13 +41,15 @@ export async function loginWithMemberCode({ code, postId }) {
   });
 }
 
-export async function signupMember({ name, nickname, phone }) {
+export async function signupMember({ name, id, password, phone, region }) {
   return request('/api/members/signup', {
     method: 'POST',
     body: JSON.stringify({
       name,
-      nickname,
+      email: id,
+      password,
       phone,
+      location: region,
       role: 'user',
     }),
   });
@@ -72,6 +74,13 @@ export async function fetchPost(postId) {
 
 export async function fetchWantedPosts() {
   return request('/api/wanted');
+}
+
+export async function createWantedPost({ title, content, category }) {
+  return request('/api/wanted', {
+    method: 'POST',
+    body: JSON.stringify({ title, content, category }),
+  });
 }
 
 export function saveAuthToken(token) {
