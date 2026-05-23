@@ -1,12 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPosts } from './api/client';
-import useAuthStore from './store/useAuthStore';
 
 function MainScreen() {
   const navigate = useNavigate();
-  const logout = useAuthStore((state) => state.logout);
-  const nickname = useAuthStore((state) => state.nickname);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,11 +52,6 @@ function MainScreen() {
 
   const currentCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
   return (
     <div
       className="bg-[#F4F6F8] h-screen flex overflow-hidden"
@@ -86,12 +78,12 @@ function MainScreen() {
           ))}
         </div>
 
-        <div className="p-6">
+        <div className="p-6 space-y-3">
           <button
-            onClick={handleLogout}
+            onClick={() => navigate('/buyer-select')}
             className="w-full bg-white/20 text-white py-4 rounded-2xl font-bold text-[18px] hover:bg-white/30 active:scale-95 transition-all"
           >
-            로그아웃
+            처음으로
           </button>
         </div>
       </div>
@@ -102,20 +94,15 @@ function MainScreen() {
             {currentCategoryName}
           </h2>
 
-          <div className="flex items-center gap-5 pb-2">
-            <p className="text-[20px] text-gray-500">
-              안녕하세요, <span className="font-bold text-gray-800">{nickname}</span>님
+          <div className="flex items-center gap-4 pb-2">
+            <p className="text-[22px] text-gray-500 font-bold">
+              물품을 선택하면 상세 정보를 볼 수 있어요
             </p>
             <button
+              type="button"
               onClick={() => navigate('/easy-main')}
-              className="bg-[#0047FF] text-white px-9 py-5 rounded-[28px] flex items-center gap-4 text-[28px] font-bold active:scale-95 transition-all shadow-xl"
+              className="bg-[#0047FF] text-white px-8 py-4 rounded-[24px] text-[24px] font-bold shadow-lg active:scale-95"
             >
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                <line x1="11" y1="8" x2="11" y2="14" />
-                <line x1="8" y1="11" x2="14" y2="11" />
-              </svg>
               쉬운모드
             </button>
           </div>
@@ -129,9 +116,11 @@ function MainScreen() {
           ) : (
             <div className="grid grid-cols-3 gap-6 pb-24">
               {filteredItems.map((item) => (
-                <div
+                <button
+                  type="button"
                   key={item.id || item.post_id}
-                  className="bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 active:scale-[0.98] transition-all cursor-pointer"
+                  onClick={() => navigate(`/posts/${item.id || item.post_id}`)}
+                  className="text-left bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <div className="h-48 bg-gray-100 relative">
                     <img
@@ -143,7 +132,7 @@ function MainScreen() {
                   <div className="p-6">
                     <h3 className="text-[22px] font-bold text-[#333] mb-2 truncate">{item.title}</h3>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

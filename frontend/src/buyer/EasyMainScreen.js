@@ -74,7 +74,11 @@ function EasyMainScreen() {
   };
 
   const handleReceive = (item) => {
-    alert(`${item.title} 물건 받기를 선택했습니다.`);
+    const isConfirmed = window.confirm('이 물품을 받으시겠습니까?');
+
+    if (isConfirmed) {
+      navigate(`/code-login?postId=${item.id || item.post_id}`);
+    }
   };
 
   return (
@@ -92,7 +96,7 @@ function EasyMainScreen() {
             onClick={() => navigate('/easy-wanted')}
             className="bg-[#22C55E] text-white px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-[#22C55E] active:bg-green-700"
           >
-            물품 요청하기
+            물품 요청
           </button>
           <button
             onClick={() => navigate('/buyer-main')}
@@ -138,9 +142,13 @@ function EasyMainScreen() {
                   key={item.id || item.post_id}
                   className="bg-white rounded-[34px] overflow-hidden shadow-md border-4 border-gray-200 p-7 flex gap-7 active:scale-[0.99] transition-transform h-full min-h-0"
                 >
-                  <div className="w-[260px] h-[260px] self-center bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/posts/${item.id || item.post_id}`)}
+                    className="w-[260px] h-[260px] self-center bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner"
+                  >
                     <img src={item.image || item.img} alt={item.title} className="w-full h-full object-cover" />
-                  </div>
+                  </button>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center gap-4 py-2">
                     <h3 className="text-[48px] font-bold text-black leading-tight break-keep truncate">
@@ -151,7 +159,7 @@ function EasyMainScreen() {
                         물건: <span className="text-[#0047FF]">{item.title}</span>
                       </p>
                       <p className="text-[26px] text-gray-500 mt-2 leading-tight">
-                        터치해서 자세한 정보를 확인하세요
+                        사진을 누르면 자세히 볼 수 있어요
                       </p>
                     </div>
                     <button

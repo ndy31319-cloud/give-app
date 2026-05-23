@@ -34,6 +34,25 @@ export async function loginMember({ email, password }) {
   });
 }
 
+export async function loginWithMemberCode({ code, postId }) {
+  return request('/api/auth/code-login', {
+    method: 'POST',
+    body: JSON.stringify({ code, certificate_number: code, postId }),
+  });
+}
+
+export async function signupMember({ name, nickname, phone }) {
+  return request('/api/members/signup', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      nickname,
+      phone,
+      role: 'user',
+    }),
+  });
+}
+
 export async function fetchPosts(params = {}) {
   const searchParams = new URLSearchParams();
 
@@ -45,6 +64,10 @@ export async function fetchPosts(params = {}) {
 
   const query = searchParams.toString();
   return request(`/api/posts${query ? `?${query}` : ''}`);
+}
+
+export async function fetchPost(postId) {
+  return request(`/api/posts/${postId}`);
 }
 
 export async function fetchWantedPosts() {

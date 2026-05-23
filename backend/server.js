@@ -14,6 +14,8 @@ const seedData = {
       nickname: '1111',
       email: '1111@test.com',
       password: '1111',
+      code: '1111',
+      certificate_number: '1111',
       phone: '010-1111-1111',
       role: 'user',
       location: '서초동',
@@ -128,6 +130,21 @@ const seedData = {
     },
   ],
 };
+
+function createMemberCode(db) {
+  let code = '';
+
+  do {
+    code = String(Math.floor(100000 + Math.random() * 900000));
+  } while (db.users.some((user) => (
+    user.code === code
+    || user.certificate_number === code
+    || user.password === code
+    || user.nickname === code
+  )));
+
+  return code;
+}
 
 function ensureDb() {
   if (!fs.existsSync(DB_DIR)) {
@@ -247,6 +264,83 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, {
         accessToken: `dev-token-${user.id}`,
         tokenType: 'Bearer',
+        member: {
+          id: user.id,
+          name: user.name,
+          nickname: user.nickname,
+          email: user.email,
+          role: user.role,
+        },
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/members/signup') {
+      const body = await readBody(req);
+      const code = body.certificate_number || body.code || body.member_code || createMemberCode(db);
+
+      if (!body.name) {
+        sendJson(res, 400, { error: '이름을 입력해주세요.' });
+        return;
+      }
+
+      const isDuplicatedCode = db.users.some((item) => (
+        item.code === code
+        || item.certificate_number === code
+        || item.password === code
+        || item.nickname === code
+      ));
+
+      if (isDuplicatedCode) {
+        sendJson(res, 409, { error: '이미 등록된 회원코드입니다.' });
+        return;
+      }
+
+      const nextId = Math.max(0, ...db.users.map((user) => user.id)) + 1;
+      const newUser = {
+        id: nextId,
+        name: body.name,
+        nickname: body.nickname || body.name,
+        email: body.email || `member${nextId}@givegive.local`,
+        password: '',
+        code,
+        certificate_number: code,
+        phone: body.phone || '',
+        role: body.role || 'user',
+        location: body.location || '',
+      };
+
+      db.users.push(newUser);
+      writeDb(db);
+      sendJson(res, 201, {
+        id: newUser.id,
+        name: newUser.name,
+        nickname: newUser.nickname,
+        code: newUser.code,
+        certificate_number: newUser.certificate_number,
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/auth/code-login') {
+      const body = await readBody(req);
+      const code = body.code || body.certificate_number || body.member_code;
+      const user = db.users.find((item) => (
+        item.code === code
+        || item.certificate_number === code
+        || item.password === code
+        || item.nickname === code
+      ));
+
+      if (!user) {
+        sendJson(res, 401, { error: '회원코드가 맞지 않습니다.' });
+        return;
+      }
+
+      sendJson(res, 200, {
+        accessToken: `dev-token-${user.id}`,
+        tokenType: 'Bearer',
+        postId: body.postId || null,
         member: {
           id: user.id,
           name: user.name,
