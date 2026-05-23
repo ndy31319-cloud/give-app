@@ -1,0 +1,52 @@
+/* eslint-disable */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --screen-width: 2000px;
+  --screen-height: 1200px;
+}
+
+html,
+body,
+#root {
+  width: var(--screen-width);
+  height: var(--screen-height);
+  min-width: var(--screen-width);
+  min-height: var(--screen-height);
+  max-width: var(--screen-width);
+  max-height: var(--screen-height);
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: #f8f9fa;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+#root > div,
+.min-h-screen,
+.h-screen {
+  width: var(--screen-width);
+  height: var(--screen-height);
+  min-height: 0;
+}

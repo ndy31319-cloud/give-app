@@ -15,7 +15,6 @@ import {
   User,
 } from '@/src/types/app';
 import { authAPI, chatAPI, dynamicQrAPI, memberAPI, notificationAPI, postAPI } from '@/src/services/api';
-import { isFirebaseChatEnabled, subscribeToChatMessages } from '@/src/services/firebaseChat';
 
 const initialDeviceSimulationState: DeviceSimulationState = {
   step: 'idle',
@@ -146,113 +145,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [authToken, user]);
 
-  const chatRoomIds = chatRooms.map((room) => room.id).join('|');
-
-  useEffect(() => {
-    if (!user || !chatRoomIds || !isFirebaseChatEnabled()) {
-      return undefined;
-    }
-
-    const unsubscribers = chatRooms
-      .map((room) =>
-        subscribeToChatMessages(
-          room.id,
-          user.id,
-          (messages) => {
-            setMessagesByChat((prev) => ({
-              ...prev,
-              [room.id]: messages,
-            }));
-
-            const lastMessage = messages[messages.length - 1];
-            if (!lastMessage) {
-              return;
-            }
-
-            setChatRooms((prev) =>
-              prev.map((item) =>
-                item.id === room.id
-                  ? {
-                      ...item,
-                      lastMessage: lastMessage.text,
-                      timeLabel: lastMessage.timeLabel,
-                    }
-                  : item,
-              ),
-            );
-          },
-          (error) => {
-            console.warn('Firebase chat subscription failed:', error);
-          },
-        ),
-      )
-      .filter((unsubscribe): unsubscribe is () => void => Boolean(unsubscribe));
-
-    return () => {
-      unsubscribers.forEach((unsubscribe) => unsubscribe());
-    };
-  }, [chatRoomIds, user?.id]);
-
-  useEffect(() => {
-    if (!user || !chatRoomIds || isFirebaseChatEnabled()) {
-      return undefined;
-    }
-
-    const userId = user.id;
-    let cancelled = false;
-    let refreshing = false;
-
-    async function refreshChatMessages() {
-      if (refreshing) {
-        return;
-      }
-
-      refreshing = true;
-      try {
-        const messageEntries = await Promise.all(
-          chatRooms.map(async (room) => {
-            const messagesResult = await chatAPI.listMessages(room.id, authToken ?? undefined, userId);
-            return [room.id, messagesResult.data ?? []] as const;
-          }),
-        );
-
-        if (cancelled) {
-          return;
-        }
-
-        setMessagesByChat((prev) => ({
-          ...prev,
-          ...Object.fromEntries(messageEntries),
-        }));
-
-        setChatRooms((prev) =>
-          prev.map((room) => {
-            const messages = messageEntries.find(([roomId]) => roomId === room.id)?.[1] ?? [];
-            const lastMessage = messages[messages.length - 1];
-
-            return lastMessage
-              ? {
-                  ...room,
-                  lastMessage: lastMessage.text,
-                  timeLabel: lastMessage.timeLabel,
-                }
-              : room;
-          }),
-        );
-      } finally {
-        refreshing = false;
-      }
-    }
-
-    const interval = setInterval(refreshChatMessages, 2000);
-    refreshChatMessages();
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [authToken, chatRoomIds, user?.id]);
-
   function clearDeviceTimers() {
     deviceTimerRefs.current.forEach((timer) => clearTimeout(timer));
     deviceTimerRefs.current = [];
@@ -310,9 +202,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         nickname: data.nickname ?? user.nickname,
         phone: data.phone ?? user.phone ?? '',
         dongName: data.dongName ?? user.dongName,
-        email: data.email ?? user.email,
-        bio: data.bio ?? user.bio,
-        profileImage: data.profileImage ?? user.profileImage,
       },
       authToken ?? undefined,
     );

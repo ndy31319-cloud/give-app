@@ -21,7 +21,7 @@ import {
   mockReviews,
   mockRoles,
   mockSearchHistory,
-} from "@/src/data/mockData";
+} from '@/src/data/mockData';
 import {
   CertificationCodeRecord,
   ChatMessage,
@@ -57,7 +57,7 @@ import {
   SignupDraft,
   UploadableImage,
   User,
-} from "@/src/types/app";
+} from '@/src/types/app';
 import {
   backendConfig,
   buildAuthHeaders,
@@ -72,10 +72,10 @@ import {
   requestEnvelope,
   toBackendFilePart,
   toLocationString,
-} from "@/src/services/backendClient";
-import { formatDate } from "@/src/utils/time";
+} from '@/src/services/backendClient';
+import { formatDate } from '@/src/utils/time';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? '';
 
 type ApiResult<T> = Promise<{ data: T; error: string | null }>;
 
@@ -89,7 +89,7 @@ export interface MypageSummary {
 }
 
 export interface MypageStats {
-  period: "3months" | "6months" | "year";
+  period: '3months' | '6months' | 'year';
   myAverage: number;
   allAverage: number;
   difference: number;
@@ -102,7 +102,7 @@ export interface MypageStats {
 
 function withJsonHeaders(headers?: Record<string, string>) {
   return {
-    Accept: "application/json",
+    Accept: 'application/json',
     ...headers,
   };
 }
@@ -111,53 +111,23 @@ function buildFilePart(image: UploadableImage) {
   return {
     uri: image.uri,
     name: image.name || `image-${Date.now()}.jpg`,
-    type: image.type || "image/jpeg",
+    type: image.type || 'image/jpeg',
   } as any;
 }
 
 function normalizeAiCategory(category?: string | null) {
-  const value = String(category || "").trim();
+  const value = String(category || '').trim();
   const lowerValue = value.toLowerCase();
 
   if (!value) return undefined;
   if (categoryOptions.some((option) => option.id === value)) return value;
-  if (
-    value.includes("생활") ||
-    value.includes("주방") ||
-    lowerValue.includes("household")
-  )
-    return "household";
-  if (
-    value.includes("전자") ||
-    value.includes("디지털") ||
-    lowerValue.includes("electronic")
-  )
-    return "electronics";
-  if (
-    value.includes("가구") ||
-    value.includes("책장") ||
-    lowerValue.includes("furniture")
-  )
-    return "furniture";
-  if (
-    value.includes("도서") ||
-    value.includes("책") ||
-    lowerValue.includes("book")
-  )
-    return "books";
-  if (
-    value.includes("의류") ||
-    value.includes("옷") ||
-    lowerValue.includes("cloth")
-  )
-    return "clothing";
-  if (
-    value.includes("유아") ||
-    value.includes("아기") ||
-    lowerValue.includes("baby")
-  )
-    return "baby";
-  if (lowerValue.includes("kitchen")) return "kitchen";
+  if (value.includes('생활') || value.includes('주방') || lowerValue.includes('household')) return 'household';
+  if (value.includes('전자') || value.includes('디지털') || lowerValue.includes('electronic')) return 'electronics';
+  if (value.includes('가구') || value.includes('책장') || lowerValue.includes('furniture')) return 'furniture';
+  if (value.includes('도서') || value.includes('책') || lowerValue.includes('book')) return 'books';
+  if (value.includes('의류') || value.includes('옷') || lowerValue.includes('cloth')) return 'clothing';
+  if (value.includes('유아') || value.includes('아기') || lowerValue.includes('baby')) return 'baby';
+  if (lowerValue.includes('kitchen')) return 'kitchen';
 
   return value;
 }
@@ -166,54 +136,51 @@ function inferFromFilename(image: UploadableImage): ImageAnalysisResult {
   const name = `${image.name} ${image.uri}`.toLowerCase();
 
   const harmfulPatterns = [
-    "gun",
-    "knife",
-    "drug",
-    "medicine",
-    "pill",
-    "vape",
-    "cigarette",
-    "alcohol",
-    "총",
-    "칼",
-    "약",
-    "담배",
-    "술",
+    'gun',
+    'knife',
+    'drug',
+    'medicine',
+    'pill',
+    'vape',
+    'cigarette',
+    'alcohol',
+    '총',
+    '칼',
+    '약',
+    '담배',
+    '술',
   ];
 
   if (harmfulPatterns.some((pattern) => name.includes(pattern))) {
     return {
       isHarmful: true,
-      reason: "의약품, 무기류, 주류·담배류는 나눔이 제한됩니다.",
+      reason: '의약품, 무기류, 주류·담배류는 나눔이 제한됩니다.',
       confidence: 0.94,
-      detectedItem: "유해 가능 물품",
+      detectedItem: '유해 가능 물품',
     };
   }
 
   const categories = [
     {
-      keywords: ["coat", "jacket", "outer", "shirt", "clothes", "옷", "외투"],
-      item: "의류",
-      category: "clothing",
-      title: "상태 좋은 의류 나눔합니다",
-      description:
-        "깨끗하게 보관한 의류입니다. 사이즈와 상태는 채팅으로 자세히 안내드릴게요.",
+      keywords: ['coat', 'jacket', 'outer', 'shirt', 'clothes', '옷', '외투'],
+      item: '의류',
+      category: 'clothing',
+      title: '상태 좋은 의류 나눔합니다',
+      description: '깨끗하게 보관한 의류입니다. 사이즈와 상태는 채팅으로 자세히 안내드릴게요.',
     },
     {
-      keywords: ["book", "books", "novel", "책", "도서"],
-      item: "도서",
-      category: "books",
-      title: "읽기 좋은 도서 나눔합니다",
-      description:
-        "정리 중인 도서입니다. 필요한 분께 편하게 나눔드리고 싶어요.",
+      keywords: ['book', 'books', 'novel', '책', '도서'],
+      item: '도서',
+      category: 'books',
+      title: '읽기 좋은 도서 나눔합니다',
+      description: '정리 중인 도서입니다. 필요한 분께 편하게 나눔드리고 싶어요.',
     },
     {
-      keywords: ["laptop", "tablet", "phone", "monitor", "전자", "노트북"],
-      item: "전자제품",
-      category: "electronics",
-      title: "사용 가능한 전자제품 나눔합니다",
-      description:
-        "작동 상태를 확인한 전자제품입니다. 사용감은 있지만 실사용 가능합니다.",
+      keywords: ['laptop', 'tablet', 'phone', 'monitor', '전자', '노트북'],
+      item: '전자제품',
+      category: 'electronics',
+      title: '사용 가능한 전자제품 나눔합니다',
+      description: '작동 상태를 확인한 전자제품입니다. 사용감은 있지만 실사용 가능합니다.',
     },
   ];
 
@@ -235,18 +202,15 @@ function inferFromFilename(image: UploadableImage): ImageAnalysisResult {
   return {
     isHarmful: false,
     confidence: 0.72,
-    detectedItem: "생활용품",
-    recommendedCategory: "household",
-    suggestedTitle: "상태 좋은 생활용품 나눔합니다",
+    detectedItem: '생활용품',
+    recommendedCategory: 'household',
+    suggestedTitle: '상태 좋은 생활용품 나눔합니다',
     suggestedDescription:
-      "사진 속 물품을 나눔하려고 합니다. 상태와 사용감은 채팅으로 자세히 설명드릴게요.",
+      '사진 속 물품을 나눔하려고 합니다. 상태와 사용감은 채팅으로 자세히 설명드릴게요.',
   };
 }
 
-async function safeFetch<T>(
-  input: string,
-  init?: RequestInit,
-): Promise<T | null> {
+async function safeFetch<T>(input: string, init?: RequestInit): Promise<T | null> {
   if (!API_BASE_URL) {
     return null;
   }
@@ -286,14 +250,10 @@ function hashString(value: string) {
     hash = Math.imul(hash, 16777619);
   }
 
-  return (hash >>> 0).toString(16).toUpperCase().padStart(8, "0");
+  return (hash >>> 0).toString(16).toUpperCase().padStart(8, '0');
 }
 
-function buildDynamicQrDisplayCode(
-  memberId: string,
-  purpose: DynamicQrPurpose,
-  issuedAtMs: number,
-) {
+function buildDynamicQrDisplayCode(memberId: string, purpose: DynamicQrPurpose, issuedAtMs: number) {
   const seed = hashString(`${memberId}:${purpose}:${issuedAtMs}`).slice(0, 12);
   return `GIVE-${seed.slice(0, 4)}-${seed.slice(4, 8)}-${seed.slice(8, 12)}`;
 }
@@ -304,9 +264,7 @@ function buildDynamicQrToken(
   issuedAtMs: number,
   expiresAtMs: number,
 ) {
-  const seed = hashString(
-    `${memberId}:${purpose}:${issuedAtMs}:${expiresAtMs}:${Math.random()}`,
-  );
+  const seed = hashString(`${memberId}:${purpose}:${issuedAtMs}:${expiresAtMs}:${Math.random()}`);
   return `give|${purpose}|${memberId}|${issuedAtMs}|${expiresAtMs}|${seed}`;
 }
 
@@ -318,13 +276,10 @@ function expireStaleDynamicQrSessions() {
   const nowMs = Date.now();
 
   dynamicQrSessionStore.forEach((session, index) => {
-    if (
-      session.status === "active" &&
-      new Date(session.expiresAt).getTime() <= nowMs
-    ) {
+    if (session.status === 'active' && new Date(session.expiresAt).getTime() <= nowMs) {
       dynamicQrSessionStore[index] = {
         ...session,
-        status: "expired",
+        status: 'expired',
       };
     }
   });
@@ -335,19 +290,19 @@ function createMemberToken(member: MemberRecord) {
 }
 
 function normalizePhone(value: string) {
-  return value.replace(/\D/g, "");
+  return value.replace(/\D/g, '');
 }
 
 function getIdentifierMismatchMessage(identifier: string) {
-  if (identifier.includes("@")) {
-    return "등록되지 않은 이메일입니다.";
+  if (identifier.includes('@')) {
+    return '등록되지 않은 이메일입니다.';
   }
 
   if (normalizePhone(identifier).length >= 9) {
-    return "등록되지 않은 전화번호입니다.";
+    return '등록되지 않은 전화번호입니다.';
   }
 
-  return "등록되지 않은 이메일 또는 전화번호입니다.";
+  return '등록되지 않은 이메일 또는 전화번호입니다.';
 }
 
 function findMockMemberByIdentifier(identifier: string) {
@@ -358,51 +313,44 @@ function findMockMemberByIdentifier(identifier: string) {
     const memberEmail = member.email.toLowerCase();
     const memberPhone = normalizePhone(member.phone);
 
-    return (
-      memberEmail === normalizedIdentifier || memberPhone === normalizedPhone
-    );
+    return memberEmail === normalizedIdentifier || memberPhone === normalizedPhone;
   });
 }
 
 function resolveRoleName(roleId: string): RoleCode {
-  return mockRoles.find((role) => role.roleId === roleId)?.roleName ?? "USER";
+  return mockRoles.find((role) => role.roleId === roleId)?.roleName ?? 'USER';
 }
 
-function toBackendPostType(type: CreatePostInput["type"]) {
-  return type === "share" ? "donate" : "request";
+function toBackendPostType(type: CreatePostInput['type']) {
+  return type === 'share' ? 'donate' : 'request';
 }
 
 const backendProductIdByCategory: Record<string, string> = {
-  clothing: "1",
-  electronics: "2",
-  digital: "2",
-  household: "51",
-  kitchen: "51",
-  baby: "51",
-  furniture: "91",
-  books: "106",
+  clothing: '1',
+  electronics: '2',
+  digital: '2',
+  household: '51',
+  kitchen: '51',
+  baby: '51',
+  furniture: '91',
+  books: '106',
 };
 
 function toProductId(category: string) {
-  return (
-    backendProductIdByCategory[category] ?? category.match(/\d+/)?.[0] ?? "51"
-  );
+  return backendProductIdByCategory[category] ?? category.match(/\d+/)?.[0] ?? '51';
 }
 
-function buildUserFromDraft(
-  draft: SignupDraft,
-  location: NeighborhoodLocation,
-): User {
-  const roleCode: RoleCode = draft.isVulnerable ? "BENEFICIARY" : "USER";
+function buildUserFromDraft(draft: SignupDraft, location: NeighborhoodLocation): User {
+  const roleCode: RoleCode = draft.isVulnerable ? 'BENEFICIARY' : 'USER';
   const member: MemberRecord = {
     memberId: `member_generated_${Date.now()}`,
-    roleId: draft.isVulnerable ? "role_beneficiary" : "role_user",
+    roleId: draft.isVulnerable ? 'role_beneficiary' : 'role_user',
     roleName: roleCode,
-    memberPw: draft.password ?? "Give1234",
-    name: draft.name ?? "사용자",
-    nickname: draft.nickname ?? draft.name ?? "사용자",
-    email: draft.email ?? "",
-    phone: draft.phone ?? "",
+    memberPw: draft.password ?? 'Give1234',
+    name: draft.name ?? '사용자',
+    nickname: draft.nickname ?? (draft.name ?? '사용자'),
+    email: draft.email ?? '',
+    phone: draft.phone ?? '',
     dongName: location.dongName,
     birthdate: draft.birthdate,
     createdAt: new Date().toISOString(),
@@ -428,9 +376,8 @@ function createPostViewFromPayload(payload: CreatePostInput, user: User): Post {
     itemName: payload.itemName,
     itemCondition: payload.itemCondition,
     location: payload.location,
-    status: "open",
-    urgency:
-      payload.type === "need" ? (payload.urgency ?? "normal") : undefined,
+    status: 'open',
+    urgency: payload.type === 'need' ? payload.urgency ?? 'normal' : undefined,
     images: payload.images.map((image) => image.uri),
     imageFiles: payload.images,
     author: {
@@ -449,21 +396,15 @@ function createPostViewFromPayload(payload: CreatePostInput, user: User): Post {
 }
 
 export const memberAPI = {
-  async login(payload: {
-    identifier: string;
-    password: string;
-  }): ApiResult<{ user: User; token: string }> {
-    const response = await safeFetch<{ data?: { user: User; token: string } }>(
-      "/api/auth/login",
-      {
-        method: "POST",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          identifier: payload.identifier,
-          password: payload.password,
-        }),
-      },
-    );
+  async login(payload: { identifier: string; password: string }): ApiResult<{ user: User; token: string }> {
+    const response = await safeFetch<{ data?: { user: User; token: string } }>('/api/auth/login', {
+      method: 'POST',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        identifier: payload.identifier,
+        password: payload.password,
+      }),
+    });
 
     if (response?.data) {
       return { data: response.data, error: null };
@@ -472,14 +413,11 @@ export const memberAPI = {
     await sleep(400);
     const member = findMockMemberByIdentifier(payload.identifier);
     if (!member) {
-      return {
-        data: null as never,
-        error: getIdentifierMismatchMessage(payload.identifier),
-      };
+      return { data: null as never, error: getIdentifierMismatchMessage(payload.identifier) };
     }
 
     if (member.memberPw !== payload.password) {
-      return { data: null as never, error: "비밀번호가 올바르지 않습니다." };
+      return { data: null as never, error: '비밀번호가 올바르지 않습니다.' };
     }
 
     return {
@@ -491,40 +429,34 @@ export const memberAPI = {
     };
   },
 
-  async signup(
-    draft: SignupDraft,
-    location: NeighborhoodLocation,
-  ): ApiResult<{ user: User; token: string }> {
+  async signup(draft: SignupDraft, location: NeighborhoodLocation): ApiResult<{ user: User; token: string }> {
     const requestPayload = {
-      role: draft.isVulnerable ? "BENEFICIARY" : "USER",
-      role_name: draft.isVulnerable ? "BENEFICIARY" : "USER",
-      role_id: draft.isVulnerable ? "role_beneficiary" : "role_user",
-      roleId: draft.isVulnerable ? "role_beneficiary" : "role_user",
-      password: draft.password ?? "Give1234",
-      member_pw: draft.password ?? "Give1234",
-      memberPw: draft.password ?? "Give1234",
-      name: draft.name ?? "사용자",
-      nickname: draft.nickname ?? draft.name ?? "사용자",
-      email: draft.email ?? "",
-      phone: draft.phone ?? "",
-      certificate_number: "",
-      qr_code: "",
+      role: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_name: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_id: draft.isVulnerable ? 'role_beneficiary' : 'role_user',
+      roleId: draft.isVulnerable ? 'role_beneficiary' : 'role_user',
+      password: draft.password ?? 'Give1234',
+      member_pw: draft.password ?? 'Give1234',
+      memberPw: draft.password ?? 'Give1234',
+      name: draft.name ?? '사용자',
+      nickname: draft.nickname ?? draft.name ?? '사용자',
+      email: draft.email ?? '',
+      phone: draft.phone ?? '',
+      certificate_number: '',
+      qr_code: '',
       dong_name: location.dongName,
       dongName: location.dongName,
       latitude: location.latitude,
       longitude: location.longitude,
-      birth_date: draft.birthdate ?? "",
-      birthdate: draft.birthdate ?? "",
+      birth_date: draft.birthdate ?? '',
+      birthdate: draft.birthdate ?? '',
     };
 
-    const response = await safeFetch<{ data?: { user: User; token: string } }>(
-      "/api/members/signup",
-      {
-        method: "POST",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(requestPayload),
-      },
-    );
+    const response = await safeFetch<{ data?: { user: User; token: string } }>('/api/members/signup', {
+      method: 'POST',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(requestPayload),
+    });
 
     if (response?.data) {
       return { data: response.data, error: null };
@@ -539,11 +471,11 @@ export const memberAPI = {
           memberId: user.id,
           roleId: user.roleId,
           roleName: user.roleCode,
-          memberPw: draft.password ?? "Give1234",
+          memberPw: draft.password ?? 'Give1234',
           name: user.name,
           nickname: user.nickname,
           email: user.email,
-          phone: user.phone ?? "",
+          phone: user.phone ?? '',
           dongName: user.dongName,
           birthdate: user.birthdate,
           createdAt: user.createdAt ?? new Date().toISOString(),
@@ -559,27 +491,20 @@ export const memberAPI = {
       return { data: response.data, error: null };
     }
 
-    const member =
-      mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
+    const member = mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
     return { data: mapMemberToUser(member), error: null };
   },
 
   async updateMe(
     memberId: string,
-    payload: Pick<User, "name" | "nickname" | "phone" | "dongName"> &
-      Partial<Pick<User, "email" | "bio" | "profileImage">>,
+    payload: Pick<User, 'name' | 'nickname' | 'phone' | 'dongName'>,
     authToken?: string,
   ): ApiResult<User> {
-    const backendResult = await requestEnvelope<any>(
-      backendConfig.endpoints.memberMe,
-      {
-        method: "PATCH",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify(payload),
-      },
-    );
+    const backendResult = await requestEnvelope<any>(backendConfig.endpoints.memberMe, {
+      method: 'PATCH',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
 
     if (backendResult.error) {
       return { data: null as never, error: backendResult.error };
@@ -589,54 +514,17 @@ export const memberAPI = {
       return { data: mapBackendUser(backendResult.data), error: null };
     }
 
-    const member =
-      mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
+    const member = mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
     return {
       data: mapMemberToUser({
         ...member,
         name: payload.name,
         nickname: payload.nickname,
-        email: payload.email ?? member.email,
         phone: payload.phone ?? member.phone,
         dongName: payload.dongName,
-        bio: payload.bio ?? undefined,
-        profileImage: payload.profileImage,
       }),
       error: null,
     };
-  },
-
-  async uploadProfileImage(
-    image: UploadableImage,
-    authToken?: string,
-  ): ApiResult<{ profileImage: string }> {
-    const formData = new FormData();
-    formData.append("profileImage", toBackendFilePart(image));
-
-    const backendResult = await requestEnvelope<any>(
-      backendConfig.endpoints.memberProfileImage,
-      {
-        method: "PATCH",
-        headers: buildAuthHeaders(authToken),
-        body: formData,
-      },
-    );
-
-    if (backendResult.error) {
-      return { data: null as never, error: backendResult.error };
-    }
-
-    const profileImage =
-      backendResult.data?.profileImage ?? backendResult.data?.profile_image;
-
-    if (!profileImage) {
-      return {
-        data: null as never,
-        error: "프로필 이미지 업로드 결과를 확인할 수 없습니다.",
-      };
-    }
-
-    return { data: { profileImage }, error: null };
   },
 
   async updateLocation(
@@ -644,22 +532,17 @@ export const memberAPI = {
     location: NeighborhoodLocation,
     authToken?: string,
   ): ApiResult<User> {
-    const backendResult = await requestEnvelope<any>(
-      backendConfig.endpoints.memberLocation,
-      {
-        method: "PATCH",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({
-          dongName: location.dongName,
-          dong_name: location.dongName,
-          location: toLocationString(location),
-          latitude: location.latitude,
-          longitude: location.longitude,
-        }),
-      },
-    );
+    const backendResult = await requestEnvelope<any>(backendConfig.endpoints.memberLocation, {
+      method: 'PATCH',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        dongName: location.dongName,
+        dong_name: location.dongName,
+        location: toLocationString(location),
+        latitude: location.latitude,
+        longitude: location.longitude,
+      }),
+    });
 
     if (backendResult.error) {
       return { data: null as never, error: backendResult.error };
@@ -668,22 +551,15 @@ export const memberAPI = {
     if (backendResult.data) {
       return {
         data: {
-          ...mapMemberToUser(
-            mockMembers.find((item) => item.memberId === memberId) ??
-              mockMembers[0],
-          ),
-          dongName:
-            backendResult.data.dongName ??
-            backendResult.data.dong_name ??
-            location.dongName,
+          ...mapMemberToUser(mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0]),
+          dongName: backendResult.data.dongName ?? backendResult.data.dong_name ?? location.dongName,
           location,
         },
         error: null,
       };
     }
 
-    const member =
-      mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
+    const member = mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
     return {
       data: {
         ...mapMemberToUser(member),
@@ -694,15 +570,12 @@ export const memberAPI = {
     };
   },
 
-  async changePassword(
-    memberId: string,
-    nextPassword: string,
-  ): ApiResult<{ success: boolean }> {
+  async changePassword(memberId: string, nextPassword: string): ApiResult<{ success: boolean }> {
     const response = await safeFetch<{ data?: { success: boolean } }>(
       `/members/${memberId}/password`,
       {
-        method: "PATCH",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
+        method: 'PATCH',
+        headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ memberPw: nextPassword }),
       },
     );
@@ -713,12 +586,9 @@ export const memberAPI = {
   },
 
   async deleteMe(memberId: string): ApiResult<{ success: boolean }> {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/members/${memberId}`,
-      {
-        method: "DELETE",
-      },
-    );
+    const response = await safeFetch<{ data?: { success: boolean } }>(`/members/${memberId}`, {
+      method: 'DELETE',
+    });
     if (response?.data) {
       return { data: response.data, error: null };
     }
@@ -726,40 +596,34 @@ export const memberAPI = {
   },
 
   async getRole(memberId: string): ApiResult<{ roleName: RoleCode }> {
-    const response = await safeFetch<{ data?: { roleName: RoleCode } }>(
+    const response = await safeFetch<{ data?: { roleName: RoleCode } }>(`/members/${memberId}/role`);
+    if (response?.data) {
+      return { data: response.data, error: null };
+    }
+
+    const member = mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
+    return { data: { roleName: resolveRoleName(member.roleId) }, error: null };
+  },
+
+  async promoteToBeneficiary(memberId: string): ApiResult<{ success: boolean; roleName: RoleCode }> {
+    const response = await safeFetch<{ data?: { success: boolean; roleName: RoleCode } }>(
       `/members/${memberId}/role`,
+      {
+        method: 'PATCH',
+        headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ roleName: 'BENEFICIARY' }),
+      },
     );
     if (response?.data) {
       return { data: response.data, error: null };
     }
-
-    const member =
-      mockMembers.find((item) => item.memberId === memberId) ?? mockMembers[0];
-    return { data: { roleName: resolveRoleName(member.roleId) }, error: null };
-  },
-
-  async promoteToBeneficiary(
-    memberId: string,
-  ): ApiResult<{ success: boolean; roleName: RoleCode }> {
-    const response = await safeFetch<{
-      data?: { success: boolean; roleName: RoleCode };
-    }>(`/members/${memberId}/role`, {
-      method: "PATCH",
-      headers: withJsonHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ roleName: "BENEFICIARY" }),
-    });
-    if (response?.data) {
-      return { data: response.data, error: null };
-    }
-    return { data: { success: true, roleName: "BENEFICIARY" }, error: null };
+    return { data: { success: true, roleName: 'BENEFICIARY' }, error: null };
   },
 };
 
 export const certificationAPI = {
   async listAll(): ApiResult<CertificationCodeRecord[]> {
-    const response = await safeFetch<{ data?: CertificationCodeRecord[] }>(
-      "/certification-codes",
-    );
+    const response = await safeFetch<{ data?: CertificationCodeRecord[] }>('/certification-codes');
     if (response?.data) {
       return { data: response.data, error: null };
     }
@@ -768,22 +632,17 @@ export const certificationAPI = {
 
   async getAvailable(): ApiResult<CertificationCodeRecord[]> {
     return {
-      data: mockCertificationCodes.filter(
-        (code) => !code.isUsed && code.status === "unused",
-      ),
+      data: mockCertificationCodes.filter((code) => !code.isUsed && code.status === 'unused'),
       error: null,
     };
   },
 
-  async useCode(
-    code: string,
-    memberId: string,
-  ): ApiResult<{ success: boolean }> {
+  async useCode(code: string, memberId: string): ApiResult<{ success: boolean }> {
     const response = await safeFetch<{ data?: { success: boolean } }>(
       `/certification-codes/use`,
       {
-        method: "PATCH",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
+        method: 'PATCH',
+        headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ code, memberId }),
       },
     );
@@ -791,14 +650,9 @@ export const certificationAPI = {
       return { data: response.data, error: null };
     }
 
-    const matched = mockCertificationCodes.find(
-      (item) => item.code === code && !item.isUsed,
-    );
+    const matched = mockCertificationCodes.find((item) => item.code === code && !item.isUsed);
     if (!matched) {
-      return {
-        data: { success: false },
-        error: "사용 가능한 인증코드를 찾을 수 없습니다.",
-      };
+      return { data: { success: false }, error: '사용 가능한 인증코드를 찾을 수 없습니다.' };
     }
     return { data: { success: true }, error: null };
   },
@@ -814,20 +668,15 @@ export const certificationAPI = {
 export const dynamicQrAPI = {
   async issue(
     memberId: string,
-    purpose: DynamicQrPurpose = "donation_access",
+    purpose: DynamicQrPurpose = 'donation_access',
     ttlSeconds = defaultDynamicQrTtlSeconds,
     authToken?: string,
   ): ApiResult<DynamicQrSession | null> {
-    const backendResult = await requestEnvelope<any>(
-      backendConfig.endpoints.dynamicQrIssue,
-      {
-        method: "POST",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({ memberId, purpose, ttlSeconds }),
-      },
-    );
+    const backendResult = await requestEnvelope<any>(backendConfig.endpoints.dynamicQrIssue, {
+      method: 'POST',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ memberId, purpose, ttlSeconds }),
+    });
 
     if (backendResult.error) {
       return { data: null, error: backendResult.error };
@@ -835,11 +684,7 @@ export const dynamicQrAPI = {
 
     if (backendResult.data) {
       return {
-        data: mapBackendDynamicQrSession(backendResult.data, {
-          memberId,
-          purpose,
-          ttlSeconds,
-        }),
+        data: mapBackendDynamicQrSession(backendResult.data, { memberId, purpose, ttlSeconds }),
         error: null,
       };
     }
@@ -847,14 +692,10 @@ export const dynamicQrAPI = {
     expireStaleDynamicQrSessions();
 
     dynamicQrSessionStore.forEach((session, index) => {
-      if (
-        session.memberId === memberId &&
-        session.purpose === purpose &&
-        session.status === "active"
-      ) {
+      if (session.memberId === memberId && session.purpose === purpose && session.status === 'active') {
         dynamicQrSessionStore[index] = {
           ...session,
-          status: "expired",
+          status: 'expired',
         };
       }
     });
@@ -869,7 +710,7 @@ export const dynamicQrAPI = {
       displayCode: buildDynamicQrDisplayCode(memberId, purpose, issuedAtMs),
       issuedAt: new Date(issuedAtMs).toISOString(),
       expiresAt: new Date(expiresAtMs).toISOString(),
-      status: "active",
+      status: 'active',
       ttlSeconds,
       usedAt: null,
     };
@@ -878,20 +719,12 @@ export const dynamicQrAPI = {
     return { data: cloneDynamicQrSession(createdSession), error: null };
   },
 
-  async validate(
-    token: string,
-    authToken?: string,
-  ): ApiResult<DynamicQrSession | null> {
-    const backendResult = await requestEnvelope<any>(
-      backendConfig.endpoints.dynamicQrValidate,
-      {
-        method: "POST",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({ token: token.trim() }),
-      },
-    );
+  async validate(token: string, authToken?: string): ApiResult<DynamicQrSession | null> {
+    const backendResult = await requestEnvelope<any>(backendConfig.endpoints.dynamicQrValidate, {
+      method: 'POST',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ token: token.trim() }),
+    });
 
     if (backendResult.error) {
       return { data: null, error: backendResult.error };
@@ -899,21 +732,16 @@ export const dynamicQrAPI = {
 
     if (backendResult.data) {
       const session = mapBackendDynamicQrSession(backendResult.data, {
-        memberId: String(backendResult.data.memberId ?? ""),
-        purpose: backendResult.data.purpose ?? "donation_access",
-        ttlSeconds: Number(
-          backendResult.data.ttlSeconds ?? defaultDynamicQrTtlSeconds,
-        ),
+        memberId: String(backendResult.data.memberId ?? ''),
+        purpose: backendResult.data.purpose ?? 'donation_access',
+        ttlSeconds: Number(backendResult.data.ttlSeconds ?? defaultDynamicQrTtlSeconds),
       });
 
-      if (session.status === "used") {
-        return { data: session, error: "이미 사용된 QR입니다." };
+      if (session.status === 'used') {
+        return { data: session, error: '이미 사용된 QR입니다.' };
       }
-      if (session.status === "expired") {
-        return {
-          data: session,
-          error: "QR이 만료되었습니다. 다시 발급해주세요.",
-        };
+      if (session.status === 'expired') {
+        return { data: session, error: 'QR이 만료되었습니다. 다시 발급해주세요.' };
       }
 
       return { data: session, error: null };
@@ -921,44 +749,28 @@ export const dynamicQrAPI = {
 
     expireStaleDynamicQrSessions();
 
-    const session = dynamicQrSessionStore.find(
-      (item) => item.token === token.trim(),
-    );
+    const session = dynamicQrSessionStore.find((item) => item.token === token.trim());
     if (!session) {
-      return { data: null, error: "유효한 QR 세션을 찾을 수 없습니다." };
+      return { data: null, error: '유효한 QR 세션을 찾을 수 없습니다.' };
     }
 
-    if (session.status === "used") {
-      return {
-        data: cloneDynamicQrSession(session),
-        error: "이미 사용된 QR입니다.",
-      };
+    if (session.status === 'used') {
+      return { data: cloneDynamicQrSession(session), error: '이미 사용된 QR입니다.' };
     }
 
-    if (session.status === "expired") {
-      return {
-        data: cloneDynamicQrSession(session),
-        error: "QR이 만료되었습니다. 다시 발급해주세요.",
-      };
+    if (session.status === 'expired') {
+      return { data: cloneDynamicQrSession(session), error: 'QR이 만료되었습니다. 다시 발급해주세요.' };
     }
 
     return { data: cloneDynamicQrSession(session), error: null };
   },
 
-  async consume(
-    token: string,
-    authToken?: string,
-  ): ApiResult<DynamicQrSession | null> {
-    const backendResult = await requestEnvelope<any>(
-      backendConfig.endpoints.dynamicQrConsume,
-      {
-        method: "POST",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({ token: token.trim() }),
-      },
-    );
+  async consume(token: string, authToken?: string): ApiResult<DynamicQrSession | null> {
+    const backendResult = await requestEnvelope<any>(backendConfig.endpoints.dynamicQrConsume, {
+      method: 'POST',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ token: token.trim() }),
+    });
 
     if (backendResult.error) {
       return { data: null, error: backendResult.error };
@@ -967,11 +779,9 @@ export const dynamicQrAPI = {
     if (backendResult.data) {
       return {
         data: mapBackendDynamicQrSession(backendResult.data, {
-          memberId: String(backendResult.data.memberId ?? ""),
-          purpose: backendResult.data.purpose ?? "donation_access",
-          ttlSeconds: Number(
-            backendResult.data.ttlSeconds ?? defaultDynamicQrTtlSeconds,
-          ),
+          memberId: String(backendResult.data.memberId ?? ''),
+          purpose: backendResult.data.purpose ?? 'donation_access',
+          ttlSeconds: Number(backendResult.data.ttlSeconds ?? defaultDynamicQrTtlSeconds),
         }),
         error: null,
       };
@@ -979,31 +789,23 @@ export const dynamicQrAPI = {
 
     expireStaleDynamicQrSessions();
 
-    const sessionIndex = dynamicQrSessionStore.findIndex(
-      (item) => item.token === token.trim(),
-    );
+    const sessionIndex = dynamicQrSessionStore.findIndex((item) => item.token === token.trim());
     if (sessionIndex < 0) {
-      return { data: null, error: "사용할 QR 세션을 찾을 수 없습니다." };
+      return { data: null, error: '사용할 QR 세션을 찾을 수 없습니다.' };
     }
 
     const session = dynamicQrSessionStore[sessionIndex];
-    if (session.status === "used") {
-      return {
-        data: cloneDynamicQrSession(session),
-        error: "이미 사용 완료된 QR입니다.",
-      };
+    if (session.status === 'used') {
+      return { data: cloneDynamicQrSession(session), error: '이미 사용 완료된 QR입니다.' };
     }
 
-    if (session.status === "expired") {
-      return {
-        data: cloneDynamicQrSession(session),
-        error: "만료된 QR은 사용할 수 없습니다.",
-      };
+    if (session.status === 'expired') {
+      return { data: cloneDynamicQrSession(session), error: '만료된 QR은 사용할 수 없습니다.' };
     }
 
     const consumedSession: DynamicQrSession = {
       ...session,
-      status: "used",
+      status: 'used',
       usedAt: isoNow(),
     };
     dynamicQrSessionStore[sessionIndex] = consumedSession;
@@ -1028,7 +830,7 @@ export const catalogAPI = {
   },
 
   async listProducts(): ApiResult<ProductRecord[]> {
-    const response = await safeFetch<{ data?: ProductRecord[] }>("/products");
+    const response = await safeFetch<{ data?: ProductRecord[] }>('/products');
     if (response?.data) {
       return { data: response.data, error: null };
     }
@@ -1038,7 +840,7 @@ export const catalogAPI = {
 
 export const donateAPI = {
   async list(): ApiResult<DonatePostRecord[]> {
-    const response = await safeFetch<{ data?: DonatePostRecord[] }>("/donates");
+    const response = await safeFetch<{ data?: DonatePostRecord[] }>('/donates');
     if (response?.data) {
       return { data: response.data, error: null };
     }
@@ -1046,16 +848,11 @@ export const donateAPI = {
   },
 
   async getById(donateId: string): ApiResult<DonatePostRecord | null> {
-    const response = await safeFetch<{ data?: DonatePostRecord | null }>(
-      `/donates/${donateId}`,
-    );
+    const response = await safeFetch<{ data?: DonatePostRecord | null }>(`/donates/${donateId}`);
     if (response?.data !== undefined) {
       return { data: response.data, error: null };
     }
-    return {
-      data: mockDonatePosts.find((item) => item.donateId === donateId) ?? null,
-      error: null,
-    };
+    return { data: mockDonatePosts.find((item) => item.donateId === donateId) ?? null, error: null };
   },
 
   async getMine(memberId: string): ApiResult<DonatePostRecord[]> {
@@ -1072,15 +869,15 @@ export const donateAPI = {
     images?: UploadableImage[];
   }): ApiResult<DonatePostRecord> {
     const formData = new FormData();
-    formData.append("memberId", payload.memberId);
-    formData.append("title", payload.title);
-    formData.append("content", payload.content);
+    formData.append('memberId', payload.memberId);
+    formData.append('title', payload.title);
+    formData.append('content', payload.content);
     payload.images?.forEach((image, index) => {
       formData.append(`images[${index}]`, buildFilePart(image));
     });
 
-    const response = await safeFetch<{ data?: DonatePostRecord }>("/donates", {
-      method: "POST",
+    const response = await safeFetch<{ data?: DonatePostRecord }>('/donates', {
+      method: 'POST',
       body: formData,
     });
     if (response?.data) {
@@ -1093,7 +890,7 @@ export const donateAPI = {
         memberId: payload.memberId,
         title: payload.title,
         content: payload.content,
-        status: "open",
+        status: 'open',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -1101,28 +898,18 @@ export const donateAPI = {
     };
   },
 
-  async update(
-    donateId: string,
-    memberId: string,
-    payload: { title: string; content: string },
-  ) {
-    const response = await safeFetch<{ data?: DonatePostRecord }>(
-      `/donates/${donateId}`,
-      {
-        method: "PUT",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ ...payload, memberId }),
-      },
-    );
+  async update(donateId: string, memberId: string, payload: { title: string; content: string }) {
+    const response = await safeFetch<{ data?: DonatePostRecord }>(`/donates/${donateId}`, {
+      method: 'PUT',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ ...payload, memberId }),
+    });
     if (response?.data) {
       return { data: response.data, error: null as string | null };
     }
     const current = mockDonatePosts.find((item) => item.donateId === donateId);
     if (!current) {
-      return {
-        data: null as DonatePostRecord | null,
-        error: "기부글을 찾을 수 없습니다.",
-      };
+      return { data: null as DonatePostRecord | null, error: '기부글을 찾을 수 없습니다.' };
     }
     return {
       data: {
@@ -1135,19 +922,12 @@ export const donateAPI = {
     };
   },
 
-  async updateStatus(
-    donateId: string,
-    memberId: string,
-    status: DonatePostRecord["status"],
-  ) {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/donates/${donateId}/status`,
-      {
-        method: "PATCH",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ memberId, status }),
-      },
-    );
+  async updateStatus(donateId: string, memberId: string, status: DonatePostRecord['status']) {
+    const response = await safeFetch<{ data?: { success: boolean } }>(`/donates/${donateId}/status`, {
+      method: 'PATCH',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ memberId, status }),
+    });
     if (response?.data) {
       return { data: response.data, error: null as string | null };
     }
@@ -1155,14 +935,11 @@ export const donateAPI = {
   },
 
   async remove(donateId: string, memberId: string) {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/donates/${donateId}`,
-      {
-        method: "DELETE",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ memberId }),
-      },
-    );
+    const response = await safeFetch<{ data?: { success: boolean } }>(`/donates/${donateId}`, {
+      method: 'DELETE',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ memberId }),
+    });
     if (response?.data) {
       return { data: response.data, error: null as string | null };
     }
@@ -1186,9 +963,7 @@ export const donateAPI = {
 
 export const requestAPI = {
   async list(): ApiResult<RequestPostRecord[]> {
-    const response = await safeFetch<{ data?: RequestPostRecord[] }>(
-      "/requests",
-    );
+    const response = await safeFetch<{ data?: RequestPostRecord[] }>('/requests');
     if (response?.data) {
       return { data: response.data, error: null };
     }
@@ -1196,49 +971,37 @@ export const requestAPI = {
   },
 
   async getById(requestId: string): ApiResult<RequestPostRecord | null> {
-    const response = await safeFetch<{ data?: RequestPostRecord | null }>(
-      `/requests/${requestId}`,
-    );
+    const response = await safeFetch<{ data?: RequestPostRecord | null }>(`/requests/${requestId}`);
     if (response?.data !== undefined) {
       return { data: response.data, error: null };
     }
-    return {
-      data:
-        mockRequestPosts.find((item) => item.requestId === requestId) ?? null,
-      error: null,
-    };
+    return { data: mockRequestPosts.find((item) => item.requestId === requestId) ?? null, error: null };
   },
 
   async getMine(memberId: string): ApiResult<RequestPostRecord[]> {
-    return {
-      data: mockRequestPosts.filter((item) => item.memberId === memberId),
-      error: null,
-    };
+    return { data: mockRequestPosts.filter((item) => item.memberId === memberId), error: null };
   },
 
   async create(payload: {
     memberId: string;
     title: string;
     content: string;
-    urgency: RequestPostRecord["urgency"];
+    urgency: RequestPostRecord['urgency'];
     images?: UploadableImage[];
   }): ApiResult<RequestPostRecord> {
     const formData = new FormData();
-    formData.append("memberId", payload.memberId);
-    formData.append("title", payload.title);
-    formData.append("content", payload.content);
-    formData.append("urgency", payload.urgency);
+    formData.append('memberId', payload.memberId);
+    formData.append('title', payload.title);
+    formData.append('content', payload.content);
+    formData.append('urgency', payload.urgency);
     payload.images?.forEach((image, index) => {
       formData.append(`images[${index}]`, buildFilePart(image));
     });
 
-    const response = await safeFetch<{ data?: RequestPostRecord }>(
-      "/requests",
-      {
-        method: "POST",
-        body: formData,
-      },
-    );
+    const response = await safeFetch<{ data?: RequestPostRecord }>('/requests', {
+      method: 'POST',
+      body: formData,
+    });
     if (response?.data) {
       return { data: response.data, error: null };
     }
@@ -1250,7 +1013,7 @@ export const requestAPI = {
         title: payload.title,
         content: payload.content,
         urgency: payload.urgency,
-        status: "open",
+        status: 'open',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -1258,34 +1021,18 @@ export const requestAPI = {
     };
   },
 
-  async update(
-    requestId: string,
-    memberId: string,
-    payload: {
-      title: string;
-      content: string;
-      urgency: RequestPostRecord["urgency"];
-    },
-  ) {
-    const response = await safeFetch<{ data?: RequestPostRecord }>(
-      `/requests/${requestId}`,
-      {
-        method: "PUT",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ ...payload, memberId }),
-      },
-    );
+  async update(requestId: string, memberId: string, payload: { title: string; content: string; urgency: RequestPostRecord['urgency'] }) {
+    const response = await safeFetch<{ data?: RequestPostRecord }>(`/requests/${requestId}`, {
+      method: 'PUT',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ ...payload, memberId }),
+    });
     if (response?.data) {
       return { data: response.data, error: null as string | null };
     }
-    const current = mockRequestPosts.find(
-      (item) => item.requestId === requestId,
-    );
+    const current = mockRequestPosts.find((item) => item.requestId === requestId);
     if (!current) {
-      return {
-        data: null as RequestPostRecord | null,
-        error: "요청글을 찾을 수 없습니다.",
-      };
+      return { data: null as RequestPostRecord | null, error: '요청글을 찾을 수 없습니다.' };
     }
     return {
       data: {
@@ -1299,19 +1046,12 @@ export const requestAPI = {
     };
   },
 
-  async updateStatus(
-    requestId: string,
-    memberId: string,
-    status: RequestPostRecord["status"],
-  ) {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/requests/${requestId}/status`,
-      {
-        method: "PATCH",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ memberId, status }),
-      },
-    );
+  async updateStatus(requestId: string, memberId: string, status: RequestPostRecord['status']) {
+    const response = await safeFetch<{ data?: { success: boolean } }>(`/requests/${requestId}/status`, {
+      method: 'PATCH',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ memberId, status }),
+    });
     if (response?.data) {
       return { data: response.data, error: null as string | null };
     }
@@ -1319,14 +1059,11 @@ export const requestAPI = {
   },
 
   async remove(requestId: string, memberId: string) {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/requests/${requestId}`,
-      {
-        method: "DELETE",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ memberId }),
-      },
-    );
+    const response = await safeFetch<{ data?: { success: boolean } }>(`/requests/${requestId}`, {
+      method: 'DELETE',
+      headers: withJsonHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ memberId }),
+    });
     if (response?.data) {
       return { data: response.data, error: null as string | null };
     }
@@ -1334,17 +1071,11 @@ export const requestAPI = {
   },
 
   async listImages(requestId: string): ApiResult<RequestImageRecord[]> {
-    return {
-      data: mockRequestImages.filter((item) => item.requestId === requestId),
-      error: null,
-    };
+    return { data: mockRequestImages.filter((item) => item.requestId === requestId), error: null };
   },
 
   async listLikes(requestId: string): ApiResult<RequestLikeRecord[]> {
-    return {
-      data: mockRequestLikes.filter((item) => item.requestId === requestId),
-      error: null,
-    };
+    return { data: mockRequestLikes.filter((item) => item.requestId === requestId), error: null };
   },
 };
 
@@ -1353,16 +1084,10 @@ export const communityAPI = {
     return { data: mockCommunityPosts, error: null };
   },
   async listComments(postId: string): ApiResult<CommunityCommentRecord[]> {
-    return {
-      data: mockCommunityComments.filter((item) => item.postId === postId),
-      error: null,
-    };
+    return { data: mockCommunityComments.filter((item) => item.postId === postId), error: null };
   },
   async listLikes(postId: string): ApiResult<CommunityLikeRecord[]> {
-    return {
-      data: mockCommunityLikes.filter((item) => item.postId === postId),
-      error: null,
-    };
+    return { data: mockCommunityLikes.filter((item) => item.postId === postId), error: null };
   },
 };
 
@@ -1370,7 +1095,7 @@ export const chatAPI = {
   async createRoom(payload: {
     participantIds: string[];
     relatedPostId: string;
-    relatedPostType: Post["type"];
+    relatedPostType: Post['type'];
     currentUserId: string;
     relatedPost?: Post;
     authToken?: string;
@@ -1378,10 +1103,8 @@ export const chatAPI = {
     const response = await requestEnvelope<any>(
       `${backendConfig.endpoints.chats}/rooms`,
       {
-        method: "POST",
-        headers: buildAuthHeaders(payload.authToken, {
-          "Content-Type": "application/json",
-        }),
+        method: 'POST',
+        headers: buildAuthHeaders(payload.authToken, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           participantIds: payload.participantIds,
           relatedPostId: payload.relatedPostId,
@@ -1401,10 +1124,7 @@ export const chatAPI = {
       };
     }
 
-    return {
-      data: null as never,
-      error: "채팅방을 만들 수 없습니다. 백엔드 채팅 API를 확인해주세요.",
-    };
+    return { data: null as never, error: '채팅방을 만들 수 없습니다. 백엔드 채팅 API를 확인해주세요.' };
   },
 
   async listRooms(memberId: string, authToken?: string): ApiResult<ChatRoom[]> {
@@ -1423,18 +1143,13 @@ export const chatAPI = {
         ? response.data.chats
         : null;
     if (rooms) {
-      return {
-        data: rooms.map((room) => mapBackendChatRoom(room, memberId)),
-        error: null,
-      };
+      return { data: rooms.map((room) => mapBackendChatRoom(room, memberId)), error: null };
     }
     return { data: [], error: null };
   },
 
   async getRoom(chatRoomId: string): ApiResult<ChatRoom | null> {
-    const response = await safeFetch<{ data?: ChatRoom | null }>(
-      `/chat-rooms/${chatRoomId}`,
-    );
+    const response = await safeFetch<{ data?: ChatRoom | null }>(`/chat-rooms/${chatRoomId}`);
     if (response?.data !== undefined) {
       return { data: response.data, error: null };
     }
@@ -1445,11 +1160,7 @@ export const chatAPI = {
     return { data: null, error: null };
   },
 
-  async listMessages(
-    chatRoomId: string,
-    authToken?: string,
-    viewerId = "",
-  ): ApiResult<ChatMessage[]> {
+  async listMessages(chatRoomId: string, authToken?: string, viewerId = ''): ApiResult<ChatMessage[]> {
     const response = await requestEnvelope<{ messages?: any[] } | any[]>(
       `${backendConfig.endpoints.chats}/rooms/${chatRoomId}/messages`,
       {
@@ -1465,20 +1176,12 @@ export const chatAPI = {
         ? response.data.messages
         : null;
     if (messages) {
-      return {
-        data: messages.map((message) =>
-          mapBackendChatMessage(message, viewerId),
-        ),
-        error: null,
-      };
+      return { data: messages.map((message) => mapBackendChatMessage(message, viewerId)), error: null };
     }
     return { data: [], error: null };
   },
 
-  async listUnread(
-    chatRoomId: string,
-    memberId: string,
-  ): ApiResult<ChatMessageRecord[]> {
+  async listUnread(chatRoomId: string, memberId: string): ApiResult<ChatMessageRecord[]> {
     return { data: [], error: null };
   },
 
@@ -1486,21 +1189,19 @@ export const chatAPI = {
     chatRoomId: string;
     senderId: string;
     content: string;
-    messageType?: ChatMessageRecord["messageType"];
+    messageType?: ChatMessageRecord['messageType'];
     authToken?: string;
   }): ApiResult<ChatMessage> {
     const backendResult = await requestEnvelope<any>(
       `${backendConfig.endpoints.chats}/rooms/${payload.chatRoomId}/messages`,
       {
-        method: "POST",
-        headers: buildAuthHeaders(payload.authToken, {
-          "Content-Type": "application/json",
-        }),
+        method: 'POST',
+        headers: buildAuthHeaders(payload.authToken, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           content: payload.content,
-          message_type: payload.messageType ?? "TEXT",
+          message_type: payload.messageType ?? 'TEXT',
           text: payload.content,
-          messageType: payload.messageType ?? "TEXT",
+          messageType: payload.messageType ?? 'TEXT',
         }),
       },
     );
@@ -1516,24 +1217,15 @@ export const chatAPI = {
       };
     }
 
-    return {
-      data: null as never,
-      error: "메시지를 보낼 수 없습니다. 백엔드 채팅 API를 확인해주세요.",
-    };
+    return { data: null as never, error: '메시지를 보낼 수 없습니다. 백엔드 채팅 API를 확인해주세요.' };
   },
 
-  async markAsRead(
-    chatRoomId: string,
-    memberId: string,
-    authToken?: string,
-  ): ApiResult<{ success: boolean }> {
+  async markAsRead(chatRoomId: string, memberId: string, authToken?: string): ApiResult<{ success: boolean }> {
     const response = await requestEnvelope<{ success?: boolean }>(
       `${backendConfig.endpoints.chats}/rooms/${chatRoomId}/read`,
       {
-        method: "PATCH",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
+        method: 'PATCH',
+        headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ memberId }),
       },
     );
@@ -1561,10 +1253,7 @@ export const policyAPI = {
         ? response.data.policies
         : null;
     if (policies) {
-      return {
-        data: policies.map((policy) => mapBackendPolicy(policy)),
-        error: null,
-      };
+      return { data: policies.map((policy) => mapBackendPolicy(policy)), error: null };
     }
     return { data: [], error: null };
   },
@@ -1585,40 +1274,30 @@ export const policyAPI = {
         ? response.data.policies
         : null;
     if (policies) {
-      return {
-        data: policies.map((policy) => mapBackendPolicy(policy)),
-        error: null,
-      };
+      return { data: policies.map((policy) => mapBackendPolicy(policy)), error: null };
     }
     return { data: [], error: null };
   },
 
   async askChatbot(
     message: string,
-    conversationHistory: { role: "user" | "bot"; message: string }[],
+    conversationHistory: { role: 'user' | 'bot'; message: string }[],
     authToken?: string,
   ): ApiResult<{ response: string; suggestedPolicies: Policy[] }> {
-    const response = await requestEnvelope<any>(
-      backendConfig.endpoints.policiesChatbot,
-      {
-        method: "POST",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({ message, conversationHistory }),
-      },
-    );
+    const response = await requestEnvelope<any>(backendConfig.endpoints.policiesChatbot, {
+      method: 'POST',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ message, conversationHistory }),
+    });
     if (response.error) {
       return { data: null as never, error: response.error };
     }
     if (response.data) {
       return {
         data: {
-          response: response.data.response ?? "",
+          response: response.data.response ?? '',
           suggestedPolicies: Array.isArray(response.data.suggestedPolicies)
-            ? response.data.suggestedPolicies.map((policy: any) =>
-                mapBackendPolicy(policy),
-              )
+            ? response.data.suggestedPolicies.map((policy: any) => mapBackendPolicy(policy))
             : [],
         },
         error: null,
@@ -1626,7 +1305,7 @@ export const policyAPI = {
     }
     return {
       data: {
-        response: "정책 서버 응답이 아직 연결되지 않았습니다.",
+        response: '정책 서버 응답이 아직 연결되지 않았습니다.',
         suggestedPolicies: [],
       },
       error: null,
@@ -1635,9 +1314,7 @@ export const policyAPI = {
 
   async listSearchHistory(memberId: string): ApiResult<SearchHistoryRecord[]> {
     return {
-      data: mockSearchHistory.filter(
-        (history) => history.memberId === memberId,
-      ),
+      data: mockSearchHistory.filter((history) => history.memberId === memberId),
       error: null,
     };
   },
@@ -1664,20 +1341,15 @@ export const policyAPI = {
 
 export const reportAPI = {
   async listMine(reporterId: string): ApiResult<ReportRecord[]> {
-    return {
-      data: mockReports.filter((report) => report.reporterId === reporterId),
-      error: null,
-    };
+    return { data: mockReports.filter((report) => report.reporterId === reporterId), error: null };
   },
 
-  async create(
-    report: Omit<ReportRecord, "reportId" | "createdAt" | "status">,
-  ): ApiResult<ReportRecord> {
+  async create(report: Omit<ReportRecord, 'reportId' | 'createdAt' | 'status'>): ApiResult<ReportRecord> {
     return {
       data: {
         ...report,
         reportId: `report_${Date.now()}`,
-        status: "received",
+        status: 'received',
         createdAt: new Date().toISOString(),
       },
       error: null,
@@ -1691,10 +1363,7 @@ export const noticeAPI = {
   },
 
   async getById(noticeId: string) {
-    return {
-      data: mockNotices.find((notice) => notice.noticeId === noticeId) ?? null,
-      error: null,
-    };
+    return { data: mockNotices.find((notice) => notice.noticeId === noticeId) ?? null, error: null };
   },
 };
 
@@ -1706,15 +1375,13 @@ export const pickupRequestAPI = {
     };
   },
 
-  async create(
-    payload: Pick<PickupRequestRecord, "memberId" | "donateId">,
-  ): ApiResult<PickupRequestRecord> {
+  async create(payload: Pick<PickupRequestRecord, 'memberId' | 'donateId'>): ApiResult<PickupRequestRecord> {
     return {
       data: {
         pickupRequestId: `pickup_${Date.now()}`,
         memberId: payload.memberId,
         donateId: payload.donateId,
-        status: "pending",
+        status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -1724,12 +1391,9 @@ export const pickupRequestAPI = {
 };
 
 export const notificationAPI = {
-  async list(
-    memberId: string,
-    authToken?: string,
-  ): ApiResult<NotificationItem[]> {
+  async list(memberId: string, authToken?: string): ApiResult<NotificationItem[]> {
     const backendResult = await requestEnvelope<NotificationItem[]>(
-      `${backendConfig.endpoints.notifications}?memberId=${memberId}`,
+      `/notifications?memberId=${memberId}`,
       {
         headers: buildAuthHeaders(authToken),
       },
@@ -1743,94 +1407,46 @@ export const notificationAPI = {
       return { data: backendResult.data, error: null };
     }
 
+    const response = await safeFetch<{ data?: NotificationItem[] }>(`/notifications?memberId=${memberId}`);
+    if (response?.data) {
+      return { data: response.data, error: null };
+    }
     return { data: [], error: null };
   },
 
   async listRaw(memberId: string): ApiResult<NotificationRecord[]> {
     return {
-      data: mockNotificationRecords.filter(
-        (item) => item.memberId === memberId,
-      ),
+      data: mockNotificationRecords.filter((item) => item.memberId === memberId),
       error: null,
     };
   },
 
   async markRead(notificationId: string): ApiResult<{ success: boolean }> {
-    const response = await requestEnvelope<{ success?: boolean }>(
-      `${backendConfig.endpoints.notifications}/${notificationId}/read`,
-      { method: "PATCH" },
+    const response = await safeFetch<{ data?: { success: boolean } }>(
+      `/notifications/${notificationId}/read`,
+      { method: 'PATCH' },
     );
-
-    if (response.error) {
-      return { data: { success: false }, error: response.error };
+    if (response?.data) {
+      return { data: response.data, error: null };
     }
-
     return { data: { success: true }, error: null };
-  },
-
-  async getSettings(authToken?: string) {
-    const response = await requestEnvelope<{
-      push: boolean;
-      newPost: boolean;
-      chat: boolean;
-      activity: boolean;
-    }>(backendConfig.endpoints.notificationSettings, {
-      headers: buildAuthHeaders(authToken),
-    });
-
-    if (response.error) {
-      return { data: null, error: response.error };
-    }
-
-    return { data: response.data, error: null };
-  },
-
-  async updateSettings(
-    settings: { push: boolean; newPost: boolean; chat: boolean; activity: boolean },
-    authToken?: string,
-  ) {
-    const response = await requestEnvelope<typeof settings>(
-      backendConfig.endpoints.notificationSettings,
-      {
-        method: "PATCH",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify(settings),
-      },
-    );
-
-    if (response.error) {
-      return { data: null, error: response.error };
-    }
-
-    return { data: response.data ?? settings, error: null };
   },
 };
 
 function mapMypageHistory(raw: any): ShareHistoryItem {
   const rawStatus = raw?.displayStatus ?? raw?.display_status ?? raw?.status;
-  const status: ShareHistoryItem["status"] =
-    rawStatus === "completed" ? "completed" : "inProgress";
+  const status: ShareHistoryItem['status'] = rawStatus === 'completed' ? 'completed' : 'inProgress';
 
   return {
-    id: String(
-      raw?.id ?? raw?.postId ?? raw?.post_id ?? `history_${Date.now()}`,
-    ),
-    title: raw?.title ?? "나눔 내역",
-    date:
-      (raw?.createdAt ?? raw?.created_at)
-        ? formatDate(raw.createdAt ?? raw.created_at)
-        : "",
+    id: String(raw?.id ?? raw?.postId ?? raw?.post_id ?? `history_${Date.now()}`),
+    title: raw?.title ?? '나눔 내역',
+    date: raw?.createdAt ?? raw?.created_at ? formatDate(raw.createdAt ?? raw.created_at) : '',
     status,
-    image:
-      raw?.image ??
-      raw?.image_url ??
-      "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400",
+    image: raw?.image ?? raw?.image_url ?? 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400',
   };
 }
 
-function mapMypageStats(raw: any, period: MypageStats["period"]): MypageStats {
+function mapMypageStats(raw: any, period: MypageStats['period']): MypageStats {
   const monthlyStats = raw?.monthlyStats ?? raw?.monthly_stats ?? [];
 
   return {
@@ -1839,7 +1455,7 @@ function mapMypageStats(raw: any, period: MypageStats["period"]): MypageStats {
     allAverage: Number(raw?.allAverage ?? raw?.all_average ?? 0),
     difference: Number(raw?.difference ?? 0),
     monthlyStats: monthlyStats.map((item: any) => ({
-      label: item.label ?? item.month ?? item.monthKey ?? item.month_key ?? "",
+      label: item.label ?? item.month ?? item.monthKey ?? item.month_key ?? '',
       mine: Number(item.mine ?? 0),
       avg: Number(item.avg ?? item.average ?? 0),
     })),
@@ -1848,12 +1464,9 @@ function mapMypageStats(raw: any, period: MypageStats["period"]): MypageStats {
 
 export const mypageAPI = {
   async summary(authToken?: string): ApiResult<MypageSummary | null> {
-    const response = await requestEnvelope<any>(
-      backendConfig.endpoints.mypageSummary,
-      {
-        headers: buildAuthHeaders(authToken),
-      },
-    );
+    const response = await requestEnvelope<any>(backendConfig.endpoints.mypageSummary, {
+      headers: buildAuthHeaders(authToken),
+    });
 
     if (response.error) {
       return { data: null, error: response.error };
@@ -1872,17 +1485,9 @@ export const mypageAPI = {
         },
         activeQr: response.data.activeQr
           ? mapBackendDynamicQrSession(response.data.activeQr, {
-              memberId: String(
-                response.data.user?.memberId ??
-                  response.data.user?.member_id ??
-                  "",
-              ),
-              purpose: response.data.activeQr.purpose ?? "donation_access",
-              ttlSeconds: Number(
-                response.data.activeQr.ttlSeconds ??
-                  response.data.activeQr.ttl_seconds ??
-                  30,
-              ),
+              memberId: String(response.data.user?.memberId ?? response.data.user?.member_id ?? ''),
+              purpose: response.data.activeQr.purpose ?? 'donation_access',
+              ttlSeconds: Number(response.data.activeQr.ttlSeconds ?? response.data.activeQr.ttl_seconds ?? 30),
             })
           : null,
       },
@@ -1891,31 +1496,22 @@ export const mypageAPI = {
   },
 
   async histories(authToken?: string): ApiResult<ShareHistoryItem[]> {
-    const response = await requestEnvelope<{ histories?: any[] }>(
-      backendConfig.endpoints.mypageHistories,
-      {
-        headers: buildAuthHeaders(authToken),
-      },
-    );
+    const response = await requestEnvelope<{ histories?: any[] }>(backendConfig.endpoints.mypageHistories, {
+      headers: buildAuthHeaders(authToken),
+    });
 
     if (response.error) {
       return { data: [], error: response.error };
     }
 
     if (response.data?.histories) {
-      return {
-        data: response.data.histories.map(mapMypageHistory),
-        error: null,
-      };
+      return { data: response.data.histories.map(mapMypageHistory), error: null };
     }
 
     return { data: [], error: null };
   },
 
-  async stats(
-    period: MypageStats["period"],
-    authToken?: string,
-  ): ApiResult<MypageStats> {
+  async stats(period: MypageStats['period'], authToken?: string): ApiResult<MypageStats> {
     const response = await requestEnvelope<any>(
       `${backendConfig.endpoints.mypageStats}?period=${period}`,
       {
@@ -1947,16 +1543,11 @@ export const mypageAPI = {
     payload: { subject: string; email: string; message: string },
     authToken?: string,
   ): ApiResult<{ success: boolean }> {
-    const response = await requestEnvelope<any>(
-      backendConfig.endpoints.mypageContact,
-      {
-        method: "POST",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify(payload),
-      },
-    );
+    const response = await requestEnvelope<any>(backendConfig.endpoints.mypageContact, {
+      method: 'POST',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
 
     if (response.error) {
       return { data: { success: false }, error: response.error };
@@ -1968,26 +1559,18 @@ export const mypageAPI = {
 
 export const reviewAPI = {
   async listByDonate(donateId: string): ApiResult<ReviewRecord[]> {
-    return {
-      data: mockReviews.filter((review) => review.donateId === donateId),
-      error: null,
-    };
+    return { data: mockReviews.filter((review) => review.donateId === donateId), error: null };
   },
 
   async create(
-    payload: Omit<ReviewRecord, "reviewId" | "createdAt"> & {
-      roomId?: string;
-      authToken?: string;
-    },
+    payload: Omit<ReviewRecord, 'reviewId' | 'createdAt'> & { roomId?: string; authToken?: string },
   ): ApiResult<ReviewRecord> {
     if (payload.roomId) {
       const response = await requestEnvelope<any>(
         `${backendConfig.endpoints.chats}/rooms/${payload.roomId}/review`,
         {
-          method: "POST",
-          headers: buildAuthHeaders(payload.authToken, {
-            "Content-Type": "application/json",
-          }),
+          method: 'POST',
+          headers: buildAuthHeaders(payload.authToken, { 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             rating: payload.rating,
             content: payload.content,
@@ -2002,32 +1585,15 @@ export const reviewAPI = {
       if (response.data) {
         return {
           data: {
-            reviewId: String(
-              response.data.reviewId ??
-                response.data.review_id ??
-                `review_${Date.now()}`,
-            ),
-            donateId: String(
-              response.data.donateId ??
-                response.data.donate_id ??
-                payload.donateId,
-            ),
-            writerId: String(
-              response.data.writerId ??
-                response.data.writer_id ??
-                payload.writerId,
-            ),
+            reviewId: String(response.data.reviewId ?? response.data.review_id ?? `review_${Date.now()}`),
+            donateId: String(response.data.donateId ?? response.data.donate_id ?? payload.donateId),
+            writerId: String(response.data.writerId ?? response.data.writer_id ?? payload.writerId),
             targetMemberId: String(
-              response.data.targetMemberId ??
-                response.data.target_member_id ??
-                payload.targetMemberId,
+              response.data.targetMemberId ?? response.data.target_member_id ?? payload.targetMemberId,
             ),
             rating: Number(response.data.rating ?? payload.rating),
             content: response.data.content ?? payload.content,
-            createdAt:
-              response.data.createdAt ??
-              response.data.created_at ??
-              new Date().toISOString(),
+            createdAt: response.data.createdAt ?? response.data.created_at ?? new Date().toISOString(),
           },
           error: null,
         };
@@ -2056,10 +1622,8 @@ export const authAPI = {
     const backendResult = await requestEnvelope<{ user: any; token: string }>(
       backendConfig.endpoints.authLogin,
       {
-        method: "POST",
-        headers: buildAuthHeaders(undefined, {
-          "Content-Type": "application/json",
-        }),
+        method: 'POST',
+        headers: buildAuthHeaders(undefined, { 'Content-Type': 'application/json' }),
         body: JSON.stringify(backendPayload),
       },
     );
@@ -2083,19 +1647,19 @@ export const authAPI = {
 
   async signup(draft: SignupDraft, location: NeighborhoodLocation) {
     const backendPayload = {
-      name: draft.name ?? "사용자",
-      nickname: draft.nickname ?? draft.name ?? "사용자",
-      email: draft.email ?? "",
-      password: draft.password ?? "Give1234",
-      member_pw: draft.password ?? "Give1234",
-      phone: draft.phone ?? "",
-      role: draft.isVulnerable ? "BENEFICIARY" : "USER",
-      role_name: draft.isVulnerable ? "BENEFICIARY" : "USER",
-      role_id: draft.isVulnerable ? "role_beneficiary" : "role_user",
-      certificate_number: "",
-      qr_code: "",
-      birth_date: draft.birthdate ?? "",
-      birthdate: draft.birthdate ?? "",
+      name: draft.name ?? '사용자',
+      nickname: draft.nickname ?? draft.name ?? '사용자',
+      email: draft.email ?? '',
+      password: draft.password ?? 'Give1234',
+      member_pw: draft.password ?? 'Give1234',
+      phone: draft.phone ?? '',
+      role: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_name: draft.isVulnerable ? 'BENEFICIARY' : 'USER',
+      role_id: draft.isVulnerable ? 'role_beneficiary' : 'role_user',
+      certificate_number: '',
+      qr_code: '',
+      birth_date: draft.birthdate ?? '',
+      birthdate: draft.birthdate ?? '',
       isVulnerable: draft.isVulnerable ?? false,
       vulnerableTypes: draft.vulnerableTypes ?? [],
       location: toLocationString(location),
@@ -2108,10 +1672,8 @@ export const authAPI = {
     const backendResult = await requestEnvelope<{ user: any; token: string }>(
       backendConfig.endpoints.authSignup,
       {
-        method: "POST",
-        headers: buildAuthHeaders(undefined, {
-          "Content-Type": "application/json",
-        }),
+        method: 'POST',
+        headers: buildAuthHeaders(undefined, { 'Content-Type': 'application/json' }),
         body: JSON.stringify(backendPayload),
       },
     );
@@ -2150,37 +1712,34 @@ export const postAPI = {
     const backendPostType = toBackendPostType(payload.type);
     const productId = toProductId(payload.category);
 
-    formData.append("post_type", backendPostType);
-    formData.append("type", payload.type);
-    formData.append("frontend_type", payload.type);
-    formData.append("title", payload.title);
-    formData.append("content", payload.description);
-    formData.append("description", payload.description);
-    formData.append("category_id", productId);
-    formData.append("product_id", productId);
-    formData.append("category", payload.category);
-    formData.append("item_name", payload.itemName);
-    formData.append("item_condition", payload.itemCondition);
-    formData.append("status", "open");
-    formData.append("dong_name", payload.location.dongName);
-    formData.append("latitude", String(payload.location.latitude));
-    formData.append("longitude", String(payload.location.longitude));
-    formData.append("location", toLocationString(payload.location));
+    formData.append('post_type', backendPostType);
+    formData.append('type', payload.type);
+    formData.append('frontend_type', payload.type);
+    formData.append('title', payload.title);
+    formData.append('content', payload.description);
+    formData.append('description', payload.description);
+    formData.append('category_id', productId);
+    formData.append('product_id', productId);
+    formData.append('category', payload.category);
+    formData.append('item_name', payload.itemName);
+    formData.append('item_condition', payload.itemCondition);
+    formData.append('status', 'open');
+    formData.append('dong_name', payload.location.dongName);
+    formData.append('latitude', String(payload.location.latitude));
+    formData.append('longitude', String(payload.location.longitude));
+    formData.append('location', toLocationString(payload.location));
     if (payload.urgency) {
-      formData.append("urgency", payload.urgency);
+      formData.append('urgency', payload.urgency);
     }
     payload.images.forEach((image) => {
-      formData.append("images", toBackendFilePart(image));
+      formData.append('images', toBackendFilePart(image));
     });
 
-    const backendResult = await requestEnvelope<any>(
-      backendConfig.endpoints.posts,
-      {
-        method: "POST",
-        headers: buildAuthHeaders(authToken),
-        body: formData,
-      },
-    );
+    const backendResult = await requestEnvelope<any>(backendConfig.endpoints.posts, {
+      method: 'POST',
+      headers: buildAuthHeaders(authToken),
+      body: formData,
+    });
 
     if (backendResult.error) {
       return { data: null as Post | null, error: backendResult.error };
@@ -2193,7 +1752,7 @@ export const postAPI = {
       };
     }
 
-    if (payload.type === "share") {
+    if (payload.type === 'share') {
       const result = await donateAPI.create({
         memberId: user.id,
         title: payload.title,
@@ -2209,7 +1768,7 @@ export const postAPI = {
         memberId: user.id,
         title: payload.title,
         content: payload.description,
-        urgency: payload.urgency ?? "normal",
+        urgency: payload.urgency ?? 'normal',
         images: payload.images,
       });
 
@@ -2228,66 +1787,55 @@ export const postAPI = {
   async updatePost(
     postId: string,
     payload: {
-      type: Post["type"];
+      type: Post['type'];
       title: string;
       description: string;
       category: string;
       productId?: string;
       itemName: string;
       itemCondition: string;
-      urgency?: RequestPostRecord["urgency"];
+      urgency?: RequestPostRecord['urgency'];
     },
     context?: { authToken?: string | null; user?: User | null },
   ) {
     const authToken = context?.authToken ?? undefined;
-    const memberId = context?.user?.id ?? "";
+    const memberId = context?.user?.id ?? '';
     const backendPostType = toBackendPostType(payload.type);
     const productId = payload.productId ?? toProductId(payload.category);
 
-    const backendResult = await requestEnvelope<any>(
-      `${backendConfig.endpoints.posts}/${postId}?type=${backendPostType}`,
-      {
-        method: "PATCH",
-        headers: buildAuthHeaders(authToken, {
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({
-          post_type: backendPostType,
-          type: payload.type,
-          title: payload.title,
-          content: payload.description,
-          description: payload.description,
-          category_id: productId,
-          product_id: productId,
-          category: payload.category,
-          item_name: payload.itemName,
-          item_condition: payload.itemCondition,
-          urgency: payload.urgency,
-        }),
-      },
-    );
+    const backendResult = await requestEnvelope<any>(`${backendConfig.endpoints.posts}/${postId}`, {
+      method: 'PATCH',
+      headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        post_type: backendPostType,
+        type: payload.type,
+        title: payload.title,
+        content: payload.description,
+        description: payload.description,
+        category_id: productId,
+        product_id: productId,
+        category: payload.category,
+        item_name: payload.itemName,
+        item_condition: payload.itemCondition,
+        urgency: payload.urgency,
+      }),
+    });
 
     if (backendResult.error) {
       return { data: null as Post | null, error: backendResult.error };
     }
 
     if (backendResult.data) {
-      return {
-        data: mapBackendPost(backendResult.data),
-        error: null as string | null,
-      };
+      return { data: mapBackendPost(backendResult.data), error: null as string | null };
     }
 
     const legacyResult =
-      payload.type === "share"
-        ? await donateAPI.update(postId, memberId, {
-            title: payload.title,
-            content: payload.description,
-          })
+      payload.type === 'share'
+        ? await donateAPI.update(postId, memberId, { title: payload.title, content: payload.description })
         : await requestAPI.update(postId, memberId, {
             title: payload.title,
             content: payload.description,
-            urgency: payload.urgency ?? "normal",
+            urgency: payload.urgency ?? 'normal',
           });
 
     if (legacyResult.error) {
@@ -2303,42 +1851,32 @@ export const postAPI = {
     token?: string,
   ) {
     const formData = new FormData();
-    formData.append("image", toBackendFilePart(image));
-    formData.append("title", extras?.title ?? "");
-    formData.append("description", extras?.description ?? "");
+    formData.append('image', toBackendFilePart(image));
+    formData.append('title', extras?.title ?? '');
+    formData.append('description', extras?.description ?? '');
 
-    const response = await fetch(
-      `${backendConfig.baseUrl}${backendConfig.endpoints.harmfulCheck}`,
-      {
-        method: "POST",
-        headers: token ? buildAuthHeaders(token) : undefined,
-        body: formData,
-      },
-    )
+    const response = await fetch(`${backendConfig.baseUrl}${backendConfig.endpoints.harmfulCheck}`, {
+      method: 'POST',
+      headers: token ? buildAuthHeaders(token) : undefined,
+      body: formData,
+    })
       .then(async (fetchResponse) => {
         const raw = await fetchResponse.json().catch(() => null);
         return {
           data: raw,
-          error: fetchResponse.ok
-            ? null
-            : (raw?.message ?? raw?.error ?? `HTTP ${fetchResponse.status}`),
+          error: fetchResponse.ok ? null : raw?.message ?? raw?.error ?? `HTTP ${fetchResponse.status}`,
         };
       })
       .catch(() => ({
         data: null,
-        error:
-          "백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.",
+        error: '백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.',
       }));
 
     const hasHarmfulResult =
-      Array.isArray(response.data?.problematic_images) &&
-      response.data.problematic_images.length > 0;
+      Array.isArray(response.data?.problematic_images) && response.data.problematic_images.length > 0;
 
     if (response.error && !hasHarmfulResult) {
-      return {
-        data: null as ImageAnalysisResult | null,
-        error: response.error,
-      };
+      return { data: null as ImageAnalysisResult | null, error: response.error };
     }
 
     if (response.data) {
@@ -2391,21 +1929,9 @@ export const postAPI = {
 
       return {
         data: {
-          isHarmful: Boolean(
-            response.data.isHarmful ??
-            response.data.is_dangerous ??
-            firstProblem,
-          ),
-          reason:
-            response.data.reason ??
-            response.data.message ??
-            firstProblem?.ai_reason,
-          confidence: Number(
-            firstAnalysis?.confidence ??
-              rawAiResult?.confidence ??
-              response.data.confidence ??
-              1,
-          ),
+          isHarmful: Boolean(response.data.isHarmful ?? response.data.is_dangerous ?? firstProblem),
+          reason: response.data.reason ?? response.data.message ?? firstProblem?.ai_reason,
+          confidence: Number(firstAnalysis?.confidence ?? rawAiResult?.confidence ?? response.data.confidence ?? 1),
           detectedItem:
             suggestedTitle ??
             category ??
@@ -2414,7 +1940,7 @@ export const postAPI = {
             firstAnalysis?.ai_guess ??
             rawAiResult?.ai_guess ??
             firstProblem?.ai_guess ??
-            "분석 완료",
+            '분석 완료',
           recommendedCategory: normalizedCategory,
           recommendedCategoryLabel: category,
           suggestedTitle,
@@ -2458,9 +1984,7 @@ export const postAPI = {
 
     if (posts) {
       return {
-        data: posts.map((post) =>
-          mapBackendPost(post, findLocationByDongName("역삼동")),
-        ),
+        data: posts.map((post) => mapBackendPost(post, findLocationByDongName('역삼동'))),
         error: null as string | null,
       };
     }
@@ -2469,22 +1993,19 @@ export const postAPI = {
   },
 
   async deletePost(post: Post, authToken?: string) {
-    const backendType = post.type === "need" ? "request" : "donate";
-    const recordId = post.recordId || post.id.replace(/^(donate|request)_/, "");
+    const backendType = post.type === 'need' ? 'request' : 'donate';
+    const recordId = post.recordId || post.id.replace(/^(donate|request)_/, '');
 
     const response = await requestEnvelope<{ message?: string }>(
       `${backendConfig.endpoints.posts}/${recordId}?type=${backendType}`,
       {
-        method: "DELETE",
+        method: 'DELETE',
         headers: buildAuthHeaders(authToken),
       },
     );
 
     if (response.error) {
-      return {
-        data: null as { success: boolean } | null,
-        error: response.error,
-      };
+      return { data: null as { success: boolean } | null, error: response.error };
     }
 
     return { data: { success: true }, error: null as string | null };
