@@ -22,7 +22,9 @@ function LoginBuyer() {
     try {
       setIsLoading(true);
       const result = await loginMember({ email, password });
-      login('buyer', email, result.accessToken, result.member);
+      const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
+      const member = result.member || result.user || result.data?.user || result.data || {};
+      login('buyer', email, token, member);
       navigate('/buyer-main');
     } catch (error) {
       alert(error.message);

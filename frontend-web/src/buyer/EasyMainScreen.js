@@ -73,11 +73,15 @@ function EasyMainScreen() {
     setPage((current) => (current - 1 + pageCount) % pageCount);
   };
 
+  const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
+  const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
+  const getPostImage = (item) => item.image || item.img || item.image_url || item.imageUrl;
+
   const handleReceive = (item) => {
     const isConfirmed = window.confirm('이 물품을 받으시겠습니까?');
 
     if (isConfirmed) {
-      navigate(`/code-login?postId=${item.id || item.post_id}`);
+      navigate(`/code-login?postId=${getPostId(item)}&type=${getPostType(item)}`);
     }
   };
 
@@ -144,10 +148,10 @@ function EasyMainScreen() {
                 >
                   <button
                     type="button"
-                    onClick={() => navigate(`/posts/${item.id || item.post_id}`)}
+                    onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}`)}
                     className="w-[260px] h-[260px] self-center bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner"
                   >
-                    <img src={item.image || item.img} alt={item.title} className="w-full h-full object-cover" />
+                    <img src={getPostImage(item)} alt={item.title} className="w-full h-full object-cover" />
                   </button>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center gap-4 py-2">

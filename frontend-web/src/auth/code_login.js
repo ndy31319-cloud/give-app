@@ -8,6 +8,7 @@ function CodeLogin() {
   const [searchParams] = useSearchParams();
   const login = useAuthStore((state) => state.login);
   const postId = searchParams.get('postId');
+  const postType = searchParams.get('type') || 'donate';
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -22,7 +23,9 @@ function CodeLogin() {
     try {
       setIsLoading(true);
       const result = await loginWithMemberCode({ code: code.trim(), postId });
-      login('buyer', result.member?.email || result.member?.nickname || 'buyer', result.accessToken, result.member);
+      const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
+      const member = result.member || result.user || result.data?.user || result.data || {};
+      login('buyer', member.email || member.nickname || 'buyer', token, member);
       alert('회원코드 인증이 완료되었습니다.');
       navigate('/buyer-main');
     } catch (error) {
@@ -43,7 +46,7 @@ function CodeLogin() {
       >
         <button
           type="button"
-          onClick={() => navigate(postId ? `/posts/${postId}` : '/buyer-main')}
+          onClick={() => navigate(postId ? `/posts/${postId}?type=${postType}` : '/buyer-main')}
           className="mb-12 text-[24px] font-bold text-gray-500"
         >
           ← 돌아가기

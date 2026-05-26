@@ -21,7 +21,7 @@ async function request(path, options = {}) {
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(data?.error || 'API 요청에 실패했습니다.');
+    throw new Error(data?.message || data?.error || 'API 요청에 실패했습니다.');
   }
 
   return data;
@@ -47,9 +47,10 @@ export async function signupMember({ name, id, password, phone, region }) {
     body: JSON.stringify({
       name,
       email: id,
-      password,
+      nickname: name,
+      member_pw: password,
       phone,
-      location: region,
+      dong_name: region,
       role: 'user',
     }),
   });
@@ -68,18 +69,27 @@ export async function fetchPosts(params = {}) {
   return request(`/api/posts${query ? `?${query}` : ''}`);
 }
 
-export async function fetchPost(postId) {
-  return request(`/api/posts/${postId}`);
+export async function fetchPost(postId, type) {
+  const query = type ? `?type=${encodeURIComponent(type)}` : '';
+  return request(`/api/posts/${postId}${query}`);
 }
 
 export async function fetchWantedPosts() {
-  return request('/api/wanted');
+  const posts = await fetchPosts();
+  const items = posts.content || posts.posts || posts || [];
+  return items.filter((item) => (item.post_type || item.postType || item.type) === 'request');
 }
 
 export async function createWantedPost({ title, content, category }) {
-  return request('/api/wanted', {
+  return request('/api/posts', {
     method: 'POST',
-    body: JSON.stringify({ title, content, category }),
+    body: JSON.stringify({
+      title,
+      content,
+      category,
+      item_name: title,
+      item_condition: '상태 무관',
+    }),
   });
 }
 

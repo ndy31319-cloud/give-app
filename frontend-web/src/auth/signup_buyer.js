@@ -45,7 +45,14 @@ function SignupBuyer() {
         phone: formData.phone.trim(),
         region: formData.region.trim(),
       });
-      setIssuedCode(result.code || result.certificate_number);
+      const nextCode = result.code || result.certificate_number || result.data?.code || result.data?.certificate_number;
+
+      if (nextCode) {
+        setIssuedCode(nextCode);
+      } else {
+        alert('회원가입이 완료되었습니다.');
+        navigate('/buyer-select');
+      }
     } catch (error) {
       alert(error.message);
     } finally {

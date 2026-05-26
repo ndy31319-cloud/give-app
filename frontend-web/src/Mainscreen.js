@@ -52,6 +52,10 @@ function MainScreen() {
 
   const currentCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
 
+  const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
+  const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
+  const getPostImage = (item) => item.image || item.img || item.image_url || item.imageUrl;
+
   return (
     <div
       className="bg-[#F4F6F8] h-screen flex overflow-hidden"
@@ -119,12 +123,12 @@ function MainScreen() {
                 <button
                   type="button"
                   key={item.id || item.post_id}
-                  onClick={() => navigate(`/posts/${item.id || item.post_id}`)}
+                  onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}`)}
                   className="text-left bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <div className="h-48 bg-gray-100 relative">
                     <img
-                      src={item.image || item.img}
+                      src={getPostImage(item)}
                       alt={item.title}
                       className="w-full h-full object-cover"
                     />

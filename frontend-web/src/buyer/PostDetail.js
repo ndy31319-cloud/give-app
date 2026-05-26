@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchPost } from '../api/client';
 
 function PostDetail() {
   const navigate = useNavigate();
   const { postId } = useParams();
+  const [searchParams] = useSearchParams();
+  const postType = searchParams.get('type') || 'donate';
   const [item, setItem] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -14,7 +16,7 @@ function PostDetail() {
     async function loadPost() {
       try {
         setIsLoading(true);
-        const data = await fetchPost(postId);
+        const data = await fetchPost(postId, postType);
 
         if (!ignore) {
           setItem(data);
@@ -36,13 +38,13 @@ function PostDetail() {
     return () => {
       ignore = true;
     };
-  }, [navigate, postId]);
+  }, [navigate, postId, postType]);
 
   const handleReceive = () => {
     const isConfirmed = window.confirm('이 물품을 받으시겠습니까?');
 
     if (isConfirmed) {
-      navigate(`/code-login?postId=${postId}`);
+      navigate(`/code-login?postId=${postId}&type=${postType}`);
     }
   };
 
@@ -66,7 +68,7 @@ function PostDetail() {
       <div className="h-full bg-white rounded-[36px] shadow-sm border border-gray-100 overflow-hidden flex">
         <div className="w-[52%] bg-gray-100">
           <img
-            src={item.image || item.img}
+            src={item.image || item.img || item.image_url || item.imageUrl}
             alt={item.title}
             className="w-full h-full object-cover"
           />
