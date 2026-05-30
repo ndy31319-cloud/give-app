@@ -80,15 +80,24 @@ export async function fetchWantedPosts() {
   return items.filter((item) => (item.post_type || item.postType || item.type) === 'request');
 }
 
-export async function createWantedPost({ title, content, category }) {
-  return request('/api/posts', {
+export async function createWantedPost({
+  title,
+  content,
+  urgency = 'normal',
+  dongName,
+  latitude,
+  longitude,
+}) {
+  return request('/api/wanted', {
     method: 'POST',
     body: JSON.stringify({
       title,
-      content,
-      category,
-      item_name: title,
-      item_condition: '상태 무관',
+      content: content?.trim() ? content.trim() : null,
+      urgency,
+      dongName,
+      latitude,
+      longitude,
+      createdFrom: 'web',
     }),
   });
 }

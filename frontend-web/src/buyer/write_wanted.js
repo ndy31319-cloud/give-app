@@ -1,24 +1,62 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createWantedPost } from '../api/client';
 
+const DEFAULT_KIOSK_LOCATION = {
+  dongName: '안양동',
+  latitude: 37.3943,
+  longitude: 126.9568,
+};
+
+const URGENCY_OPTIONS = [
+  { value: 'urgent', label: '급해요' },
+  { value: 'normal', label: '급하지 않아요' },
+  { value: 'slow', label: '천천히 받아도  되요' },
+];
+
+function getSavedUser() {
+  try {
+    return JSON.parse(localStorage.getItem('givegive_user') || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function isVulnerableMember(user) {
+  const roleText = String(user?.role || user?.roleName || user?.role_name || '').toUpperCase();
+  const roleId = Number(user?.roleId || user?.role_id);
+
+  return roleId === 3 || roleText === 'BENEFICIARY' || roleText.includes('VULNERABLE');
+}
+
 function WriteWanted() {
   const navigate = useNavigate();
+  const savedUser = useMemo(() => getSavedUser(), []);
   const [category, setCategory] = useState('digital');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [urgency, setUrgency] = useState('normal');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const canSubmitWanted = isVulnerableMember(savedUser);
 
   const categories = [
-    { id: 'digital', name: '디지털/가전' },
-    { id: 'fashion', name: '패션/의류' },
-    { id: 'furniture', name: '가구/인테리어' },
-    { id: 'book', name: '도서/교육' },
-    { id: 'etc', name: '기타' },
+    { id: 'blanket', name: '전기장판' },
+    { id: 'rice', name: '쌀' },
+    { id: 'ramen', name: '라면' },
+    { id: 'clothes', name: '겨울옷' },
+    { id: 'heater', name: '난방용품' },
+    { id: 'medicine', name: '상비약' },
+    { id: 'daily', name: '생활용품' },
+    { id: 'etc', name: '직접 입력' },
   ];
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (!canSubmitWanted) {
+      alert('요청해요 글쓰기는 취약계층 회원만 이용할 수 있습니다.');
+      return;
+    }
 
     if (!title.trim()) {
       alert('필요한 물품 이름을 입력해주세요.');
@@ -30,7 +68,10 @@ function WriteWanted() {
       await createWantedPost({
         title: title.trim(),
         content: content.trim(),
-        category,
+        urgency,
+        dongName: savedUser?.dongName || savedUser?.dong_name || DEFAULT_KIOSK_LOCATION.dongName,
+        latitude: savedUser?.latitude || savedUser?.lat || DEFAULT_KIOSK_LOCATION.latitude,
+        longitude: savedUser?.longitude || savedUser?.lng || DEFAULT_KIOSK_LOCATION.longitude,
       });
       alert('나눔 요청이 등록되었습니다.');
       navigate('/wanted');
@@ -57,19 +98,24 @@ function WriteWanted() {
               <path d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">필요한 물품 요청하기</h1>
+          <h1 className="text-3xl font-bold text-gray-900">요청해요 글쓰기</h1>
         </header>
 
         <form onSubmit={handleSubmit} className="space-y-10">
           <section>
-            <label className="block text-xl font-bold text-gray-800 mb-4">카테고리 선택</label>
-            <div className="flex flex-wrap gap-3">
+            <label className="block text-xl font-bold text-gray-800 mb-4">필요한 물품 선택</label>
+            <div className="grid grid-cols-2 gap-4">
               {categories.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setCategory(cat.id)}
-                  className={`px-5 py-3 rounded-2xl font-bold transition-all border-2 ${
+                  onClick={() => {
+                    setCategory(cat.id);
+                    if (cat.id !== 'etc') {
+                      setTitle(cat.name);
+                    }
+                  }}
+                  className={`px-5 py-5 rounded-2xl text-[22px] font-bold transition-all border-2 ${
                     category === cat.id
                       ? 'border-[#0047FF] bg-[#E8EEFF] text-[#0047FF]'
                       : 'border-gray-100 bg-white text-gray-400'
@@ -82,7 +128,27 @@ function WriteWanted() {
           </section>
 
           <section>
-            <label className="block text-xl font-bold text-gray-800 mb-4">찾는 물품 이름</label>
+            <label className="block text-xl font-bold text-gray-800 mb-4">긴급도</label>
+            <div className="grid grid-cols-3 gap-3">
+              {URGENCY_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setUrgency(option.value)}
+                  className={`px-4 py-4 rounded-2xl font-bold transition-all border-2 ${
+                    urgency === option.value
+                      ? 'border-[#0047FF] bg-[#E8EEFF] text-[#0047FF]'
+                      : 'border-gray-100 bg-white text-gray-400'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <label className="block text-xl font-bold text-gray-800 mb-4">요청 물품명</label>
             <input
               type="text"
               value={title}

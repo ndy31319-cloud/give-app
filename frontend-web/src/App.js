@@ -10,6 +10,7 @@ import BuyerSelect from './buyer/BuyerSelect';
 import BuyerEdit from './buyer/buyer_edit';
 import EasyMainScreen from './buyer/EasyMainScreen';
 import EasyWantedList from './buyer/EasyWantedList';
+import EasyWriteWanted from './buyer/EasyWriteWanted';
 import History from './buyer/history';
 import MypageBuyer from './buyer/mypage_buyer';
 import PostDetail from './buyer/PostDetail';
@@ -118,8 +119,10 @@ function App() {
         <Route path="/code-login" element={<CodeLogin />} />
         <Route path="/easy-main" element={<EasyMainScreen />} />
         <Route path="/easy-wanted" element={<EasyWantedList />} />
+        <Route path="/easy-write-wanted" element={<EasyWriteWanted />} />
         <Route path="/mypage-buyer" element={<MypageBuyer />} />
         <Route path="/wanted" element={<WantedList />} />
+        <Route path="/write-wanted" element={<WriteWanted />} />
         <Route path="/Write-Wanted" element={<WriteWanted />} />
         <Route path="/buyer-edit" element={<BuyerEdit />} />
         <Route path="/wishlist" element={<Wishlist />} />

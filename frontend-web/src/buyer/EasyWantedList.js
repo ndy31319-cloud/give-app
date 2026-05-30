@@ -68,7 +68,7 @@ function EasyWantedList() {
             {page + 1} / {pageCount}
           </div>
           <button
-            onClick={() => navigate('/Write-Wanted')}
+            onClick={() => navigate('/easy-write-wanted')}
             className="bg-[#22C55E] text-white px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-[#22C55E] active:bg-green-700"
           >
             요청 글쓰기
