@@ -1,0 +1,39 @@
+const mysql = require("mysql2/promise");
+const fs = require("fs");
+const path = require("path");
+
+const localEnvPath = path.join(__dirname, ".env");
+const rootEnvPath = path.join(__dirname, "..", ".env");
+const envPath = fs.existsSync(localEnvPath) ? localEnvPath : rootEnvPath;
+
+require("dotenv").config({ path: envPath });
+
+const dbCaCert =
+  process.env.DB_CA_CERT?.replace(/\\n/g, "\n") ||
+  fs.readFileSync(path.join(__dirname, "ca.pem"), "utf8");
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  port: process.env.DB_PORT,
+  ssl: {
+    ca: dbCaCert,
+  },
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
+
+pool
+  .getConnection()
+  .then((connection) => {
+    console.log("Aiven MySQL DB connected.");
+    connection.release();
+  })
+  .catch((err) => {
+    console.error("DB connection failed:", err);
+  });
+
+module.exports = pool;

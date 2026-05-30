@@ -1,0 +1,417 @@
+### 2026-05-30
+
+- Render 백엔드 배포 흐름을 정리하고 실제 배포 설정을 맞췄다.
+- 루트 `package.json`의 `npm start`가 `node backend/server.js`를 실행하므로 Render의 Root Directory는 비워두고 Start Command는 `npm start`로 사용하는 방향으로 정리했다.
+- Render 환경변수 입력 방식과 `Add from .env` 사용 방식을 확인했다.
+- `backend/ca.pem`을 GitHub에 올리지 않아도 되도록 `backend/db.js`에서 `DB_CA_CERT` 환경변수를 우선 사용하고, 없으면 로컬 `backend/ca.pem`을 읽도록 수정했다.
+- `backend/.env.example`에 `DB_CA_CERT` 예시 값을 추가했다.
+- Expo 앱의 API 주소를 Render 백엔드 주소인 `https://give-app.onrender.com`으로 변경했다.
+- Render 배포 중 `backend/ca.pem` 파일이 없어 서버가 죽는 문제를 확인하고, `DB_CA_CERT` 환경변수 방식으로 해결했다.
+- `backend/server.js`에 Expo Web 로컬 주소를 CORS 허용 목록에 추가하고, 추가 배포 주소는 `CORS_ORIGINS` 환경변수로 넣을 수 있게 정리했다.
+- AI 서버가 꺼져 있을 때 백엔드 AI 이미지 분석 요청이 오래 대기하지 않도록 `backend/controllers/postController.js`의 AI 서버 호출에 20초 timeout을 추가했다.
+- AI 서버 연결 실패(`ECONNREFUSED`, `ECONNABORTED`, `ENOTFOUND`, `ETIMEDOUT`) 시 `/api/posts/analyze`가 `503`과 명확한 안내 메시지를 반환하도록 수정했다.
+
+# GIVE Worklog
+
+### 2026-05-30
+
+- 정책 백엔드 API를 추가했다.
+  - `GET /api/policies`를 추가했다.
+  - `GET /api/policies?category=...` 카테고리별 정책 조회를 추가했다.
+  - `POST /api/policies/history`를 추가했다.
+  - `POST /api/policies/history`에서 `query_text`, `recommend_policy_id`, `policy_id` 중 최소 1개 필수 검증을 추가했다.
+  - `POST /api/policies/history`에서 JWT의 `member_id` 기준으로 `SEARCH_HISTORY`에 저장하도록 했다.
+  - `GET /api/policies/recommended`를 추가했다.
+  - `GET /api/policies/recommended`에서 회원의 성별, 나이대, `role_id`, `dong_name` 기준 추천 정책 조회를 추가했다.
+  - 추천 기록이 없을 때 전체 정책 일부를 반환하는 fallback을 추가했다.
+  - `MEMBER.gender`, `MEMBER.birth_date` 컬럼 존재 여부에 따른 방어 처리를 추가했다.
+  - `backend/routes/policies.js`에 대해 `node --check` 문법 검사를 통과했다.
+
+### 2026-05-29
+
+- 웹키오스크 요청해요 백엔드 API를 정리했다.
+  - 웹키오스크 요청해요 작성 전용으로 `POST /api/wanted` 라우트를 추가했다.
+  - 요청해요 목록/상세 조회는 새로 만들지 않고 기존 `GET /api/posts`, `GET /api/posts/:id?type=request`를 계속 사용하도록 정리했다.
+  - `POST /api/wanted`는 취약계층 회원(`role_id = 3`)만 작성 가능하도록 검증한다.
+  - 웹키오스크 요청글은 `ITEM_REQUEST.created_from = 'web'`으로 저장하고, 앱에서 기존 `/api/posts`로 작성한 요청글은 기본 `created_from = 'app'`으로 저장하도록 보완했다.
+  - 요청글 목록/상세 응답에 `createdFrom`, `created_from`을 포함해 앱에서 키오스크 작성글을 구분할 수 있도록 했다.
+  - 웹키오스크 요청글은 `content`가 비어 있거나 `null`일 수 있도록 처리했다.
+  - 수정 파일은 `backend/routes/wanted.js`, `backend/server.js`, `backend/controllers/postController.js`이며, `node --check` 문법 검증을 통과했다.
+
+- 2026-05-23 이후 최근 작업 내용을 추가 정리했다.
+- 웹프론트/웹키오스크와 백엔드 API 연결 상태를 점검했다.
+  - `frontend-web/src/api/client.js`의 기본 API 주소가 `http://localhost:4000`이고, 백엔드는 기본 `3000` 포트를 사용해 포트 불일치가 있음을 확인했다.
+  - 백엔드 CORS가 `localhost:5173`만 허용하고 있어 CRA 웹 기본 포트인 `localhost:3000`과 맞지 않는 문제를 확인했다.
+  - 웹 구매자 회원가입 payload가 백엔드 `POST /api/members/signup`의 필수값(`member_pw`, `dong_name`, `nickname`)과 맞지 않는 점을 정리했다.
+  - 웹 기부자 회원가입 화면은 실제 API 호출 없이 alert/navigate만 수행하는 상태임을 확인했다.
+  - 웹 요청 게시글 화면이 `/api/wanted`를 호출하지만 백엔드에 해당 라우트가 없어 별도 요청 게시글 API가 필요함을 정리했다.
+  - 웹 게시글 상세 조회가 `/api/posts/:id`만 호출하지만 백엔드는 `type=donate/request` 쿼리를 요구하는 문제를 확인했다.
+- 웹키오스크 요청 게시글 정책을 정리했다.
+  - 웹키오스크는 사진 업로드 없이 카테고리, 물품명, 선택 입력 본문만 받는 흐름으로 정리했다.
+  - 본문 상단에 `{dong_name} 키오스크에서 작성된 내용입니다.` 문구를 자동 삽입하는 방향으로 정리했다.
+  - 상세 내용은 선택값으로 두고, 물품명 기반으로 `휴지 요청합니다` 같은 제목을 자동 생성하는 방향을 정리했다.
+  - 요청 게시글 API는 앱 게시글 목록 응답과 맞추되, 키오스크 작성 요청에는 이미지 필드를 넣지 않는 방향으로 정리했다.
+- 웹키오스크 인증번호 로그인 API를 추가했다.
+  - `backend/routes/auth.js`에 `POST /api/auth/code-login` 라우트를 추가했다.
+  - `VULNERABLE_CERTIFICATE.certificate_no`로 인증서를 조회하고, `status = active`, `expires_at` 유효 조건을 검사하도록 했다.
+  - 인증서의 `name`과 `phone` 숫자값을 기준으로 기존 `MEMBER`를 먼저 조회하도록 했다.
+  - 기존 앱 회원이 있으면 새 키오스크 회원을 만들지 않고 해당 회원으로 로그인하도록 했다.
+  - 기존 회원 또는 키오스크 회원의 `nickname`이 비어 있으면 `이웃0000` 형식의 닉네임을 자동 생성해 `MEMBER.nickname`에 저장하도록 했다.
+  - 기존 앱 회원이 없으면 `kiosk_certificate_{certificate_id}@give.local` 이메일 규칙으로 키오스크용 취약계층 회원을 찾아보고, 없으면 새로 생성하도록 했다.
+  - 새 키오스크 회원은 `role_id = 3`, 인증서의 `name`, `phone`, `dong_name`, 자동 닉네임을 사용하도록 했다.
+- 정책 기능 구현 방향을 정리했다.
+  - 정책 탭의 3개 모드를 `AI 추천`, `챗봇`, `카테고리`로 나누어 정리했다.
+  - `POLICY` 테이블 실제 컬럼 기준으로 프론트 응답 key 매핑을 정리했다.
+    - `policy_id -> id`
+    - `policy_name -> title`
+    - `category -> category`
+    - `agency -> agency`
+    - `summary -> description`
+    - `content -> content`
+    - `target_criteria -> targetCriteria`, `target`
+    - `support_detail -> support`
+    - `ai_search_text -> aiSearchText`
+  - 프론트 key를 DB 컬럼명으로 바꾸기보다는 백엔드 API 응답에서 프론트용 key로 변환해 내려주는 방향으로 정리했다.
+  - 현재 앱의 정책 화면은 `Policy` 타입의 `id`, `title`, `category`, `agency`, `content`, `targetCriteria`, `description`, `target`, `support`, `targetTypes`를 사용함을 확인했다.
+- 정책 챗봇 API를 추가했다.
+  - `backend/routes/policies.js`를 새로 만들고 `POST /api/policies/chatbot`을 추가했다.
+  - `backend/server.js`에 `/api/policies` 라우트를 등록했다.
+  - 앱에서 보내는 `message`, `conversationHistory`를 받아 JWT 인증 후 처리하도록 했다.
+  - 로그인 회원 정보와 `POLICY` 테이블의 정책 목록을 조회해 AI 서버에 전달할 context를 구성하도록 했다.
+  - 사진 분석에서 사용하는 `AI_SERVER_URL`을 그대로 사용하고, `/docs`로 끝나면 제거한 뒤 챗봇 후보 endpoint를 순서대로 시도하도록 했다.
+    - `/api/policies/chatbot`
+    - `/api/policy/chatbot`
+    - `/api/chatbot`
+  - AI 서버 응답을 앱이 기대하는 `{ response, suggestedPolicies, message }` 형태로 정리해 반환하도록 했다.
+  - `suggestedPolicies`는 정책 ID 배열 또는 정책 객체 배열이 와도 앱 응답 구조로 변환되도록 처리했다.
+- 챗봇 API 명세서를 현재 앱 호출 방식과 비교했다.
+  - 앱은 `POST /api/policies/chatbot`에 `message`, `conversationHistory`를 전송함을 확인했다.
+  - 응답은 `response`, `suggestedPolicies`를 기대함을 확인했다.
+  - 명세서에서 `Authorization`은 request body가 아니라 header로 분리하고, `conversationHistory`를 선택값으로 추가하는 것이 맞다고 정리했다.
+  - AI 서버 ngrok endpoint는 현재 `ERR_NGROK_3200` offline 상태라 실제 `/docs` 스키마 확인은 못 했다.
+- 검증을 수행했다.
+  - `backend/routes/auth.js`, `backend/routes/policies.js`, `backend/server.js`에 대해 `node --check`를 통과했다.
+  - 백엔드 전체 JS 파일에 대해 `node --check`를 통과했다.
+  - AI 서버 실제 통신 테스트는 ngrok endpoint offline 상태로 수행하지 못했다.
+
+### 2026-05-23
+
+- 마이페이지 관련 기능을 백엔드 API와 실제 화면 흐름에 맞춰 정리했다.
+  - 메인 마이페이지 QR 카드 추가는 사용자 요청에 따라 제외했다.
+  - 프로필 수정, 프로필 이미지 업로드, 내 동네 설정, 나눔 통계, 나의 나눔/활동, 설정, 관리자 문의, 동적 QR, 알림 설정 쪽을 우선 연결했다.
+- 게시글 수정 API를 `PATCH` 방식으로 정리했다.
+  - `backend/routes/posts.js`에서 게시글 수정 라우트를 `PATCH /api/posts/:id`로 변경했다.
+  - `backend/controllers/postController.js`에서 게시글 타입을 query/body 양쪽에서 안정적으로 읽도록 보완했다.
+  - `frontend-app/src/services/api.ts`의 게시글 수정 호출도 `PATCH`로 맞췄다.
+- 프로필 수정 기능을 보강했다.
+  - `backend/routes/members.js`에서 `GET /api/members/me`, `PATCH /api/members/me`가 `bio`, `profile_image`를 다루도록 수정했다.
+  - `PATCH /api/members/me/profile-image` API를 추가했다.
+  - 업로드된 프로필 이미지는 `/uploads/...` URL로 정리해서 `MEMBER.profile_image`에 저장한다.
+  - `frontend-app/src/context/AppContext.tsx`, `frontend-app/src/services/api.ts`, `frontend-app/src/services/backendClient.ts`, `frontend-app/src/screens/mypage.tsx`에서 프로필 이미지/자기소개 흐름을 연결했다.
+- 마이페이지 요약, 내역, 통계, 문의 API를 정리했다.
+  - `backend/routes/mypage.js`에서 마이페이지 요약 응답에 `bio`, `profile_image`, 활성 QR 정보를 포함하도록 수정했다.
+  - 나의 나눔/활동 내역 이미지 URL을 앱에서 바로 쓸 수 있게 정리했다.
+  - 나눔 통계 API를 DB 기반 월별 통계 형태로 정리했다.
+  - 관리자 문의 API가 `ADMIN_INQUIRY` 테이블에 저장되도록 변경했다.
+- 알림 API를 추가했다.
+  - `backend/routes/notifications.js`를 새로 만들고 `backend/server.js`에 `/api/notifications` 라우트를 등록했다.
+  - `GET /api/notifications`: 기존 DB 문서의 `NOTIFICATION` 테이블 구조에 맞춰 알림 목록을 조회한다.
+  - `PATCH /api/notifications/:id/read`: 알림 읽음 처리를 한다.
+  - `GET /api/notifications/settings/me`: 사용자별 알림 설정을 조회한다.
+  - `PATCH /api/notifications/settings/me`: 사용자별 알림 설정을 저장한다.
+  - `NOTIFICATION` 테이블은 기존 DB 문서에 이미 있으므로 새로 만들 필요 없게 맞췄다.
+  - 새 컬럼 `title`, `type`, `notification_type_code`를 DB에 추가하지 않고, 서버가 기존 `notification_type` 값으로 화면용 제목을 만들어 내려준다.
+- 동적 QR API를 DB 기반으로 정리했다.
+  - `backend/routes/device.js`에서 동적 QR 발급/검증/사용 처리를 `DYNAMIC_QR` 테이블 기반으로 변경했다.
+  - QR 토큰, 표시 코드, 만료 시간, 사용 여부, 상태값을 서버에서 관리하도록 했다.
+- 프론트 마이페이지 화면을 API 연결 중심으로 정리했다.
+  - `frontend-app/src/screens/mypage.tsx`에서 프로필 수정, 내 동네 설정, 나눔 통계, 나의 나눔/활동, 설정, 관리자 문의 화면을 현재 API 구조에 맞췄다.
+  - 프로필 수정 화면에서 이미지 선택 후 백엔드 업로드 API를 호출하도록 연결했다.
+  - 알림 설정 스위치는 백엔드 설정 API에 저장되도록 연결했다.
+- DB 담당자에게 전달할 최종 DB 반영 사항을 정리했다.
+  - `ADMIN_INQUIRY` 테이블 추가 필요: 관리자 문의 화면에서 입력한 제목, 회신 이메일, 문의 내용을 저장하기 위함.
+  - `NOTIFICATION_SETTING` 테이블 추가 필요: 사용자별 푸시/새 게시글/채팅/활동 알림 ON/OFF 설정을 저장하기 위함.
+  - `DYNAMIC_QR` 테이블 추가 필요: 30초 만료, 1회 사용, active/used/expired 상태 검증이 필요한 동적 QR 토큰을 관리하기 위함.
+  - `MEMBER.bio`, `MEMBER.profile_image` 컬럼은 이미 추가했다면 다시 작업하지 않아도 된다.
+  - `NOTIFICATION` 테이블은 기존 DB 설계에 있으므로 새로 만들 필요 없다. API도 기존 `notification_type`, `message`, `is_read`, `created_at` 구조에 맞췄다.
+- 검증을 완료했다.
+  - 백엔드 주요 파일에 대해 `node --check` 문법 체크를 통과했다.
+  - `frontend-app`에서 `npx tsc --noEmit` 타입 체크를 통과했다.
+  - `frontend-app`에서 `npm run lint`를 통과했다.
+  - 기존 `frontend-app/src/context/AppContext.tsx`의 React Hook dependency 경고 2개는 남아있지만 실행을 막는 에러는 아니다.
+- 남은 확인 사항:
+  - DB 담당자가 위 테이블/컬럼을 실제 DB에 반영해야 한다.
+  - Android 실행은 에뮬레이터 또는 USB 디버깅된 실제 기기 연결이 필요하다.
+  - Expo 패키지 버전 경고가 있었으므로 추후 권장 버전에 맞추면 좋다.
+  - DB 반영 후 프로필 수정, 프로필 이미지 업로드, 내 동네 설정, 나눔 통계, 나의 나눔/활동, 관리자 문의, 알림 설정 스위치, 동적 QR 발급/검증을 실제 앱에서 통합 테스트해야 한다.
+
+### 2026-05-19
+
+- 게시글 상세 화면의 작성자 본인 처리 로직을 추가했다.
+  - 내가 쓴 글 상세 화면에서는 `채팅하기`/`나눔 신청` 버튼이 보이지 않도록 했다.
+  - 내가 쓴 글이면 하단에 `게시글 삭제` 버튼을 표시하도록 했다.
+  - 삭제 시 백엔드 `DELETE /api/posts/:id?type=...`를 호출하고, 성공하면 프론트 목록에서도 제거한 뒤 목록 화면으로 이동하도록 했다.
+- 취약계층 글쓰기 흐름을 수정했다.
+  - 취약계층의 `필요해요` 글쓰기는 사진 첨부를 선택사항으로 변경했다.
+  - 사진 등록 단계에 `사진 첨부 안 함` 버튼을 추가했다.
+  - 사진 없이 진행하면 글쓰기 폼으로 넘어가고, AI 분석 결과 및 `AI 추천 글쓰기` 버튼은 표시하지 않도록 했다.
+  - 일반회원의 `나눔해요` 글쓰기는 기존처럼 사진 필수 조건을 유지했다.
+- 유해물품 판정 응답 처리를 보완했다.
+  - 백엔드 `/api/posts/analyze`가 유해물품일 때 `400 + problematic_images`를 내려주는 구조를 확인했다.
+  - 프론트에서 해당 응답을 단순 실패가 아니라 유해물품 판정 결과로 해석하도록 수정했다.
+  - AI 서버 자체가 500/429 등으로 실패하는 경우는 유해 판정이 아니라 `AI 판독 실패`로 남도록 했다.
+- 채팅 목업 데이터를 제거했다.
+  - 앱 초기 상태에서 목업 채팅방/목업 메시지가 보이지 않도록 빈 배열/빈 객체로 변경했다.
+  - `chatAPI.listRooms`, `listMessages`에서 백엔드 응답이 없을 때 목업으로 fallback하지 않도록 했다.
+  - 채팅방 생성/메시지 전송도 목업으로 임시 생성하지 않고 백엔드 실패로 처리하도록 했다.
+  - `mockData.ts`의 채팅방/채팅 메시지 샘플 배열을 비웠고, 채팅 목업 알림도 제거했다.
+- Firebase 채팅 오류를 분석했다.
+  - 채팅하기 클릭 시 `Unexpected token 'v', "var admin "... is not valid JSON` 오류가 발생하는 원인을 확인했다.
+  - 백엔드가 `backend/serviceAccountKey.json`을 Firebase service account JSON으로 읽고 있으나, 현재 파일 내용은 JSON 키가 아니라 Firebase 예제 JS 코드임을 확인했다.
+  - 실제 Firebase 키 파일을 올바른 위치에 두거나 환경변수로 연결해야 채팅 기능이 정상 동작한다.
+  - `backend/lib/firebaseAdmin.js`에는 Firebase 설정 오류를 더 명확히 보여주는 예외 래핑이 일부 반영되어 있으나, 실제 채팅 해결은 올바른 Firebase 키 연결이 필요하다.
+- 백엔드 서버 재시작 및 실행 상태를 점검했다.
+  - 포트 `3000`을 잡고 있던 기존 Node 프로세스가 남아 있어 코드 변경이 반영되지 않는 상황을 확인했다.
+  - 기존 프로세스를 종료하고 새 백엔드 프로세스를 실행해 변경사항이 반영되도록 했다.
+- 팀 공유용 프론트 변경사항을 정리했다.
+  - 내 글 배지/필터, 게시글 삭제, 취약계층 사진 없이 글쓰기, 채팅 목업 제거, 유해물품 판정 처리, 등록 전 서버 확인 등의 변경사항을 전달용으로 요약했다.
+- 검증
+  - 프론트 `npm run lint` 통과.
+  - 프론트 `npx tsc --noEmit` 통과.
+  - 백엔드 주요 변경 파일 `node --check` 통과.
+- 남은 이슈
+  - 실제 Firebase service account JSON을 `backend/serviceAccountKey.json` 또는 환경변수로 연결해야 채팅 기능을 정상 사용할 수 있다.
+  - AI 서버가 Gemini quota 초과 또는 ngrok/upstream 오류 상태이면 앱에서는 유해물품 판정이 아니라 AI 판독 실패로 표시된다.
+
+### 2026-05-18
+
+- Android 에뮬레이터 실행 환경을 점검했다.
+  - Expo 앱은 Android 에뮬레이터 기준 `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`을 사용하도록 정리했다.
+  - 백엔드 서버는 로컬 `3000` 포트에서 실행되는 구조로 확인했다.
+- 로그인 문제를 점검했다.
+  - DB에 bcrypt 해시가 아닌 과거 테스트용 평문 비밀번호가 남아 있는 경우 기존 로그인 로직에서 실패하는 문제를 확인했다.
+  - 해시 비밀번호는 `bcrypt.compare()`로 검증하고, 해시가 아닌 테스트 계정은 지정된 테스트 비밀번호만 통과하도록 fallback을 추가했다.
+  - 테스트 fallback 비밀번호로 `User1234!`, `Bene1234!`를 허용했다.
+  - 평문 DB 값 전체와 무작정 비교하는 방식은 보안상 열지 않았다.
+- 게시글 등록 중 DB `product_id` 오류를 수정했다.
+  - 프론트 목업 값인 `product_3` 같은 문자열이 MySQL 정수 컬럼에 들어가면서 `Incorrect integer value`가 발생하는 문제를 확인했다.
+  - 백엔드에서 목업 product id와 카테고리를 실제 `PRODUCT.product_id`로 매핑하도록 보정했다.
+  - 프론트에서도 카테고리별 기본 product id를 내려주도록 보완했다.
+- 게시글 목록 새로고침 문제를 분석하고 수정했다.
+  - 등록 직후에는 프론트 메모리에 글이 추가되어 보이지만, 새로고침 후에는 `/api/posts` 응답으로 목록이 다시 만들어지는 구조를 확인했다.
+  - 기존 `/api/posts` 응답이 제목, 작성자 id, 상태 정도만 내려줘서 본문, 이미지, 위치, 작성자 정보가 복원되지 않는 문제가 있었다.
+  - 백엔드 게시글 목록 API가 본문, 작성자 id/name/nickname, 위치, 카테고리, 이미지 URL, 고유 id를 내려주도록 확장했다.
+  - `donate_1`, `request_1`처럼 타입이 포함된 고유 id를 사용해 프론트 id 충돌을 줄였다.
+- 내 글 표시를 추가했다.
+  - 게시글 카드에서 현재 로그인 사용자가 작성한 글이면 기존 `나눔해요`/`필요해요` 배지 대신 `내가 쓴 글` 배지를 표시하도록 했다.
+  - 홈 피드 필터에서 내 글은 사용자 유형별 기본 필터와 관계없이 보이도록 처리했다.
+- 게시글 등록 후 이동 흐름을 조정했다.
+  - 등록 완료 시 Alert를 띄우고 확인 후 목록 화면으로 이동하도록 했다.
+  - 등록 중복 클릭을 줄이기 위해 등록 중 버튼 비활성화와 로딩 상태를 적용했다.
+  - 등록 전 백엔드 연결 확인을 먼저 수행하도록 하여 첫 요청 실패 가능성을 낮췄다.
+- AI 서버 연결 문제를 점검했다.
+  - AI 글쓰기/이미지 분석 실패 원인으로 Gemini API key invalid, ngrok 502, Gemini quota 초과 가능성을 확인했다.
+  - ngrok `ERR_NGROK_8012`는 ngrok 터널은 살아 있으나 upstream 로컬 AI 서버 연결이 거부되는 상태로 분석했다.
+  - Gemini `429 RESOURCE_EXHAUSTED`는 무료 티어 요청 한도 초과로, 유해/정상 판정까지 가지 못하고 AI 호출 단계에서 실패하는 상황으로 정리했다.
+- 검증
+  - 프론트 `npm run lint` 통과.
+  - 프론트 `npx tsc --noEmit` 통과.
+  - 백엔드 주요 변경 파일 `node --check` 통과.
+
+- 로그인 실패 메시지와 비밀번호 검증 방식을 정리했다.
+  - `POST /api/auth/login`에서 평문 비밀번호 fallback 로그인을 제거하고 bcrypt 해시 비밀번호만 허용하도록 유지했다.
+  - 로그인 identifier가 이메일 형태인데 계정이 없으면 `등록되지 않은 이메일입니다.`를 반환하도록 했다.
+  - 로그인 identifier가 전화번호 형태인데 계정이 없으면 `등록되지 않은 전화번호입니다.`를 반환하도록 했다.
+  - 비밀번호가 틀리면 `비밀번호가 올바르지 않습니다.`를 반환하도록 했다.
+  - 실패 응답에 `field` 값을 함께 내려 추후 프론트에서 입력칸별 오류 표시로 확장할 수 있게 했다.
+- `frontend-app`의 mock 로그인도 실제 로그인 정책에 맞췄다.
+  - 백엔드가 꺼져 mock 로그인 경로를 타더라도 이메일/전화번호 identifier로 사용자를 찾도록 바꿨다.
+  - mock 로그인에서도 비밀번호를 확인하고, 틀리면 `비밀번호가 올바르지 않습니다.`를 반환하도록 했다.
+- Android 에뮬레이터 갤러리 선택 문제를 수정했다.
+  - 노트북 에뮬레이터에서 `android.provider.action.PICK_IMAGES`를 처리할 Activity가 없어 갤러리가 열리지 않는 문제를 확인했다.
+  - `expo-image-picker`의 갤러리 호출에 `legacy: true`를 추가해 새 Android Photo Picker 대신 기존 파일 선택 방식을 사용하도록 했다.
+  - 갤러리 선택에서 Android cropper 단계 오류를 피하기 위해 라이브러리 선택 시 `allowsEditing: true`를 제거했다.
+- 이미지 선택 오류 확인을 쉽게 만들었다.
+  - 글쓰기 사진 선택, 이미지 검색 사진 선택, 취약계층 증빙 이미지 선택, 마이페이지 프로필 사진 선택에서 실제 에러 메시지를 Alert와 console에 표시하도록 했다.
+  - 덕분에 갤러리 문제의 실제 원인인 `No Activity found to handle Intent ... PICK_IMAGES` 메시지를 확인할 수 있었다.
+- AI 이미지 판독 실패 원인을 확인했다.
+  - 앱의 갤러리 문제와 별개로, 사진 선택 후 AI 판독은 `앱 -> 백엔드 -> AI 서버` 순서로 동작한다.
+  - `Request failed with status code 404`는 백엔드가 호출하는 AI 서버 주소 또는 AI 서버의 실제 API 경로가 맞지 않을 때 발생할 수 있음을 확인했다.
+  - AI 서버가 꺼져 있거나 ngrok 주소가 바뀐 경우 `.env`의 AI 서버 주소를 최신값으로 맞추고 백엔드를 재시작해야 한다고 정리했다.
+- 검증:
+  - `backend/routes/auth.js`에 대해 `node --check` 문법 검사를 통과했다.
+  - `frontend-app`에서 `npm run lint`를 통과했다.
+
+### 2026-05-14
+
+- 현재 프로젝트 구조를 정리했다.
+  - `backend`: Express/MySQL 백엔드. 루트 `GIVE` 폴더에서 `npm start`로 실행한다.
+  - `frontend-app`: 모바일 앱 프론트. `https://github.com/gkstmdwo999/give_PJ.git`에서 받은 Expo/React Native 프로젝트다.
+  - `frontend-web`: 웹 프론트. `https://github.com/LeeYongWo-o/web_project.git`에서 받은 Create React App 프로젝트다.
+- `frontend-app` 폴더 구조를 평탄화했다.
+  - 이전에는 `frontend-app/give_PJ`처럼 한 단계 더 들어가 있었으나, 현재는 `frontend-app` 자체가 프론트 앱 루트다.
+  - `frontend-app`의 Git 원격은 `https://github.com/gkstmdwo999/give_PJ.git`이다.
+- `frontend-app` 백엔드 연결 상태:
+  - Android 에뮬레이터 기준 로컬 API 주소는 `frontend-app/.env.local`에 `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`으로 설정했다.
+  - PC 웹/브라우저 기준으로 볼 때는 `http://localhost:3000`을 쓰지만, Android 에뮬레이터에서는 PC의 localhost가 `10.0.2.2`다.
+  - 백엔드는 루트 `GIVE`에서 `npm start`로 별도 실행해야 하고, 앱은 `frontend-app`에서 `npm run android` 또는 `npm run android:clear`로 실행한다.
+- `frontend-app`에서 PDF API 명세서 기준으로 일부 API 경로를 맞췄다.
+  - 회원가입 기본 경로: `/api/members/signup`
+  - 이미지 분석 기본 경로: `/api/posts/analyze`
+  - 마이페이지 요약/내역/통계/문의: `/api/mypage/summary`, `/api/mypage/histories`, `/api/mypage/stats`, `/api/mypage/contact`
+  - 내 정보 수정/동네 수정: `/api/members/me`, `/api/members/me/location`
+  - 채팅 목록/메시지 조회: `/api/chats/rooms`, `/api/chats/rooms/:roomId/messages`
+- `frontend-app` 마이페이지 일부 기능을 백엔드 API 호출로 연결했다.
+  - 프로필 수정, 동네 수정, 나눔 통계, 나눔/활동 내역, 관리자 문의가 API를 호출하도록 변경했다.
+- 백엔드 JWT 설정을 정리했다.
+  - `backend/server.js`가 루트 `.env`를 읽도록 변경했다.
+  - `POST /api/auth/login`과 인증 미들웨어가 같은 `JWT_SECRET`을 쓰도록 기본값을 맞췄다.
+  - 회원가입 API가 성공 시 로그인 응답과 비슷하게 `data.token`, `data.user`를 반환하도록 보강했다.
+- 로그인 관련 확인:
+  - `asdf@asdf.com` 계정은 DB에 존재한다.
+  - DB에 일부 오래된 테스트 계정은 `pw1`, `pw2` 같은 평문 비밀번호로 저장되어 있으나, 로그인은 bcrypt 해시 계정만 허용하는 상태로 유지했다.
+  - 따라서 평문 비밀번호 계정은 로그인되지 않는다. 필요하면 새로 회원가입해서 bcrypt 해시 계정을 만들어야 한다.
+- `frontend-web` 상태:
+  - `frontend-web`은 방금 받은 웹 프론트 저장소이며, 현재는 백엔드 API와 연결되지 않은 목업 구조다.
+  - 로그인/회원가입은 Zustand 로컬 상태와 alert/console 기반이고, `/api/auth/login`, `/api/members/signup` 호출은 아직 없다.
+  - 웹 프론트를 백엔드에 연결하려면 `frontend-web/.env.local`에 `REACT_APP_API_URL=http://localhost:3000`을 두고, 로그인/회원가입 컴포넌트에서 fetch/axios로 백엔드 API를 호출하도록 수정해야 한다.
+  - CRA 웹 기본 포트도 3000이라 백엔드와 충돌한다. 웹 실행 시에는 예를 들어 `PORT=3001 npm start`로 실행하는 것이 좋다.
+- `frontend-web/givegive.zip`은 원격 저장소에 들어있던 압축파일이었고, 실행에는 필요 없어 보여 로컬에서 삭제했다. 삭제 상태는 `frontend-web` Git 변경사항으로 남아 있다.
+- 검증:
+  - `frontend-app`에서 `npx tsc --noEmit` 통과.
+  - `frontend-app`에서 `npm run lint` 통과.
+  - 백엔드 주요 변경 파일에 대해 `node --check` 통과.
+
+### 2026-05-11
+
+- 작업 범위: 사용자가 "프론트엔드는 건드리지 말고 백엔드만 수정"을 요청했다.
+- 마이페이지 백엔드 API를 보강했다.
+  - `GET /api/mypage/summary`: 마이페이지 메인용 회원 정보, 나눔 수, 신청 수, 활성 QR 상태, 디바이스 대기 상태를 반환한다.
+  - `GET /api/mypage/histories`: 내가 작성한 나눔/요청 내역을 이미지와 함께 반환하도록 보강했다.
+  - `GET /api/mypage/stats`: 3개월/6개월/1년 기준 나눔 통계 데이터를 반환한다.
+  - `POST /api/mypage/contact`: 관리자 문의 등록 API를 추가했다. 현재는 DB 테이블이 없어 메모리 임시 저장 방식이다.
+- 회원 관련 마이페이지 API를 보강했다.
+  - `PATCH /api/members/me`: 이름, 닉네임, 이메일, 전화번호, 비밀번호 수정이 가능하도록 보강했다.
+  - `PATCH /api/members/me/location`: 동네명만으로도 동네 수정이 가능하도록 보강했다.
+  - `GET /api/members/me/posts`: 내가 작성한 나눔/요청 글 조회 API를 추가했다.
+  - `GET /api/members/me/likes`: 찜한 글 조회 API를 추가했다.
+- 동적 QR 및 키오스크 로그인용 백엔드 API를 추가했다.
+  - `POST /api/device/qr/issue`: 앱에 로그인한 회원이 로그인용 QR 토큰을 발급받는다.
+  - `POST /api/device/qr/validate`: QR 토큰 유효성을 검증한다.
+  - `POST /api/device/qr/consume`: QR 토큰을 사용 완료 처리한다.
+  - `POST /api/device/qr/kiosk-login`: 키오스크가 앱 로그인용 QR을 스캔한 뒤 회원 정보를 확인하고 키오스크 세션을 만든다.
+  - `GET /api/device/relay`, `GET /api/device/sensor`: 기부함 디바이스 상태 테스트용 응답을 반환한다.
+  - `backend/routes/device.js` 파일을 새로 만들고 `backend/server.js`에 `/api/device` 라우트를 연결했다.
+- 채팅방 후기 작성 기능을 백엔드에 추가했다.
+  - `GET /api/chats/:roomId/review-status`
+  - `GET /api/chats/rooms/:roomId/review-status`
+  - `POST /api/chats/:roomId/review`
+  - `POST /api/chats/rooms/:roomId/review`
+  - 후기 가능 조건: 채팅방 참여자이며, 연결된 나눔글 상태가 `completed`이고, 본인 나눔글이 아니며, 아직 후기를 작성하지 않은 경우.
+  - `REVIEW` 테이블이 있으면 DB에 저장하고, 없으면 개발용으로 메모리 임시 저장한다.
+- 게시글 상태 변경 로직을 보강했다.
+  - `PUT /api/posts/:id?type=donate`에서 `status`도 수정 가능하게 했다.
+  - `PATCH /api/posts/:id/status?type=donate` 라우트를 추가했다.
+  - 나눔글 상태가 `completed`가 되어야 후기 작성 가능 상태가 된다.
+- 로그인 API 응답을 프론트가 쓰기 쉬운 형태로 보강했다.
+  - `POST /api/auth/login`이 이메일 또는 전화번호를 identifier로 받을 수 있게 했다.
+  - 응답에 `data.user` 객체를 포함하도록 했다.
+- AI 이미지 분석 서버 주소를 루트 `.env`에 갱신했다.
+  - `AI_SERVER_URL`은 ngrok `/docs` 주소로 저장했으며, 백엔드는 자동으로 `/api/image` 호출 주소로 변환한다.
+  - 실제 주소/비밀값은 워크로그에 기록하지 않는다.
+- 취약계층 인증서 QR 기능은 아직 구현하지 않았다. 설계만 합의했다.
+  - 취약계층 QR은 로그인용이 아니라 "자격 인증용"이다.
+  - 앱에서는 취약계층 인증서 QR을 스캔해 이름, 전화번호, 주소, 인증서 번호 등을 자동 입력하고 DB 사전 등록 정보와 대조한다.
+  - 키오스크에서는 회원가입/로그인 없이 취약계층 인증서 QR만으로 자격을 확인하고 나눔받기 절차로 진행한다.
+  - 나눔을 실제로 받으면 어떤 인증서의 사람이 어떤 물건을 받았는지 DB 로그를 남겨야 한다.
+- DB 담당자에게 전달할 최종 요청사항을 정리했다.
+  - `REVIEW` 테이블은 이미 있으므로 새로 만들 필요 없음. 다만 `UNIQUE(donate_id, writer_id)` 제약 추가 권장.
+  - `VULNERABLE_CERTIFICATE` 테이블 추가 필요: 취약계층 인증서 QR 검증용.
+  - `DONATION_RECEIPT_LOG` 테이블 추가 필요: 비회원 취약계층 QR 수령 기록 저장용.
+  - `DYNAMIC_QR` 테이블 추가 권장: 앱 로그인용 QR 기록 보존 및 재사용 방지용.
+  - `CONTACT_INQUIRY` 테이블 추가 권장: 마이페이지 관리자 문의 저장용.
+  - `MEMBER.profile_image`, `MEMBER.bio` 컬럼은 프로필 사진/자기소개 저장이 필요할 경우 선택 추가.
+- 기존 DB 테이블 문서 확인 결과:
+  - `ITEM_DONATE.status`에 `completed`가 이미 명시되어 있으므로 별도 상태값 추가 요청은 필요 없다.
+  - 찜 테이블은 `ITEM_DONATE_LIKE`, `ITEM_REQUEST_LIKE`가 이미 있으므로 DB 담당자에게 새 테이블 요청은 필요 없다. 백엔드 SQL이 이 이름을 사용하도록 맞추면 된다.
+- 검증:
+  - 변경한 주요 백엔드 파일에 대해 `node --check` 문법 검사를 통과했다.
+  - 실제 서버 실행 및 DB 연결 통합 테스트는 아직 하지 않았다.
+- 남은 일:
+  - DB 담당자가 추가/제약 변경을 반영하면 백엔드 SQL을 메모리 임시 저장에서 DB 저장으로 전환해야 한다.
+  - 취약계층 인증서 QR 검증 API와 수령 로그 API는 구현 전 사용자 확인을 먼저 받아야 한다.
+  - 프론트 연결은 별도 작업이다. 현재 요청 범위에서는 프론트 파일을 수정하지 않았다.
+
+### 2026-04-23
+
+- 채팅방 나가기 기능 구현 여부를 확인했다.
+- API 명세서 기준으로 `DELETE /api/chats/rooms/{chat_room_id}`가 필요함을 확인했다.
+- `backend/routes/chat.js`에 `DELETE /api/chats/rooms/:roomId`를 추가했다.
+- 사용자가 채팅방을 나가면 `participants`, `participantIds`에서 해당 사용자를 제거하도록 구현했다.
+- 남은 참여자가 없으면 메시지 서브컬렉션과 채팅방 문서를 삭제하도록 처리했다.
+- `frontend/src/app/services/api.ts`에 `chatAPI.leaveRoom(chatId)`를 추가했다.
+- `frontend/src/app/pages/chat/ChatRoomScreen.tsx`의 `채팅방 나가기` 버튼을 실제 API 호출에 연결했다.
+- 나가기 전 확인창을 띄우고, 성공하면 `/chat` 목록으로 이동하도록 구현했다.
+
+### 2026-04-21
+
+- React Native 전환과 백엔드 영향 범위를 정리했다.
+- 현재 프론트가 React Native가 아니라 Vite 기반 웹 React임을 확인했다.
+- React Native로 전환해도 백엔드는 대부분 유지 가능하고, 파일 업로드와 위치 전달 방식만 테스트가 필요하다고 정리했다.
+- 웹 키오스크와 앱 프론트가 모두 같은 백엔드 API를 사용할 수 있도록 API 서버 중심 구조가 중요하다고 정리했다.
+- Zustand를 쓰는 웹 키오스크 프론트가 백엔드 API를 호출하고 store에 저장하는 방식으로 연동된다는 개념을 정리했다.
+
+### 2026-04-20
+
+- Firebase Admin 기반 채팅 백엔드 구조를 추가했다.
+- `backend/routes/chat.js`에 채팅방 생성, 채팅방 목록 조회, 메시지 조회, 메시지 전송 API를 구현했다.
+- `backend/lib/firebaseAdmin.js`를 추가해 Firebase Admin SDK 초기화를 분리했다.
+- Firebase 서비스 계정 환경변수 설정 방식을 정리했다.
+- Firestore API 활성화, Firestore Database 생성, Rules 설정 문제를 해결하며 채팅 기능을 실제로 테스트했다.
+- 채팅방 중복 생성 방지를 추가했다.
+- 같은 참여자 조합과 같은 게시글 기준으로 기존 채팅방을 재사용하도록 `roomKey`를 저장하게 했다.
+- `backend/db.js`에서 `backend/.env`가 없으면 루트 `.env`를 읽도록 수정했다.
+- DB `ca.pem` 경로 문제를 확인했고, 팀원 실행 시 `backend/ca.pem`이 필요하다는 점을 정리했다.
+- 개발용 회원 정리 API를 보완했다.
+- 잘못 만든 계정 삭제 시 회원과 관련 게시글/이미지/아이템 데이터를 함께 정리하도록 트랜잭션 기반 삭제 흐름을 만들었다.
+- 개발 환경에서만 동작하는 삭제 API와 `x-dev-delete-key` 헤더 정책을 정리했다.
+
+- 게시글 작성 흐름을 백엔드 API에 맞춰 정리했다.
+- 일반 회원은 `나눔해요`, 취약계층은 `필요해요` 글을 작성하도록 `role_id` 기반 분기를 수정했다.
+- 개발 테스트용으로 `qr_code`가 없어도 `isVulnerable: true`이면 `role_id = 3`으로 가입되도록 예외를 추가했다.
+- `AI_SERVER_URL`이 없을 때 이미지 분석 API가 명확한 오류를 반환하도록 정리했다.
+- 요청글은 사진이 선택사항이고, 사진이 있을 때만 AI 검사 대상으로 보도록 정책을 정리했다.
+- 게시글 작성 시 `item_condition`이 없거나 이상한 값이면 DB 제약조건에 맞는 `상태 무관`으로 보정하도록 수정했다.
+- `ITEM_DONATE`, `ITEM_REQUEST`에 위치 스냅샷 컬럼이 필요하다는 점을 DB 담당자에게 전달할 SQL로 정리했다.
+- DB에 `dong_name`, `latitude`, `longitude` 컬럼이 없어서 발생한 `Unknown column 'dong_name'` 오류를 분석했다.
+- 작성 당시 위치가 게시글에 고정되어야 하므로 두 게시글 테이블 모두 위치 스냅샷 컬럼이 필요하다는 설계를 확정했다.
+
+- 프론트 채팅 연결을 보완했다.
+- 게시글 상세에서 `채팅하기`를 누르면 실제 채팅방을 생성하고 `/chat/:roomId`로 이동하도록 연결했다.
+- 게시글 카드에서 상세 이동 시 게시글 유형 `share`/`need`를 함께 넘기도록 수정했다.
+- 상세 화면이 `post_id`만으로 다른 유형의 글을 잘못 불러오는 문제를 막기 위해 URL query에 `type`을 포함하도록 정리했다.
+- `frontend/src/app/services/api.ts`에 채팅방 생성 API 호출을 추가했다.
+- 로그인 후 현재 사용자 `member_id`를 저장해 메시지 발신자 구분에 사용하도록 보완했다.
+- 채팅 목록과 채팅방 화면이 백엔드 채팅 API를 사용하도록 연결했다.
+
+- 지역 설정 화면을 수정했다.
+- 지역 선택 버튼을 누르는 즉시 회원가입 API가 호출되던 문제를 고쳤다.
+- 지역은 선택만 하도록 바꾸고, 하단 `회원가입` 버튼을 눌렀을 때만 가입 요청이 나가도록 변경했다.
+- 현재 위치 기반 자동 설정은 추후 작업으로 남기고, 임시로 선택 또는 입력된 지역을 가입 정보로 보내도록 했다.
+
+- Firebase 실시간 채팅을 프론트에 연결했다.
+- `frontend`에 Firebase 웹 SDK를 설치했다.
+- `frontend/src/app/services/firebaseChat.ts`를 추가해 Firestore `onSnapshot` 기반 메시지 실시간 구독을 구현했다.
+- 기존 2초 폴링 방식에서 채팅방 메시지만 Firestore 실시간 구독으로 전환했다.
+- Firebase 웹 앱 설정값을 `frontend/.env`에서 읽도록 구성했다.
+- `frontend/.env.example`을 추가해 필요한 웹 Firebase 환경변수를 문서화했다.
+- `frontend/.env`가 Git에 올라가지 않도록 `.gitignore`를 보완했다.
+- Firestore Rules 때문에 발생한 `Missing or insufficient permissions` 문제를 테스트 규칙으로 해결했다.
+
+- GitHub 협업 흐름을 정리했다.
+- `master`에서 `main`으로 브랜치명을 맞췄다.
+- 원격 저장소 `origin`을 연결하고 push 충돌을 rebase로 해결했다.
+- GitHub Push Protection이 `.env`와 Firebase 서비스 계정 JSON을 막은 문제를 해결했다.
+- `.env`, Firebase service account JSON, `ca.pem` 등 로컬 민감 파일을 Git에서 제외하는 방향으로 정리했다.
+- 팀원이 `git pull`, `git clone`, ZIP 다운로드 중 어떤 방식으로 최신 코드를 받아야 하는지 안내했다.
+- Git 미설치, ZIP 폴더라 `.git`이 없는 경우, `ca.pem` 누락으로 백엔드가 실행되지 않는 경우를 각각 정리했다.
