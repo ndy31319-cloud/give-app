@@ -84,19 +84,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    async function hydrateAppData() {
-      const postsResult = await postAPI.listAll(authToken ?? undefined);
-      if (mounted) {
-        setPosts(postsResult.data ?? []);
-      }
-
+    async function hydrateChatData() {
       if (!user) {
-        if (!mounted) {
-          return;
+        if (mounted) {
+          setChatRooms([]);
+          setMessagesByChat({});
+          setNotifications([]);
         }
-        setChatRooms([]);
-        setMessagesByChat({});
-        setNotifications([]);
         return;
       }
 
@@ -138,10 +132,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }));
     }
 
+    async function hydrateAppData() {
+      const postsResult = await postAPI.listAll(authToken ?? undefined);
+      if (mounted) {
+        setPosts(postsResult.data ?? []);
+      }
+
+      await hydrateChatData();
+    }
+
     hydrateAppData();
+    const chatRefreshTimer = setInterval(hydrateChatData, 4000);
 
     return () => {
       mounted = false;
+      clearInterval(chatRefreshTimer);
     };
   }, [authToken, user]);
 
