@@ -58,14 +58,14 @@ export function PolicyScreen() {
     },
   ]);
 
-  const categories = ['생활비', '주거', '의료', '교육', '양육', '일자리', '복지'];
+  const categories = ['생활비', '주거', '의료', '교육', '문화', '일자리', '복지'];
 
   useEffect(() => {
     let mounted = true;
 
     async function loadPolicies() {
       const [allResult, recommendedResult] = await Promise.all([
-        policyAPI.listPolicies(),
+        policyAPI.listPolicies(authToken ?? undefined),
         policyAPI.listRecommended(authToken ?? undefined),
       ]);
 
@@ -250,9 +250,7 @@ export function PolicyScreen() {
                   <Pressable
                     key={category}
                     onPress={() =>
-                      setSelectedCategories((prev) =>
-                        active ? prev.filter((value) => value !== category) : [...prev, category],
-                      )
+                      setSelectedCategories(active ? [] : [category])
                     }
                     style={[styles.categoryButton, active && styles.categoryButtonActive]}>
                     <Text style={[styles.categoryButtonText, active && styles.categoryButtonTextActive]}>{category}</Text>

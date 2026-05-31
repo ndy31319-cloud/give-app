@@ -1516,9 +1516,12 @@ export const chatAPI = {
 };
 
 export const policyAPI = {
-  async listPolicies(): ApiResult<Policy[]> {
+  async listPolicies(authToken?: string): ApiResult<Policy[]> {
     const response = await requestEnvelope<{ policies?: any[] } | any[]>(
       backendConfig.endpoints.policies,
+      {
+        headers: buildAuthHeaders(authToken),
+      },
     );
     if (response.error) {
       return { data: [], error: response.error };
