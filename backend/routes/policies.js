@@ -34,7 +34,8 @@ const resolveAiChatbotApiUrls = () => {
   if (
     baseUrl.endsWith("/api/policies/chatbot") ||
     baseUrl.endsWith("/api/policy/chatbot") ||
-    baseUrl.endsWith("/api/chatbot")
+    baseUrl.endsWith("/api/chatbot") ||
+    baseUrl.endsWith("/api/chat")
   ) {
     return [baseUrl];
   }
@@ -43,6 +44,7 @@ const resolveAiChatbotApiUrls = () => {
     `${baseUrl}/api/policies/chatbot`,
     `${baseUrl}/api/policy/chatbot`,
     `${baseUrl}/api/chatbot`,
+    `${baseUrl}/api/chat/`,
   ];
 };
 
@@ -288,11 +290,20 @@ const callAiChatbot = async (payload) => {
 
   for (const url of urls) {
     try {
-      const response = await axios.post(url, payload, {
+      const normalizedUrl = url.replace(/\/+$/, "");
+      const requestPayload = normalizedUrl.endsWith("/api/chat")
+        ? {
+            user_message: payload.message,
+            member_id: payload.user?.member_id ?? null,
+          }
+        : payload;
+
+      const response = await axios.post(url, requestPayload, {
         headers: {
           "Content-Type": "application/json",
           "ngrok-skip-browser-warning": "true",
         },
+        proxy: false,
         timeout: 30000,
       });
 
@@ -365,11 +376,13 @@ router.post("/chatbot", authenticateToken, async (req, res) => {
       aiResult.response ||
       aiResult.answer ||
       aiResult.reply ||
+      aiResult.ai_response ||
       aiResult.message ||
       "";
     const suggestedPolicies = normalizeSuggestedPolicies(
       aiResult.suggestedPolicies ||
         aiResult.suggested_policies ||
+        aiResult.recommended_policies ||
         aiResult.policies ||
         [],
       policies,
