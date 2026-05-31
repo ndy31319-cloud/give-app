@@ -1,3 +1,16 @@
+### 2026-05-31
+
+- 정책 챗봇 백엔드 AI 서버 연동을 실제 AI 서버 명세에 맞게 수정했다.
+  - `backend/routes/policies.js`에서 AI 서버 후보 경로에 `/api/chat/`를 추가했다.
+  - AI 서버 `/api/chat/` 호출 시 요청 body를 `{ user_message, member_id }` 형식으로 변환하도록 했다.
+  - AI 서버 응답의 `ai_response`, `recommended_policies`를 앱 응답의 `response`, `suggestedPolicies`로 매핑하도록 했다.
+  - AI 서버 호출에서 로컬 프록시 환경변수 영향을 받지 않도록 `axios` 요청에 `proxy: false`를 추가했다.
+- 정책 카테고리 화면의 정책 목록 로딩을 수정했다.
+  - `frontend-app/src/services/api.ts`의 `policyAPI.listPolicies`가 `authToken`을 받아 `Authorization` 헤더를 붙여 `/api/policies`를 호출하도록 변경했다.
+  - `frontend-app/src/screens/policy.tsx`에서 정책 목록 조회 시 `authToken`을 전달하도록 변경했다.
+  - 카테고리 버튼을 여러 개 동시 선택하지 않고 한 개만 선택되도록 변경했다.
+  - 정책 DB 카테고리에 맞춰 앱 카테고리 목록의 `양육`을 `문화`로 변경했다.
+
 ### 2026-05-30
 
 - Render 백엔드 배포 흐름을 정리하고 실제 배포 설정을 맞췄다.
