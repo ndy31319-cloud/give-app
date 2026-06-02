@@ -174,7 +174,10 @@ export function ChatRoomScreen() {
         </View>
       ) : null}
 
-      <ScrollView contentContainerStyle={styles.messageList} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.messageList}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
         {messages.map((item) => (
           <View key={item.id} style={[styles.messageBubble, item.sender === 'me' ? styles.messageMine : styles.messageOther]}>
             <Text style={[styles.messageText, item.sender === 'me' && styles.messageTextMine]}>{item.text}</Text>

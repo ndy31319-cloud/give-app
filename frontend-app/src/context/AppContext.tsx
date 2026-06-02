@@ -15,6 +15,7 @@ import {
   User,
 } from '@/src/types/app';
 import { authAPI, chatAPI, dynamicQrAPI, memberAPI, notificationAPI, postAPI } from '@/src/services/api';
+import { isFirebaseChatConfigured, subscribeToChatMessages } from '@/src/services/firebaseChat';
 
 const initialDeviceSimulationState: DeviceSimulationState = {
   step: 'idle',
@@ -83,15 +84,69 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let subscribedRoomIdsKey = '';
+    let unsubscribeMessageListeners: (() => void)[] = [];
 
-    async function hydrateChatData() {
+    const clearMessageSubscriptions = () => {
+      unsubscribeMessageListeners.forEach((unsubscribe) => unsubscribe());
+      unsubscribeMessageListeners = [];
+      subscribedRoomIdsKey = '';
+    };
+
+    const subscribeMessageRooms = (rooms: ChatRoom[]) => {
+      if (!user || !isFirebaseChatConfigured()) {
+        return;
+      }
+
+      const nextRoomIdsKey = rooms.map((room) => room.id).sort().join('|');
+      if (nextRoomIdsKey === subscribedRoomIdsKey) {
+        return;
+      }
+
+      clearMessageSubscriptions();
+      subscribedRoomIdsKey = nextRoomIdsKey;
+
+      unsubscribeMessageListeners = rooms.map((room) =>
+        subscribeToChatMessages(
+          room.id,
+          user.id,
+          (messages) => {
+            if (!mounted) {
+              return;
+            }
+
+            setMessagesByChat((prev) => ({
+              ...prev,
+              [room.id]: messages,
+            }));
+          },
+          async (error) => {
+            console.warn('Firebase chat subscription failed:', error);
+            if (!mounted) {
+              return;
+            }
+
+            const messagesResult = await chatAPI.listMessages(room.id, authToken ?? undefined, user.id);
+            if (mounted) {
+              setMessagesByChat((prev) => ({
+                ...prev,
+                [room.id]: messagesResult.data ?? [],
+              }));
+            }
+          },
+        ),
+      );
+    };
+
+    async function hydrateChatData(options: { includeMessages?: boolean } = {}): Promise<ChatRoom[]> {
       if (!user) {
+        clearMessageSubscriptions();
         if (mounted) {
           setChatRooms([]);
           setMessagesByChat({});
           setNotifications([]);
         }
-        return;
+        return [];
       }
 
       const [roomsResult, notificationsResult] = await Promise.all([
@@ -109,10 +164,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const rooms = roomsResult.data ?? [];
       if (!rooms.length) {
+        clearMessageSubscriptions();
         if (mounted) {
           setMessagesByChat({});
         }
-        return;
+        return [];
+      }
+
+      if (!options.includeMessages) {
+        return rooms;
       }
 
       const messageEntries = await Promise.all(
@@ -123,13 +183,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
 
       if (!mounted) {
-        return;
+        return [];
       }
 
       setMessagesByChat((prev) => ({
         ...prev,
         ...Object.fromEntries(messageEntries),
       }));
+
+      return rooms;
     }
 
     async function hydrateAppData() {
@@ -138,15 +200,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPosts(postsResult.data ?? []);
       }
 
-      await hydrateChatData();
+      const useFirebaseRealtime = isFirebaseChatConfigured();
+      const rooms = await hydrateChatData({ includeMessages: !useFirebaseRealtime });
+      if (mounted && useFirebaseRealtime) {
+        subscribeMessageRooms(rooms);
+      }
     }
 
     hydrateAppData();
-    const chatRefreshTimer = setInterval(hydrateChatData, 4000);
+    const chatRefreshTimer = setInterval(async () => {
+      const useFirebaseRealtime = isFirebaseChatConfigured();
+      const rooms = await hydrateChatData({ includeMessages: !useFirebaseRealtime });
+      if (mounted && useFirebaseRealtime) {
+        subscribeMessageRooms(rooms);
+      }
+    }, isFirebaseChatConfigured() ? 30000 : 4000);
 
     return () => {
       mounted = false;
       clearInterval(chatRefreshTimer);
+      clearMessageSubscriptions();
     };
   }, [authToken, user]);
 

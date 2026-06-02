@@ -276,6 +276,7 @@ export function PolicyScreen() {
             <ScrollView
               style={styles.chatScroll}
               contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}>
               {messages.map((message, index) => (
                 <View

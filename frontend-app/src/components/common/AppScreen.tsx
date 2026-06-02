@@ -40,7 +40,7 @@ export function AppScreen({
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.fill}>
         {scroll ? body : <View style={[styles.fill, style]}>{children}</View>}
       </KeyboardAvoidingView>
