@@ -223,6 +223,7 @@ router.get("/", authenticateToken, async (req, res) => {
 router.post("/history", authenticateToken, async (req, res) => {
   const memberId = getMemberId(req);
   const queryText = String(req.body.query_text ?? req.body.queryText ?? "").trim();
+  const storedQueryText = queryText || "";
   const recommendPolicyId = normalizeOptionalNumber(
     req.body.recommend_policy_id ?? req.body.recommendPolicyId,
   );
@@ -239,7 +240,7 @@ router.post("/history", authenticateToken, async (req, res) => {
       `INSERT INTO SEARCH_HISTORY
          (member_id, query_text, recommend_policy_id, policy_id, search_date)
        VALUES (?, ?, ?, ?, NOW())`,
-      [memberId, queryText || null, recommendPolicyId, policyId],
+      [memberId, storedQueryText, recommendPolicyId, policyId],
     );
 
     return res.status(201).json({

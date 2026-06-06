@@ -484,32 +484,6 @@ const createPost = async (req, res) => {
       });
     }
 
-    if (imageFiles.length > 0) {
-      const analysisResults = await analyzeImagesWithAI(imageFiles);
-      const dangerousImages = analysisResults.filter((image) => image.is_dangerous);
-
-      if (dangerousImages.length > 0) {
-        return res.status(400).json({
-          message: isDonate
-            ? "유해 물품 사진이 포함되어 나눔 게시글을 등록할 수 없습니다."
-            : "유해 물품 사진이 포함되어 요청 게시글을 등록할 수 없습니다.",
-          problematic_images: dangerousImages.map((image) => ({
-            index: image.index,
-            filename: image.filename,
-            ai_reason: image.ai_message,
-            ai_guess: image.ai_guess,
-            is_same_item: image.is_same_item,
-            category: image.category,
-            suggested_title: image.suggested_title,
-            extracted_features: image.extracted_features,
-            ai_generated_post: image.ai_generated_post,
-            confidence: image.confidence,
-            raw_ai_result: image.raw_ai_result,
-          })),
-        });
-      }
-    }
-
     await connection.beginTransaction();
 
     const [memberRows] = await connection.query(
