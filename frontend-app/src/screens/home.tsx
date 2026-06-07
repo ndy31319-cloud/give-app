@@ -170,20 +170,14 @@ export function HomeScreen() {
   const [statusFilter, setStatusFilter] = useState<HomeStatusFilter>('active');
   const allowedHomePostType = user ? (isBeneficiaryUser(user) ? 'share' : 'need') : 'all';
   const homeFeed = useMemo(() => {
-const filteredPosts = user
-  ? filterPostsByRadius(posts, user.location, user.location.radiusKm)
-  : posts;
-
-const visiblePosts = filteredPosts.filter((post) => {
-  const isMyPost = user ? String(post.author.id) === String(user.id) : false;
-  if (statusFilter === 'active' && post.status === 'completed') return false;
-
-  return (
-    isMyPost ||
-    allowedHomePostType === 'all' ||
-    post.type === allowedHomePostType
-  );
-});
+    const visiblePosts = posts.filter((post) => {
+      const isMyPost = user ? String(post.author.id) === String(user.id) : false;
+      if (isMyPost) return true;
+      if (statusFilter === 'active' && !isOpenPostStatus(post.status)) return false;
+      if (allowedHomePostType !== 'all' && post.type !== allowedHomePostType) return false;
+      if (!user) return true;
+      return filterPostsByRadius([post], user.location, user.location.radiusKm).length > 0;
+    });
 
     return {
       location: user?.location ?? null,

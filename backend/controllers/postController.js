@@ -1,7 +1,14 @@
 const axios = require("axios");
+const { v2: cloudinary } = require("cloudinary");
 const FormData = require("form-data");
 const fs = require("fs");
 const db = require("../db");
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const ROLE_GENERAL = 1;
 const ROLE_VULNERABLE = 3;
@@ -149,6 +156,53 @@ const getUploadedImages = (req) => {
   return [];
 };
 
+const isCloudinaryConfigured = () =>
+  Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET,
+  );
+
+const removeLocalUploadedFiles = async (imageFiles) => {
+  await Promise.all(
+    imageFiles.map(async (file) => {
+      if (!file?.path) {
+        return;
+      }
+
+      try {
+        await fs.promises.unlink(file.path);
+      } catch (error) {
+        if (error.code !== "ENOENT") {
+          console.warn("Uploaded temp file cleanup failed:", file.path, error.message);
+        }
+      }
+    }),
+  );
+};
+
+const uploadPostImages = async (imageFiles) => {
+  if (!imageFiles.length) {
+    return [];
+  }
+
+  if (!isCloudinaryConfigured()) {
+    console.warn("Cloudinary is not configured. Falling back to local upload paths.");
+    return imageFiles.map((file) => file.path);
+  }
+
+  const uploadedImages = await Promise.all(
+    imageFiles.map((file) =>
+      cloudinary.uploader.upload(file.path, {
+        folder: "give-app/posts",
+        resource_type: "image",
+      }),
+    ),
+  );
+
+  return uploadedImages.map((image) => image.secure_url);
+};
+
 const firstTextValue = (...values) => {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
@@ -239,12 +293,12 @@ const analyzeImagesWithAI = async (imageFiles) => {
   return results;
 };
 
-const insertPostImages = async (connection, tableName, idColumn, postId, imageFiles) => {
-  if (!imageFiles.length) {
+const insertPostImages = async (connection, tableName, idColumn, postId, imageUrls) => {
+  if (!imageUrls.length) {
     return;
   }
 
-  const values = imageFiles.map((file) => [postId, file.path]);
+  const values = imageUrls.map((imageUrl) => [postId, imageUrl]);
   await connection.query(
     `INSERT INTO ${tableName} (${idColumn}, image_url) VALUES ?`,
     [values],
@@ -468,6 +522,7 @@ const createPost = async (req, res) => {
     const member_id = req.user.member_id || req.user.id;
     const role_id = Number(req.user.role_id);
     const imageFiles = getUploadedImages(req);
+    let uploadedImageUrls = [];
     const normalizedItemCondition = normalizeItemCondition(item_condition);
     const normalizedProductId = await resolveProductId(connection, product_id, category);
 
@@ -500,6 +555,7 @@ const createPost = async (req, res) => {
     const { dong_name, latitude, longitude } = memberRows[0];
     let postId;
     let postType;
+    uploadedImageUrls = await uploadPostImages(imageFiles);
 
     if (isDonate) {
       const [postResult] = await connection.query(
@@ -516,7 +572,7 @@ const createPost = async (req, res) => {
         "ITEM_DONATE_IMAGE",
         "donate_id",
         postId,
-        imageFiles,
+        uploadedImageUrls,
       );
 
       await connection.query(
@@ -539,7 +595,7 @@ const createPost = async (req, res) => {
         "ITEM_REQUEST_IMAGE",
         "request_id",
         postId,
-        imageFiles,
+        uploadedImageUrls,
       );
 
       await connection.query(
@@ -557,7 +613,9 @@ const createPost = async (req, res) => {
       post_type: postType,
       created_from: postType === "request" ? createdFrom : "app",
       createdFrom: postType === "request" ? createdFrom : "app",
-      image_count: imageFiles.length,
+      image_count: uploadedImageUrls.length,
+      image_urls: uploadedImageUrls,
+      imageUrls: uploadedImageUrls,
     });
   } catch (error) {
     await connection.rollback();
@@ -566,6 +624,9 @@ const createPost = async (req, res) => {
       message: error.message || "게시글 등록에 실패했습니다.",
     });
   } finally {
+    if (isCloudinaryConfigured()) {
+      await removeLocalUploadedFiles(getUploadedImages(req));
+    }
     connection.release();
   }
 };
