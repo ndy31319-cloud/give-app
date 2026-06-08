@@ -1,4 +1,4 @@
-import { findLocationByDongName } from '@/src/data/mockData';
+import { findKnownLocationByDongName } from '@/src/data/mockData';
 import {
   ChatMessage,
   ChatRoom,
@@ -144,26 +144,59 @@ function locationFromUnknown(
     const fullAddress =
       source.fullAddress ||
       `${source.city ?? ''} ${source.district ?? ''} ${source.neighborhood ?? source.dongName ?? ''}`.trim();
-    const dongName = source.dongName ?? source.neighborhood ?? fallbackDongName ?? '역삼동';
-    const resolved = findLocationByDongName(dongName);
+    const dongName = source.dongName ?? source.neighborhood ?? fallbackDongName ?? '동네 미설정';
+    const resolved = findKnownLocationByDongName(dongName);
 
     return {
-      ...resolved,
       ...source,
+      id: source.id ?? resolved?.id ?? `location_${String(dongName).replace(/\s+/g, '_')}`,
+      city: source.city ?? resolved?.city ?? '',
+      district: source.district ?? resolved?.district ?? '',
+      neighborhood: source.neighborhood ?? resolved?.neighborhood ?? dongName,
       dongName,
-      neighborhood: source.neighborhood ?? resolved.neighborhood,
-      fullAddress: fullAddress || resolved.fullAddress,
-      radiusKm: source.radiusKm ?? resolved.radiusKm,
-      latitude: source.latitude ?? resolved.latitude,
-      longitude: source.longitude ?? resolved.longitude,
+      fullAddress: fullAddress || resolved?.fullAddress || dongName,
+      latitude: source.latitude ?? resolved?.latitude ?? Number.NaN,
+      longitude: source.longitude ?? resolved?.longitude ?? Number.NaN,
+      radiusKm: source.radiusKm ?? resolved?.radiusKm ?? 5,
     };
   }
 
   if (typeof source === 'string' && source.trim()) {
-    return findLocationByDongName(source.trim().split(' ').at(-1) ?? source.trim());
+    const trimmedSource = source.trim();
+    const dongName = trimmedSource.split(' ').at(-1) ?? trimmedSource;
+    const resolved = findKnownLocationByDongName(dongName);
+
+    return (
+      resolved ?? {
+        id: `location_${dongName.replace(/\s+/g, '_')}`,
+        city: '',
+        district: '',
+        neighborhood: dongName,
+        dongName,
+        fullAddress: trimmedSource,
+        latitude: Number.NaN,
+        longitude: Number.NaN,
+        radiusKm: 5,
+      }
+    );
   }
 
-  return findLocationByDongName(fallbackDongName ?? '역삼동');
+  const dongName = fallbackDongName ?? '동네 미설정';
+  const resolved = findKnownLocationByDongName(dongName);
+
+  return (
+    resolved ?? {
+      id: `location_${dongName.replace(/\s+/g, '_')}`,
+      city: '',
+      district: '',
+      neighborhood: dongName,
+      dongName,
+      fullAddress: dongName,
+      latitude: Number.NaN,
+      longitude: Number.NaN,
+      radiusKm: 5,
+    }
+  );
 }
 
 function mapBackendRole(role?: string | number | null): RoleCode {
@@ -175,7 +208,16 @@ function mapBackendRole(role?: string | number | null): RoleCode {
 
 export function mapBackendUser(raw: any): User {
   const roleCode = mapBackendRole(raw?.roleCode ?? raw?.roleName ?? raw?.roleId ?? raw?.role_id);
-  const location = locationFromUnknown(raw?.location, raw?.dongName ?? raw?.dong_name);
+  const rawLocation =
+    raw?.location && typeof raw.location === 'object'
+      ? raw.location
+      : {
+          fullAddress: typeof raw?.location === 'string' ? raw.location : undefined,
+          dongName: raw?.dongName ?? raw?.dong_name,
+          latitude: raw?.latitude !== undefined ? Number(raw.latitude) : undefined,
+          longitude: raw?.longitude !== undefined ? Number(raw.longitude) : undefined,
+        };
+  const location = locationFromUnknown(rawLocation, raw?.dongName ?? raw?.dong_name);
   const vulnerableTypes = Array.isArray(raw?.vulnerableTypes) ? raw.vulnerableTypes : [];
 
   return {

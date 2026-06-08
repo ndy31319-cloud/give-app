@@ -201,6 +201,8 @@ router.post("/signup", async (req, res) => {
     email,
     qr_code,
     dong_name,
+    latitude,
+    longitude,
     nickname,
     isVulnerable,
   } = req.body;
@@ -271,18 +273,18 @@ router.post("/signup", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(member_pw, 10);
+    const insertFields = ["role_id", "member_pw", "name", "email", "phone", "dong_name", "nickname"];
+    const insertValues = [role_id, hashedPassword, name, email, formattedPhone, dong_name, nickname];
+
+    if (latitude !== undefined && longitude !== undefined) {
+      insertFields.push("latitude", "longitude");
+      insertValues.push(latitude, longitude);
+    }
+
     const [result] = await db.query(
-      `INSERT INTO MEMBER (role_id, member_pw, name, email, phone, dong_name, nickname)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        role_id,
-        hashedPassword,
-        name,
-        email,
-        formattedPhone,
-        dong_name,
-        nickname,
-      ],
+      `INSERT INTO MEMBER (${insertFields.join(", ")})
+       VALUES (${insertFields.map(() => "?").join(", ")})`,
+      insertValues,
     );
 
     if (qr_code) {
@@ -323,6 +325,8 @@ router.post("/signup", async (req, res) => {
           role_id,
           dongName: dong_name,
           dong_name,
+          latitude: latitude ?? null,
+          longitude: longitude ?? null,
         },
         member_id: result.insertId,
         email,
@@ -343,7 +347,7 @@ router.get("/me", authenticateToken, async (req, res) => {
 
   try {
     const [rows] = await db.query(
-      `SELECT member_id, name, nickname, email, phone, role_id, dong_name,
+      `SELECT member_id, name, nickname, email, phone, role_id, dong_name, latitude, longitude,
               bio, profile_image, created_at
        FROM MEMBER
        WHERE member_id = ?`,
@@ -618,7 +622,7 @@ router.patch("/me", authenticateToken, async (req, res) => {
     }
 
     const [memberRows] = await db.query(
-      `SELECT member_id, name, nickname, email, phone, role_id, dong_name,
+      `SELECT member_id, name, nickname, email, phone, role_id, dong_name, latitude, longitude,
               bio, profile_image, created_at
        FROM MEMBER
        WHERE member_id = ?`,

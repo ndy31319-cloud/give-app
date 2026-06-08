@@ -307,7 +307,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return { error: result.error };
     }
 
-    setUser((prev) => (prev ? { ...prev, location, dongName: location.dongName } : prev));
+    setUser((prev) => {
+      if (!prev) return prev;
+
+      const currentNeighborhoods = prev.neighborhoods?.length ? prev.neighborhoods : [prev.location];
+      const nextNeighborhoods = [
+        location,
+        ...currentNeighborhoods.filter(
+          (item) =>
+            item.id !== location.id &&
+            item.id !== prev.location.id &&
+            !(item.dongName === location.dongName && item.district === location.district) &&
+            !(item.dongName === prev.location.dongName && item.district === prev.location.district),
+        ),
+      ];
+
+      return {
+        ...prev,
+        location,
+        dongName: location.dongName,
+        neighborhoods: nextNeighborhoods,
+      };
+    });
     return { error: null };
   }
 

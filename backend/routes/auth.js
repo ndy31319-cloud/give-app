@@ -72,6 +72,8 @@ const formatUser = (user) => ({
   role_id: user.role_id,
   dongName: user.dong_name,
   dong_name: user.dong_name,
+  latitude: user.latitude,
+  longitude: user.longitude,
   createdAt: user.created_at,
   created_at: user.created_at,
 });

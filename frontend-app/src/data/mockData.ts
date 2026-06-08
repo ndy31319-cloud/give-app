@@ -134,6 +134,17 @@ export function findLocationByDongName(dongName: string) {
   );
 }
 
+export function findKnownLocationByDongName(dongName?: string | null) {
+  if (!dongName) {
+    return undefined;
+  }
+
+  return (
+    neighborhoodOptions.find((location) => location.dongName === dongName) ??
+    neighborhoodOptions.find((location) => location.neighborhood === dongName)
+  );
+}
+
 function isoHoursAgo(hours: number) {
   return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 }
