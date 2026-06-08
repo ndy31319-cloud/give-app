@@ -1,8 +1,11 @@
 const axios = require("axios");
 const { v2: cloudinary } = require("cloudinary");
 const FormData = require("form-data");
+const crypto = require("crypto");
 const fs = require("fs");
+const path = require("path");
 const db = require("../db");
+const { getStorageBucket } = require("../lib/firebaseAdmin");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -147,6 +150,37 @@ const isCloudinaryConfigured = () =>
       process.env.CLOUDINARY_API_SECRET,
   );
 
+const isFirebaseStorageConfigured = () => Boolean(process.env.FIREBASE_STORAGE_BUCKET);
+
+const buildFirebaseDownloadUrl = (bucketName, destination, token) =>
+  `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(destination)}?alt=media&token=${token}`;
+
+const uploadImagesToFirebaseStorage = async (imageFiles) => {
+  const bucket = getStorageBucket();
+
+  return Promise.all(
+    imageFiles.map(async (file) => {
+      const token = crypto.randomUUID();
+      const ext = path.extname(file.originalname || file.filename || "") || ".jpg";
+      const rawBaseName = path.basename(file.originalname || file.filename || "post-image", ext);
+      const safeBaseName = rawBaseName.replace(/[^\w.-]+/g, "-").slice(0, 60) || "post-image";
+      const destination = `give-app/posts/${Date.now()}-${crypto.randomUUID()}-${safeBaseName}${ext}`;
+
+      await bucket.upload(file.path, {
+        destination,
+        metadata: {
+          contentType: file.mimetype || "image/jpeg",
+          metadata: {
+            firebaseStorageDownloadTokens: token,
+          },
+        },
+      });
+
+      return buildFirebaseDownloadUrl(bucket.name, destination, token);
+    }),
+  );
+};
+
 const removeLocalUploadedFiles = async (imageFiles) => {
   await Promise.all(
     imageFiles.map(async (file) => {
@@ -170,9 +204,13 @@ const uploadPostImages = async (imageFiles) => {
     return [];
   }
 
+  if (isFirebaseStorageConfigured()) {
+    return uploadImagesToFirebaseStorage(imageFiles);
+  }
+
   if (!isCloudinaryConfigured()) {
     console.warn("Cloudinary is not configured. Falling back to local upload paths.");
-    return imageFiles.map((file) => file.path);
+    return imageFiles.map((file) => `/uploads/${file.filename || file.path.split(/[\\/]/).pop()}`);
   }
 
   const uploadedImages = await Promise.all(
@@ -287,6 +325,16 @@ const insertPostImages = async (connection, tableName, idColumn, postId, imageUr
     `INSERT INTO ${tableName} (${idColumn}, image_url) VALUES ?`,
     [values],
   );
+};
+
+const deleteIfTableExists = async (connection, sql, params) => {
+  try {
+    await connection.query(sql, params);
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      throw error;
+    }
+  }
 };
 
 const normalizeUploadUrl = (req, imageUrl) => {
@@ -608,7 +656,7 @@ const createPost = async (req, res) => {
       message: error.message || "게시글 등록에 실패했습니다.",
     });
   } finally {
-    if (isCloudinaryConfigured()) {
+    if (isCloudinaryConfigured() || isFirebaseStorageConfigured()) {
       await removeLocalUploadedFiles(getUploadedImages(req));
     }
     connection.release();
@@ -676,6 +724,7 @@ const updatePost = async (req, res) => {
   const normalizedItemCondition = normalizeItemCondition(item_condition);
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
+    connection.release();
     return res.status(400).json({ message: "type은 donate 또는 request여야 합니다." });
   }
 
@@ -764,6 +813,7 @@ const deletePost = async (req, res) => {
   const postId = req.params.id;
   const postType = req.query.type;
   const member_id = req.user.member_id || req.user.id;
+  const connection = await db.getConnection();
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
     return res.status(400).json({ message: "type은 donate 또는 request여야 합니다." });
@@ -775,7 +825,9 @@ const deletePost = async (req, res) => {
     const imageTableName =
       postType === "donate" ? "ITEM_DONATE_IMAGE" : "ITEM_REQUEST_IMAGE";
 
-    const [checkRows] = await db.query(
+    await connection.beginTransaction();
+
+    const [checkRows] = await connection.query(
       `SELECT member_id FROM ${tableName} WHERE ${idColumn} = ?`,
       [postId],
     );
@@ -788,9 +840,19 @@ const deletePost = async (req, res) => {
       return res.status(403).json({ message: "삭제 권한이 없습니다." });
     }
 
-    await db.query(`DELETE FROM ${imageTableName} WHERE ${idColumn} = ?`, [postId]);
-    await db.query(`DELETE FROM ITEM WHERE ${idColumn} = ?`, [postId]);
-    await db.query(`DELETE FROM ${tableName} WHERE ${idColumn} = ?`, [postId]);
+    if (postType === "donate") {
+      await deleteIfTableExists(connection, "DELETE FROM REVIEW WHERE donate_id = ?", [postId]);
+      await deleteIfTableExists(connection, "DELETE FROM PICKUP_REQUEST WHERE donate_id = ?", [postId]);
+      await deleteIfTableExists(connection, "DELETE FROM ITEM_DONATE_LIKE WHERE donate_id = ?", [postId]);
+    } else {
+      await deleteIfTableExists(connection, "DELETE FROM ITEM_REQUEST_LIKE WHERE request_id = ?", [postId]);
+    }
+
+    await connection.query(`DELETE FROM ${imageTableName} WHERE ${idColumn} = ?`, [postId]);
+    await connection.query(`DELETE FROM ITEM WHERE ${idColumn} = ?`, [postId]);
+    await connection.query(`DELETE FROM ${tableName} WHERE ${idColumn} = ?`, [postId]);
+
+    await connection.commit();
 
     return res.status(200).json({ message: "게시글이 삭제되었습니다." });
   } catch (error) {

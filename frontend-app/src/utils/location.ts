@@ -36,8 +36,39 @@ export function haversineDistanceKm(a: NeighborhoodLocation, b: NeighborhoodLoca
   return Number((earthRadius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value))).toFixed(1));
 }
 
+function normalizeLocationText(value?: string | null) {
+  return String(value || '').replace(/\s+/g, '').toLowerCase();
+}
+
+function isSameNeighborhood(a: NeighborhoodLocation, b: NeighborhoodLocation) {
+  const originNames = [
+    a.dongName,
+    a.neighborhood,
+    a.fullAddress,
+  ].map(normalizeLocationText).filter(Boolean);
+
+  const postNames = [
+    b.dongName,
+    b.neighborhood,
+    b.fullAddress,
+  ].map(normalizeLocationText).filter(Boolean);
+
+  return originNames.some((originName) =>
+    postNames.some((postName) => originName === postName || originName.includes(postName) || postName.includes(originName)),
+  );
+}
+
 export function filterPostsByRadius(posts: Post[], origin: NeighborhoodLocation, radiusKm: number) {
-  return posts.filter((post) => post.location && haversineDistanceKm(origin, post.location) <= radiusKm);
+  return posts.filter((post) => {
+    if (!post.location) return false;
+
+    if (isSameNeighborhood(origin, post.location)) {
+      return true;
+    }
+
+    const distance = haversineDistanceKm(origin, post.location);
+    return Number.isFinite(distance) && distance <= radiusKm;
+  });
 }
 
 export function searchLocations(options: NeighborhoodLocation[], city: string, neighborhood: string) {

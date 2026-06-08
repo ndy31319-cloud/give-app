@@ -30,6 +30,7 @@ export function PostCard({
   const isMyPost = currentUserId
     ? String(post.author?.id) === String(currentUserId)
     : false;
+  const shouldShowDistance = !isMyPost && distance !== null && Number.isFinite(distance);
 
   const badgeLabel = isMyPost
     ? "내가 쓴 글"
@@ -112,7 +113,7 @@ export function PostCard({
               />
               <Text style={styles.metaText}>{post.location.neighborhood}</Text>
             </View>
-            {distance !== null ? (
+            {shouldShowDistance ? (
               <View style={styles.metaItem}>
                 <Ionicons
                   name="walk-outline"

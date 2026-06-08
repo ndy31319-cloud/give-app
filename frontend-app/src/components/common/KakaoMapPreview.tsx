@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Text, View, StyleSheet } from 'react-native';
+import { createElement, useEffect, useRef, useState } from 'react';
+import { Platform, Text, View, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -82,14 +82,150 @@ function buildMapLocation(
   };
 }
 
+function WebKakaoMap({
+  location,
+  markerLabel,
+  moveMarkerOnMapInteraction,
+  moveMarkerOnMapDragEnd,
+  onLocationChange,
+  onMapError,
+}: {
+  location: NeighborhoodLocation;
+  markerLabel: string;
+  moveMarkerOnMapInteraction: boolean;
+  moveMarkerOnMapDragEnd: boolean;
+  onLocationChange: (location: NeighborhoodLocation) => void;
+  onMapError: (message: string) => void;
+}) {
+  const mapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !mapRef.current) {
+      return;
+    }
+
+    const currentOrigin = window.location.origin;
+    const scriptId = 'kakao-map-sdk';
+
+    const initializeMap = () => {
+      const kakao = (window as typeof window & { kakao?: any }).kakao;
+
+      if (!kakao?.maps) {
+        onMapError(
+          `카카오맵 SDK를 불러오지 못했습니다. Kakao Developers의 Web 플랫폼 도메인에 ${currentOrigin}을 등록해주세요.`,
+        );
+        return;
+      }
+
+      kakao.maps.load(() => {
+        if (!mapRef.current) {
+          return;
+        }
+
+        const position = new kakao.maps.LatLng(location.latitude, location.longitude);
+        const geocoder = new kakao.maps.services.Geocoder();
+        const map = new kakao.maps.Map(mapRef.current, {
+          center: position,
+          level: 4,
+        });
+        const marker = new kakao.maps.Marker({ position, draggable: true });
+        marker.setMap(map);
+
+        const infowindow = new kakao.maps.InfoWindow({
+          content: `<div style="padding:8px 10px;font-size:13px;white-space:nowrap;">${markerLabel}</div>`,
+        });
+        infowindow.open(map, marker);
+
+        const sendLocation = (latLng: any) => {
+          geocoder.coord2Address(latLng.getLng(), latLng.getLat(), (result: any, status: any) => {
+            const address = status === kakao.maps.services.Status.OK && result?.[0]
+              ? result[0].address || result[0].road_address || {}
+              : {};
+
+            onLocationChange(
+              buildMapLocation(location, latLng.getLat(), latLng.getLng(), {
+                addressName: address.address_name,
+                region1: address.region_1depth_name,
+                region2: address.region_2depth_name,
+                region3: address.region_3depth_name,
+              }),
+            );
+          });
+        };
+
+        if (moveMarkerOnMapInteraction) {
+          kakao.maps.event.addListener(map, 'click', (mouseEvent: any) => {
+            const latLng = mouseEvent.latLng;
+            marker.setPosition(latLng);
+            map.panTo(latLng);
+            sendLocation(latLng);
+          });
+        }
+
+        if (moveMarkerOnMapDragEnd) {
+          kakao.maps.event.addListener(map, 'dragend', () => {
+            const center = map.getCenter();
+            marker.setPosition(center);
+            sendLocation(center);
+          });
+        }
+
+        kakao.maps.event.addListener(marker, 'dragend', () => {
+          const latLng = marker.getPosition();
+          map.panTo(latLng);
+          sendLocation(latLng);
+        });
+      });
+    };
+
+    const existingScript = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (existingScript) {
+      initializeMap();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoMapAppKey}&autoload=false&libraries=services`;
+    script.async = true;
+    script.onload = initializeMap;
+    script.onerror = () => {
+      onMapError(
+        `카카오맵 SDK를 불러오지 못했습니다. Kakao Developers의 Web 플랫폼 도메인에 ${currentOrigin}을 등록해주세요.`,
+      );
+    };
+    document.head.appendChild(script);
+  }, [
+    location,
+    markerLabel,
+    moveMarkerOnMapDragEnd,
+    moveMarkerOnMapInteraction,
+    onLocationChange,
+    onMapError,
+  ]);
+
+  return createElement('div', {
+    ref: mapRef,
+    style: {
+      height: '100%',
+      width: '100%',
+    },
+  });
+}
+
 export function KakaoMapPreview({
   location,
   onLocationChange,
+  moveMarkerOnMapInteraction = true,
+  moveMarkerOnMapDragEnd = moveMarkerOnMapInteraction,
 }: {
   location: NeighborhoodLocation | null;
   onLocationChange: (location: NeighborhoodLocation) => void;
+  moveMarkerOnMapInteraction?: boolean;
+  moveMarkerOnMapDragEnd?: boolean;
 }) {
   const [mapError, setMapError] = useState<string | null>(null);
+  const mapLocation = location ?? defaultMapLocation;
 
   if (!kakaoMapAppKey) {
     return (
@@ -103,7 +239,6 @@ export function KakaoMapPreview({
     );
   }
 
-  const mapLocation = location ?? defaultMapLocation;
   const markerLabel = location ? formatLocationLabel(location) : '지도에서 위치를 선택해주세요';
 
   const html = `
@@ -119,18 +254,29 @@ export function KakaoMapPreview({
       <body>
         <div id="map"></div>
         <script>
+          function postMapMessage(payload) {
+            var message = JSON.stringify(payload);
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(message);
+              return;
+            }
+            if (window.parent && window.parent.postMessage) {
+              window.parent.postMessage(message, '*');
+            }
+          }
+
           window.onerror = function(message) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
+            postMapMessage({
               type: 'mapError',
               message: String(message || '카카오맵을 불러오지 못했습니다.')
-            }));
+            });
           };
 
           function notifyError(message) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
+            postMapMessage({
               type: 'mapError',
               message: message
-            }));
+            });
           }
 
           if (!window.kakao || !window.kakao.maps) {
@@ -166,22 +312,26 @@ export function KakaoMapPreview({
                   payload.region3 = address.region_3depth_name || '';
                 }
 
-                window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+                postMapMessage(payload);
               });
             }
 
-            kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
-              var latLng = mouseEvent.latLng;
-              marker.setPosition(latLng);
-              map.panTo(latLng);
-              sendLocation(latLng);
-            });
+            if (${moveMarkerOnMapInteraction ? 'true' : 'false'}) {
+              kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
+                var latLng = mouseEvent.latLng;
+                marker.setPosition(latLng);
+                map.panTo(latLng);
+                sendLocation(latLng);
+              });
+            }
 
-            kakao.maps.event.addListener(map, 'dragend', function() {
-              var center = map.getCenter();
-              marker.setPosition(center);
-              sendLocation(center);
-            });
+            if (${moveMarkerOnMapDragEnd ? 'true' : 'false'}) {
+              kakao.maps.event.addListener(map, 'dragend', function() {
+                var center = map.getCenter();
+                marker.setPosition(center);
+                sendLocation(center);
+              });
+            }
 
             kakao.maps.event.addListener(marker, 'dragend', function() {
               var latLng = marker.getPosition();
@@ -197,6 +347,19 @@ export function KakaoMapPreview({
 
   return (
     <View style={styles.mapCard}>
+      {Platform.OS === 'web'
+        ? (
+          <WebKakaoMap
+            key={`${mapLocation.id}-${mapLocation.latitude}-${mapLocation.longitude}`}
+            location={mapLocation}
+            markerLabel={markerLabel}
+            moveMarkerOnMapInteraction={moveMarkerOnMapInteraction}
+            moveMarkerOnMapDragEnd={moveMarkerOnMapDragEnd}
+            onLocationChange={onLocationChange}
+            onMapError={setMapError}
+          />
+        )
+        : (
       <WebView
         key={`${mapLocation.id}-${mapLocation.latitude}-${mapLocation.longitude}`}
         originWhitelist={['*']}
@@ -248,6 +411,7 @@ export function KakaoMapPreview({
         }}
         style={styles.kakaoMap}
       />
+        )}
       {mapError ? (
         <View style={styles.mapErrorOverlay}>
           <Ionicons name="alert-circle-outline" size={22} color={colors.warning} />

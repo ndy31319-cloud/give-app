@@ -59,6 +59,7 @@ const getFirebaseApp = () => {
   firebaseApp = admin.initializeApp({
     credential: buildCredential(),
     projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   });
 
   return firebaseApp;
@@ -77,7 +78,21 @@ const getFirestore = () => {
   }
 };
 
+const getStorageBucket = () => {
+  try {
+    return getFirebaseApp().storage().bucket();
+  } catch (error) {
+    const storageError = new Error(
+      "Firebase Storage configuration is invalid. Set FIREBASE_STORAGE_BUCKET to your Cloud Storage bucket name.",
+    );
+    storageError.code = "FIREBASE_STORAGE_CONFIG_INVALID";
+    storageError.cause = error;
+    throw storageError;
+  }
+};
+
 module.exports = {
   admin,
   getFirestore,
+  getStorageBucket,
 };

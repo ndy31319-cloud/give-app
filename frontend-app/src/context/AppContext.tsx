@@ -1,4 +1,11 @@
-import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   ChatMessage,
@@ -13,15 +20,25 @@ import {
   SignupDraft,
   UpdatePostInput,
   User,
-} from '@/src/types/app';
-import { authAPI, chatAPI, dynamicQrAPI, memberAPI, notificationAPI, postAPI } from '@/src/services/api';
-import { isFirebaseChatConfigured, subscribeToChatMessages } from '@/src/services/firebaseChat';
+} from "@/src/types/app";
+import {
+  authAPI,
+  chatAPI,
+  dynamicQrAPI,
+  memberAPI,
+  notificationAPI,
+  postAPI,
+} from "@/src/services/api";
+import {
+  isFirebaseChatConfigured,
+  subscribeToChatMessages,
+} from "@/src/services/firebaseChat";
 
 const initialDeviceSimulationState: DeviceSimulationState = {
-  step: 'idle',
+  step: "idle",
   sessionId: null,
   token: null,
-  message: '디바이스가 대기 중입니다.',
+  message: "디바이스가 대기 중입니다.",
   lockerOpen: false,
   itemDetected: false,
   lastUpdatedAt: new Date().toISOString(),
@@ -40,24 +57,40 @@ interface AppContextValue {
   deviceSimulation: DeviceSimulationState;
   setSignupDraft: (draft: SignupDraft) => void;
   mergeSignupDraft: (draft: Partial<SignupDraft>) => void;
-  login: (identifier: string, password: string) => Promise<{ error: string | null }>;
-  completeSignup: (location: NeighborhoodLocation) => Promise<{ error: string | null }>;
+  login: (
+    identifier: string,
+    password: string,
+  ) => Promise<{ error: string | null }>;
+  completeSignup: (
+    location: NeighborhoodLocation,
+  ) => Promise<{ error: string | null }>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<{ error: string | null }>;
-  updateLocation: (location: NeighborhoodLocation) => Promise<{ error: string | null }>;
-  addNeighborhood: (location: NeighborhoodLocation) => Promise<{ error: string | null }>;
+  updateLocation: (
+    location: NeighborhoodLocation,
+  ) => Promise<{ error: string | null }>;
+  addNeighborhood: (
+    location: NeighborhoodLocation,
+  ) => Promise<{ error: string | null }>;
   removeNeighborhood: (locationId: string) => void;
   addPost: (payload: CreatePostInput) => Promise<{ error: string | null }>;
   updatePost: (payload: UpdatePostInput) => Promise<{ error: string | null }>;
   removePost: (post: Post) => Promise<{ error: string | null }>;
-  startChatWithPost: (post: Post) => Promise<{ roomId: string | null; error: string | null }>;
-  sendMessage: (chatId: string, text: string) => Promise<{ error: string | null }>;
+  startChatWithPost: (
+    post: Post,
+  ) => Promise<{ roomId: string | null; error: string | null }>;
+  sendMessage: (
+    chatId: string,
+    text: string,
+  ) => Promise<{ error: string | null }>;
   markNotificationRead: (id: string) => void;
   issueDynamicQr: (
     purpose?: DynamicQrPurpose,
     ttlSeconds?: number,
   ) => Promise<{ error: string | null }>;
-  startDeviceAuthentication: (token: string) => Promise<{ error: string | null }>;
+  startDeviceAuthentication: (
+    token: string,
+  ) => Promise<{ error: string | null }>;
   confirmDeviceItemInserted: () => Promise<{ error: string | null }>;
   resetDeviceSimulation: () => void;
 }
@@ -71,9 +104,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [messagesByChat, setMessagesByChat] = useState<Record<string, ChatMessage[]>>({});
-  const [activeQrSession, setActiveQrSession] = useState<DynamicQrSession | null>(null);
-  const [deviceSimulation, setDeviceSimulation] = useState<DeviceSimulationState>(initialDeviceSimulationState);
+  const [messagesByChat, setMessagesByChat] = useState<
+    Record<string, ChatMessage[]>
+  >({});
+  const [activeQrSession, setActiveQrSession] =
+    useState<DynamicQrSession | null>(null);
+  const [deviceSimulation, setDeviceSimulation] =
+    useState<DeviceSimulationState>(initialDeviceSimulationState);
   const deviceTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
@@ -84,13 +121,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let subscribedRoomIdsKey = '';
+    let subscribedRoomIdsKey = "";
     let unsubscribeMessageListeners: (() => void)[] = [];
 
     const clearMessageSubscriptions = () => {
       unsubscribeMessageListeners.forEach((unsubscribe) => unsubscribe());
       unsubscribeMessageListeners = [];
-      subscribedRoomIdsKey = '';
+      subscribedRoomIdsKey = "";
     };
 
     const subscribeMessageRooms = (rooms: ChatRoom[]) => {
@@ -98,7 +135,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const nextRoomIdsKey = rooms.map((room) => room.id).sort().join('|');
+      const nextRoomIdsKey = rooms
+        .map((room) => room.id)
+        .sort()
+        .join("|");
       if (nextRoomIdsKey === subscribedRoomIdsKey) {
         return;
       }
@@ -121,12 +161,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
             }));
           },
           async (error) => {
-            console.warn('Firebase chat subscription failed:', error);
+            console.warn("Firebase chat subscription failed:", error);
             if (!mounted) {
               return;
             }
 
-            const messagesResult = await chatAPI.listMessages(room.id, authToken ?? undefined, user.id);
+            const messagesResult = await chatAPI.listMessages(
+              room.id,
+              authToken ?? undefined,
+              user.id,
+            );
             if (mounted) {
               setMessagesByChat((prev) => ({
                 ...prev,
@@ -138,7 +182,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
     };
 
-    async function hydrateChatData(options: { includeMessages?: boolean } = {}): Promise<ChatRoom[]> {
+    async function hydrateChatData(
+      options: { includeMessages?: boolean } = {},
+    ): Promise<ChatRoom[]> {
       if (!user) {
         clearMessageSubscriptions();
         if (mounted) {
@@ -177,7 +223,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const messageEntries = await Promise.all(
         rooms.map(async (room) => {
-          const messagesResult = await chatAPI.listMessages(room.id, authToken ?? undefined, user.id);
+          const messagesResult = await chatAPI.listMessages(
+            room.id,
+            authToken ?? undefined,
+            user.id,
+          );
           return [room.id, messagesResult.data ?? []] as const;
         }),
       );
@@ -201,20 +251,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const useFirebaseRealtime = isFirebaseChatConfigured();
-      const rooms = await hydrateChatData({ includeMessages: !useFirebaseRealtime });
+      const rooms = await hydrateChatData({
+        includeMessages: !useFirebaseRealtime,
+      });
       if (mounted && useFirebaseRealtime) {
         subscribeMessageRooms(rooms);
       }
     }
 
     hydrateAppData();
-    const chatRefreshTimer = setInterval(async () => {
-      const useFirebaseRealtime = isFirebaseChatConfigured();
-      const rooms = await hydrateChatData({ includeMessages: !useFirebaseRealtime });
-      if (mounted && useFirebaseRealtime) {
-        subscribeMessageRooms(rooms);
-      }
-    }, isFirebaseChatConfigured() ? 30000 : 4000);
+    const chatRefreshTimer = setInterval(
+      async () => {
+        const useFirebaseRealtime = isFirebaseChatConfigured();
+        const rooms = await hydrateChatData({
+          includeMessages: !useFirebaseRealtime,
+        });
+        if (mounted && useFirebaseRealtime) {
+          subscribeMessageRooms(rooms);
+        }
+      },
+      isFirebaseChatConfigured() ? 30000 : 4000,
+    );
 
     return () => {
       mounted = false;
@@ -236,7 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function login(identifier: string, password: string) {
     const result = await authAPI.login({ identifier, password });
     if (result.error || !result.data) {
-      return { error: result.error ?? '로그인에 실패했습니다.' };
+      return { error: result.error ?? "로그인에 실패했습니다." };
     }
 
     setUser(result.data.user);
@@ -247,7 +304,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function completeSignup(location: NeighborhoodLocation) {
     const result = await authAPI.signup(signupDraft, location);
     if (result.error || !result.data) {
-      return { error: result.error ?? '회원가입에 실패했습니다.' };
+      return { error: result.error ?? "회원가입에 실패했습니다." };
     }
 
     setUser({
@@ -275,7 +332,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function updateProfile(data: Partial<User>) {
     if (!user) {
-      return { error: '로그인이 필요합니다.' };
+      return { error: "로그인이 필요합니다." };
     }
 
     const result = await memberAPI.updateMe(
@@ -283,7 +340,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       {
         name: data.name ?? user.name,
         nickname: data.nickname ?? user.nickname,
-        phone: data.phone ?? user.phone ?? '',
+        phone: data.phone ?? user.phone ?? "",
         dongName: data.dongName ?? user.dongName,
       },
       authToken ?? undefined,
@@ -299,10 +356,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function updateLocation(location: NeighborhoodLocation) {
     if (!user) {
-      return { error: '로그인이 필요합니다.' };
+      return { error: "로그인이 필요합니다." };
     }
 
-    const result = await memberAPI.updateLocation(user.id, location, authToken ?? undefined);
+    const result = await memberAPI.updateLocation(
+      user.id,
+      location,
+      authToken ?? undefined,
+    );
     if (result.error) {
       return { error: result.error };
     }
@@ -310,15 +371,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser((prev) => {
       if (!prev) return prev;
 
-      const currentNeighborhoods = prev.neighborhoods?.length ? prev.neighborhoods : [prev.location];
+      const currentNeighborhoods = prev.neighborhoods?.length
+        ? prev.neighborhoods
+        : [prev.location];
       const nextNeighborhoods = [
         location,
         ...currentNeighborhoods.filter(
           (item) =>
             item.id !== location.id &&
             item.id !== prev.location.id &&
-            !(item.dongName === location.dongName && item.district === location.district) &&
-            !(item.dongName === prev.location.dongName && item.district === prev.location.district),
+            !(
+              item.dongName === location.dongName &&
+              item.district === location.district
+            ) &&
+            !(
+              item.dongName === prev.location.dongName &&
+              item.district === prev.location.district
+            ),
         ),
       ];
 
@@ -334,21 +403,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function addNeighborhood(location: NeighborhoodLocation) {
     if (!user) {
-      return { error: '로그인이 필요합니다.' };
+      return { error: "로그인이 필요합니다." };
     }
 
     setUser((prev) => {
       if (!prev) return prev;
-      const currentNeighborhoods = prev.neighborhoods?.length ? prev.neighborhoods : [prev.location];
+      const currentNeighborhoods = prev.neighborhoods?.length
+        ? prev.neighborhoods
+        : [prev.location];
       const exists = currentNeighborhoods.some(
         (item) =>
           item.id === location.id ||
-          (item.dongName === location.dongName && item.district === location.district),
+          (item.dongName === location.dongName &&
+            item.district === location.district),
       );
 
       return {
         ...prev,
-        neighborhoods: exists ? currentNeighborhoods : [...currentNeighborhoods, location],
+        neighborhoods: exists
+          ? currentNeighborhoods
+          : [...currentNeighborhoods, location],
       };
     });
 
@@ -358,7 +432,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function removeNeighborhood(locationId: string) {
     setUser((prev) => {
       if (!prev) return prev;
-      const currentNeighborhoods = prev.neighborhoods?.length ? prev.neighborhoods : [prev.location];
+      const currentNeighborhoods = prev.neighborhoods?.length
+        ? prev.neighborhoods
+        : [prev.location];
       if (currentNeighborhoods.length <= 1) {
         return {
           ...prev,
@@ -369,8 +445,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const nextNeighborhoods = currentNeighborhoods.filter(
         (location) => location.id !== locationId,
       );
-      const fallbackNeighborhoods = nextNeighborhoods.length ? nextNeighborhoods : [prev.location];
-      const nextLocation = prev.location.id === locationId ? fallbackNeighborhoods[0] : prev.location;
+      const fallbackNeighborhoods = nextNeighborhoods.length
+        ? nextNeighborhoods
+        : [prev.location];
+      const nextLocation =
+        prev.location.id === locationId
+          ? fallbackNeighborhoods[0]
+          : prev.location;
 
       return {
         ...prev,
@@ -396,19 +477,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       type: payload.type,
       title: payload.title,
       description: payload.description,
-      createdFrom: payload.type === 'need' ? 'app' : undefined,
+      createdFrom: payload.type === "need" ? "app" : undefined,
       category: payload.category,
       productId: payload.productId,
       itemName: payload.itemName,
       itemCondition: payload.itemCondition,
       location: payload.location,
-      status: 'open',
-      urgency: payload.type === 'need' ? payload.urgency ?? 'normal' : undefined,
+      status: "open",
+      urgency:
+        payload.type === "need" ? (payload.urgency ?? "normal") : undefined,
       images: payload.images.map((image) => image.uri),
       imageFiles: payload.images,
       author: {
-        id: user?.id ?? 'user_1',
-        name: user?.name ?? '홍길동',
+        id: user?.id ?? "user_1",
+        name: user?.name ?? "홍길동",
         nickname: user?.nickname,
         temperature: 36.8,
         profileImage: user?.profileImage,
@@ -426,16 +508,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function updatePost(payload: UpdatePostInput) {
     if (!user) {
-      return { error: '로그인이 필요합니다.' };
+      return { error: "로그인이 필요합니다." };
     }
 
     const currentPost = posts.find((post) => post.id === payload.postId);
     if (!currentPost) {
-      return { error: '게시글을 찾을 수 없습니다.' };
+      return { error: "게시글을 찾을 수 없습니다." };
     }
 
     if (String(currentPost.author.id) !== String(user.id)) {
-      return { error: '내가 작성한 게시글만 수정할 수 있습니다.' };
+      return { error: "내가 작성한 게시글만 수정할 수 있습니다." };
     }
 
     const result = await postAPI.updatePost(payload.postId, payload, {
@@ -459,7 +541,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
               productId: payload.productId,
               itemName: payload.itemName,
               itemCondition: payload.itemCondition,
-              urgency: payload.type === 'need' ? payload.urgency ?? post.urgency : post.urgency,
+              urgency:
+                payload.type === "need"
+                  ? (payload.urgency ?? post.urgency)
+                  : post.urgency,
               images: post.images,
               imageFiles: post.imageFiles,
               updatedAt: new Date().toISOString(),
@@ -483,15 +568,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function startChatWithPost(post: Post) {
     if (!user) {
-      return { roomId: null, error: '로그인이 필요합니다.' };
+      return { roomId: null, error: "로그인이 필요합니다." };
     }
 
     if (!post.author.id) {
-      return { roomId: null, error: '게시글 작성자 정보를 찾을 수 없습니다.' };
+      return { roomId: null, error: "게시글 작성자 정보를 찾을 수 없습니다." };
     }
 
     if (String(post.author.id) === String(user.id)) {
-      return { roomId: null, error: '본인 게시글에는 채팅을 시작할 수 없습니다.' };
+      return {
+        roomId: null,
+        error: "본인 게시글에는 채팅을 시작할 수 없습니다.",
+      };
     }
 
     const existingRoom = chatRooms.find(
@@ -514,13 +602,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     if (result.error || !result.data) {
-      return { roomId: null, error: result.error ?? '채팅방을 만들 수 없습니다.' };
+      return {
+        roomId: null,
+        error: result.error ?? "채팅방을 만들 수 없습니다.",
+      };
     }
 
     const room = result.data;
     setChatRooms((prev) => {
       const exists = prev.some((item) => item.id === room.id);
-      return exists ? prev.map((item) => (item.id === room.id ? room : item)) : [room, ...prev];
+      return exists
+        ? prev.map((item) => (item.id === room.id ? room : item))
+        : [room, ...prev];
     });
 
     return { roomId: room.id, error: null };
@@ -528,43 +621,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function sendMessage(chatId: string, text: string) {
     const trimmed = text.trim();
+
     if (!trimmed) {
       return { error: null };
     }
 
-    const result = user
-      ? await chatAPI.sendMessage({
-          chatRoomId: chatId,
-          senderId: user.id,
-          content: trimmed,
-          messageType: 'TEXT',
-          authToken: authToken ?? undefined,
-        })
-      : {
-          data: {
-            id: `message_${Date.now()}`,
-            sender: 'me' as const,
-            text: trimmed,
-            timeLabel: '방금',
-          },
-          error: null,
-        };
+    if (!user) {
+      return { error: "로그인이 필요합니다." };
+    }
+
+    const result = await chatAPI.sendMessage({
+      chatRoomId: chatId,
+      senderId: user.id,
+      content: trimmed,
+      messageType: "TEXT",
+      authToken: authToken ?? undefined,
+    });
 
     if (result.error) {
       return { error: result.error };
     }
-
-    const newMessage: ChatMessage = result.data ?? {
-      id: `message_${Date.now()}`,
-      sender: 'me',
-      text: trimmed,
-      timeLabel: '방금',
-    };
-
-    setMessagesByChat((prev) => ({
-      ...prev,
-      [chatId]: [...(prev[chatId] ?? []), newMessage],
-    }));
 
     setChatRooms((prev) =>
       prev.map((room) =>
@@ -572,7 +648,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? {
               ...room,
               lastMessage: trimmed,
-              timeLabel: '방금',
+              timeLabel: "방금",
             }
           : room,
       ),
@@ -583,22 +659,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function markNotificationRead(id: string) {
     setNotifications((prev) =>
       prev.map((notification) =>
-        notification.id === id ? { ...notification, isRead: true } : notification,
+        notification.id === id
+          ? { ...notification, isRead: true }
+          : notification,
       ),
     );
   }
 
   async function issueDynamicQr(
-    purpose: DynamicQrPurpose = 'donation_access',
+    purpose: DynamicQrPurpose = "donation_access",
     ttlSeconds = 30,
   ) {
     if (!user) {
-      return { error: '로그인 후 동적 QR을 발급할 수 있습니다.' };
+      return { error: "로그인 후 동적 QR을 발급할 수 있습니다." };
     }
 
-    const result = await dynamicQrAPI.issue(user.id, purpose, ttlSeconds, authToken ?? undefined);
+    const result = await dynamicQrAPI.issue(
+      user.id,
+      purpose,
+      ttlSeconds,
+      authToken ?? undefined,
+    );
     if (result.error || !result.data) {
-      return { error: result.error ?? '동적 QR 발급에 실패했습니다.' };
+      return { error: result.error ?? "동적 QR 발급에 실패했습니다." };
     }
 
     setActiveQrSession(result.data);
@@ -610,16 +693,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!trimmed) {
       setDeviceSimulation({
         ...initialDeviceSimulationState,
-        step: 'error',
-        message: 'QR 토큰을 입력하거나 활성 QR을 사용해주세요.',
+        step: "error",
+        message: "QR 토큰을 입력하거나 활성 QR을 사용해주세요.",
         lastUpdatedAt: new Date().toISOString(),
       });
-      return { error: 'QR 토큰을 입력해주세요.' };
+      return { error: "QR 토큰을 입력해주세요." };
     }
 
     clearDeviceTimers();
 
-    const validation = await dynamicQrAPI.validate(trimmed, authToken ?? undefined);
+    const validation = await dynamicQrAPI.validate(
+      trimmed,
+      authToken ?? undefined,
+    );
     if (validation.data?.memberId === user?.id) {
       setActiveQrSession(validation.data);
     }
@@ -627,20 +713,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (validation.error || !validation.data) {
       setDeviceSimulation({
         ...initialDeviceSimulationState,
-        step: 'error',
+        step: "error",
         token: trimmed,
-        message: validation.error ?? 'QR 인증에 실패했습니다.',
+        message: validation.error ?? "QR 인증에 실패했습니다.",
         lastUpdatedAt: new Date().toISOString(),
       });
-      return { error: validation.error ?? 'QR 인증에 실패했습니다.' };
+      return { error: validation.error ?? "QR 인증에 실패했습니다." };
     }
 
     const session = validation.data;
     setDeviceSimulation({
-      step: 'qr_scanned',
+      step: "qr_scanned",
       sessionId: session.id,
       token: session.token,
-      message: 'QR 인식이 완료되었습니다. 서버에서 인증 정보를 확인합니다.',
+      message: "QR 인식이 완료되었습니다. 서버에서 인증 정보를 확인합니다.",
       lockerOpen: false,
       itemDetected: false,
       lastUpdatedAt: new Date().toISOString(),
@@ -649,8 +735,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queueDeviceStep(700, () => {
       setDeviceSimulation((prev) => ({
         ...prev,
-        step: 'server_validating',
-        message: '예약 정보와 시간 제한을 검증하고 있습니다.',
+        step: "server_validating",
+        message: "예약 정보와 시간 제한을 검증하고 있습니다.",
         lastUpdatedAt: new Date().toISOString(),
       }));
     });
@@ -658,9 +744,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queueDeviceStep(1500, () => {
       setDeviceSimulation((prev) => ({
         ...prev,
-        step: 'locker_open',
+        step: "locker_open",
         lockerOpen: true,
-        message: '인증이 완료되어 기부함 잠금이 해제되었습니다.',
+        message: "인증이 완료되어 기부함 잠금이 해제되었습니다.",
         lastUpdatedAt: new Date().toISOString(),
       }));
     });
@@ -668,9 +754,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     queueDeviceStep(2400, () => {
       setDeviceSimulation((prev) => ({
         ...prev,
-        step: 'awaiting_item',
+        step: "awaiting_item",
         lockerOpen: true,
-        message: '물품 투입을 기다리고 있습니다. 투입 후 감지 버튼을 눌러주세요.',
+        message:
+          "물품 투입을 기다리고 있습니다. 투입 후 감지 버튼을 눌러주세요.",
         lastUpdatedAt: new Date().toISOString(),
       }));
     });
@@ -679,8 +766,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function confirmDeviceItemInserted() {
-    if (deviceSimulation.step !== 'awaiting_item' || !deviceSimulation.token) {
-      return { error: '현재는 물품 투입을 처리할 수 있는 단계가 아닙니다.' };
+    if (deviceSimulation.step !== "awaiting_item" || !deviceSimulation.token) {
+      return { error: "현재는 물품 투입을 처리할 수 있는 단계가 아닙니다." };
     }
 
     clearDeviceTimers();
@@ -688,23 +775,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setDeviceSimulation((prev) => ({
       ...prev,
-      step: 'item_detected',
+      step: "item_detected",
       itemDetected: true,
-      message: '센서가 물품 투입을 감지했습니다. 완료 처리를 시작합니다.',
+      message: "센서가 물품 투입을 감지했습니다. 완료 처리를 시작합니다.",
       lastUpdatedAt: new Date().toISOString(),
     }));
 
     queueDeviceStep(800, () => {
       setDeviceSimulation((prev) => ({
         ...prev,
-        step: 'server_updating',
-        message: '서버와 Firebase에 완료 데이터를 반영하고 있습니다.',
+        step: "server_updating",
+        message: "서버와 Firebase에 완료 데이터를 반영하고 있습니다.",
         lastUpdatedAt: new Date().toISOString(),
       }));
     });
 
     queueDeviceStep(1700, async () => {
-      const result = await dynamicQrAPI.consume(targetToken, authToken ?? undefined);
+      const result = await dynamicQrAPI.consume(
+        targetToken,
+        authToken ?? undefined,
+      );
 
       if (result.data?.memberId === user?.id) {
         setActiveQrSession(result.data);
@@ -713,8 +803,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (result.error || !result.data) {
         setDeviceSimulation((prev) => ({
           ...prev,
-          step: 'error',
-          message: result.error ?? '완료 처리 중 문제가 발생했습니다.',
+          step: "error",
+          message: result.error ?? "완료 처리 중 문제가 발생했습니다.",
           lastUpdatedAt: new Date().toISOString(),
         }));
         return;
@@ -723,25 +813,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const consumedSession = result.data;
 
       setDeviceSimulation({
-        step: 'completed',
+        step: "completed",
         sessionId: consumedSession.id,
         token: consumedSession.token,
         lockerOpen: false,
         itemDetected: true,
-        message: '기부 물품 등록이 완료되었습니다. 앱 알림도 함께 전송되었습니다.',
+        message:
+          "기부 물품 등록이 완료되었습니다. 앱 알림도 함께 전송되었습니다.",
         lastUpdatedAt: new Date().toISOString(),
       });
 
       setNotifications((prev) => [
         {
           id: `notification_qr_${Date.now()}`,
-          type: 'system',
-          relatedType: 'system',
+          type: "system",
+          relatedType: "system",
           relatedId: consumedSession.id,
-          notificationTypeCode: 'system',
-          title: '기부함 인증 완료',
-          message: '동적 QR 인증과 물품 투입이 정상적으로 완료되었습니다.',
-          timeLabel: '방금',
+          notificationTypeCode: "system",
+          title: "기부함 인증 완료",
+          message: "동적 QR 인증과 물품 투입이 정상적으로 완료되었습니다.",
+          timeLabel: "방금",
           isRead: false,
         },
         ...prev,
@@ -791,7 +882,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         startDeviceAuthentication,
         confirmDeviceItemInserted,
         resetDeviceSimulation,
-      }}>
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
@@ -800,7 +892,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 export function useAppContext() {
   const context = useContext(AppContext);
   if (!context) {
-    throw new Error('useAppContext must be used inside AppProvider');
+    throw new Error("useAppContext must be used inside AppProvider");
   }
   return context;
 }

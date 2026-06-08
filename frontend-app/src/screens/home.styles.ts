@@ -551,6 +551,19 @@ export const styles = StyleSheet.create({
   categoryRow: {
     gap: 10,
   },
+  categoryRecommendRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+    alignItems: 'flex-start',
+  },
+  categoryRecommendChips: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    gap: 6,
+  },
   optionWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -563,6 +576,14 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+  },
+  categoryChipCompact: {
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  categoryAllChip: {
+    flexShrink: 0,
+    paddingHorizontal: 10,
   },
   categoryChipActive: {
     borderColor: colors.brand,

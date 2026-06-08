@@ -141,6 +141,8 @@ function locationFromUnknown(
   fallbackDongName?: string,
 ) {
   if (source && typeof source === 'object') {
+    const latitude = source.latitude !== undefined ? Number(source.latitude) : undefined;
+    const longitude = source.longitude !== undefined ? Number(source.longitude) : undefined;
     const fullAddress =
       source.fullAddress ||
       `${source.city ?? ''} ${source.district ?? ''} ${source.neighborhood ?? source.dongName ?? ''}`.trim();
@@ -155,8 +157,8 @@ function locationFromUnknown(
       neighborhood: source.neighborhood ?? resolved?.neighborhood ?? dongName,
       dongName,
       fullAddress: fullAddress || resolved?.fullAddress || dongName,
-      latitude: source.latitude ?? resolved?.latitude ?? Number.NaN,
-      longitude: source.longitude ?? resolved?.longitude ?? Number.NaN,
+      latitude: Number.isFinite(latitude) ? latitude : resolved?.latitude ?? Number.NaN,
+      longitude: Number.isFinite(longitude) ? longitude : resolved?.longitude ?? Number.NaN,
       radiusKm: source.radiusKm ?? resolved?.radiusKm ?? 5,
     };
   }
