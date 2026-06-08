@@ -1,4 +1,4 @@
-import { createElement, useEffect, useRef, useState } from 'react';
+import { createElement, useEffect, useId, useState } from 'react';
 import { Platform, Text, View, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -97,10 +97,15 @@ function WebKakaoMap({
   onLocationChange: (location: NeighborhoodLocation) => void;
   onMapError: (message: string) => void;
 }) {
-  const mapRef = useRef<HTMLDivElement | null>(null);
+  const mapElementId = useId();
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined' || !mapRef.current) {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
+    const mapElement = document.getElementById(mapElementId);
+    if (!mapElement) {
       return;
     }
 
@@ -118,13 +123,9 @@ function WebKakaoMap({
       }
 
       kakao.maps.load(() => {
-        if (!mapRef.current) {
-          return;
-        }
-
         const position = new kakao.maps.LatLng(location.latitude, location.longitude);
         const geocoder = new kakao.maps.services.Geocoder();
-        const map = new kakao.maps.Map(mapRef.current, {
+        const map = new kakao.maps.Map(mapElement, {
           center: position,
           level: 4,
         });
@@ -197,6 +198,7 @@ function WebKakaoMap({
     document.head.appendChild(script);
   }, [
     location,
+    mapElementId,
     markerLabel,
     moveMarkerOnMapDragEnd,
     moveMarkerOnMapInteraction,
@@ -205,7 +207,7 @@ function WebKakaoMap({
   ]);
 
   return createElement('div', {
-    ref: mapRef,
+    id: mapElementId,
     style: {
       height: '100%',
       width: '100%',

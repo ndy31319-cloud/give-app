@@ -148,7 +148,7 @@ export function ChatRoomScreen() {
       chatRoom?.postId
         ? (posts.find((item) => item.id === chatRoom.postId) ?? null)
         : null,
-    [chatRoom?.postId, posts],
+    [chatRoom, posts],
   );
   const messages = chatRoom ? (messagesByChat[chatRoom.id] ?? []) : [];
   const calendarDays = useMemo(
@@ -374,7 +374,8 @@ export function ChatRoomScreen() {
         <Text style={styles.modalTitle}>채팅방 메뉴</Text>
 
         <Pressable
-          style={styles.menuAction}
+          disabled={isLeaving}
+          style={[styles.menuAction, isLeaving && { opacity: 0.5 }]}
           onPress={() => {
             setMenuOpen(false);
             setRatingOpen(true);
@@ -455,7 +456,7 @@ export function ChatRoomScreen() {
         >
           <Ionicons name="exit-outline" size={20} color={colors.danger} />
           <Text style={[styles.menuActionText, { color: colors.danger }]}>
-            채팅방 나가기
+            {isLeaving ? "나가는 중" : "채팅방 나가기"}
           </Text>
         </Pressable>
 

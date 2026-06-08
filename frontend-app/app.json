@@ -42,7 +42,9 @@
         }
       ],
       "expo-asset",
-      "expo-image"
+      "expo-image",
+      "expo-font",
+      "expo-status-bar"
     ]
   }
 }

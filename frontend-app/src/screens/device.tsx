@@ -205,7 +205,7 @@ export function DeviceSimulatorScreen() {
     confirmDeviceItemInserted,
     resetDeviceSimulation,
   } = useAppContext();
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [tokenInput, setTokenInput] = useState('');
   const [working, setWorking] = useState(false);
   const [issuing, setIssuing] = useState(false);
