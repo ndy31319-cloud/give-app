@@ -153,7 +153,18 @@ const itemConditionOptions = [
 ];
 
 function productsForCategory(products: ProductRecord[], category: string) {
-  return products.filter((product) => product.category === category);
+  const uniqueProducts = new Map<string, ProductRecord>();
+
+  products
+    .filter((product) => product.category === category)
+    .forEach((product) => {
+      const key = `${product.category}:${product.productName}`;
+      if (!uniqueProducts.has(key)) {
+        uniqueProducts.set(key, product);
+      }
+    });
+
+  return Array.from(uniqueProducts.values());
 }
 
 function categoriesFromProducts(products: ProductRecord[]): ProductCategoryRecord[] {
@@ -628,9 +639,6 @@ setSelectedImages(images);
 setSkipImage(false);
     setAiAnalysis(analysis);
     setImageConfirmed(false);
-    if (aiWritingEnabled && analysis.recommendedCategory) {
-      setFormData((prev) => ({ ...prev, category: prev.category || analysis.recommendedCategory || '' }));
-    }
   };
 
   const handleChooseImage = async (source: 'camera' | 'gallery') => {
