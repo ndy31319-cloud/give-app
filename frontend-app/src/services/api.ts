@@ -79,14 +79,12 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 type ApiResult<T> = Promise<{ data: T; error: string | null }>;
 
 const knownProductCategoryIds = new Set([
-  "clothing",
-  "electronics",
-  "furniture",
-  "books",
-  "household",
-  "baby",
-  "kitchen",
-  "digital",
+  "가구",
+  "기타",
+  "디지털",
+  "생활용품",
+  "식품",
+  "의류",
 ]);
 
 export interface MypageSummary {
@@ -134,40 +132,54 @@ function normalizeAiCategory(category?: string | null) {
   if (
     value.includes("생활") ||
     value.includes("주방") ||
+    value.includes("유아") ||
+    value.includes("아기") ||
+    value.includes("baby") ||
+    value.includes("kitchen") ||
     lowerValue.includes("household")
   )
-    return "household";
+    return "생활용품";
   if (
     value.includes("전자") ||
     value.includes("디지털") ||
-    lowerValue.includes("electronic")
+    value.includes("소형가전") ||
+    value.includes("가전") ||
+    lowerValue.includes("electronic") ||
+    lowerValue.includes("digital")
   )
-    return "electronics";
+    return "디지털";
   if (
     value.includes("가구") ||
     value.includes("책장") ||
+    value.includes("책상") ||
+    value.includes("의자") ||
     lowerValue.includes("furniture")
   )
-    return "furniture";
+    return "가구";
   if (
     value.includes("도서") ||
     value.includes("책") ||
+    value.includes("문구") ||
     lowerValue.includes("book")
   )
-    return "books";
+    return "기타";
   if (
     value.includes("의류") ||
     value.includes("옷") ||
+    value.includes("패딩") ||
+    value.includes("코트") ||
+    value.includes("신발") ||
     lowerValue.includes("cloth")
   )
-    return "clothing";
+    return "의류";
   if (
-    value.includes("유아") ||
-    value.includes("아기") ||
-    lowerValue.includes("baby")
+    value.includes("식품") ||
+    value.includes("음식") ||
+    value.includes("라면") ||
+    value.includes("쌀") ||
+    lowerValue.includes("food")
   )
-    return "baby";
-  if (lowerValue.includes("kitchen")) return "kitchen";
+    return "식품";
 
   return value;
 }
@@ -999,7 +1011,7 @@ export const dynamicQrAPI = {
 
 export const catalogAPI = {
   async listCategories(): ApiResult<ProductCategoryRecord[]> {
-    const response = await safeFetch<{ data?: ProductCategoryRecord[] }>("/products/categories");
+    const response = await safeFetch<{ data?: ProductCategoryRecord[] }>("/api/products/categories");
     if (response?.data) {
       return { data: response.data, error: null };
     }
@@ -1007,7 +1019,7 @@ export const catalogAPI = {
   },
 
   async listProducts(): ApiResult<ProductRecord[]> {
-    const response = await safeFetch<{ data?: ProductRecord[] }>("/products");
+    const response = await safeFetch<{ data?: ProductRecord[] }>("/api/products");
     if (response?.data) {
       return {
         data: response.data.map((product: any) => ({
