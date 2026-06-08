@@ -1,5 +1,4 @@
 import {
-  categoryOptions,
   findLocationByDongName,
   mapMemberToUser,
   mockCertificationCodes,
@@ -13,7 +12,6 @@ import {
   mockNotificationRecords,
   mockNotices,
   mockPickupRequests,
-  mockProducts,
   mockReports,
   mockRequestImages,
   mockRequestLikes,
@@ -45,6 +43,7 @@ import {
   PickupRequestRecord,
   Policy,
   Post,
+  ProductCategoryRecord,
   ProductRecord,
   ReportRecord,
   RequestImageRecord,
@@ -78,6 +77,17 @@ import { formatDate } from "@/src/utils/time";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ApiResult<T> = Promise<{ data: T; error: string | null }>;
+
+const knownProductCategoryIds = new Set([
+  "clothing",
+  "electronics",
+  "furniture",
+  "books",
+  "household",
+  "baby",
+  "kitchen",
+  "digital",
+]);
 
 export interface MypageSummary {
   user: User;
@@ -120,7 +130,7 @@ function normalizeAiCategory(category?: string | null) {
   const lowerValue = value.toLowerCase();
 
   if (!value) return undefined;
-  if (categoryOptions.some((option) => option.id === value)) return value;
+  if (knownProductCategoryIds.has(value)) return value;
   if (
     value.includes("생활") ||
     value.includes("주방") ||
@@ -988,16 +998,28 @@ export const dynamicQrAPI = {
 };
 
 export const catalogAPI = {
-  async listCategories(): ApiResult<typeof categoryOptions> {
-    return { data: categoryOptions, error: null };
+  async listCategories(): ApiResult<ProductCategoryRecord[]> {
+    const response = await safeFetch<{ data?: ProductCategoryRecord[] }>("/products/categories");
+    if (response?.data) {
+      return { data: response.data, error: null };
+    }
+    return { data: [], error: "카테고리 목록을 불러오지 못했습니다." };
   },
 
   async listProducts(): ApiResult<ProductRecord[]> {
     const response = await safeFetch<{ data?: ProductRecord[] }>("/products");
     if (response?.data) {
-      return { data: response.data, error: null };
+      return {
+        data: response.data.map((product: any) => ({
+          productId: String(product.productId ?? product.product_id),
+          category: String(product.category ?? ""),
+          productName: String(product.productName ?? product.product_name ?? ""),
+          categoryLabel: product.categoryLabel ?? product.category_label,
+        })),
+        error: null,
+      };
     }
-    return { data: mockProducts, error: null };
+    return { data: [], error: "상품 목록을 불러오지 못했습니다." };
   },
 };
 
@@ -2119,7 +2141,7 @@ export const postAPI = {
 
     const formData = new FormData();
     const backendPostType = toBackendPostType(payload.type);
-    const productId = toProductId(payload.category);
+    const productId = payload.productId ?? toProductId(payload.category);
 
     formData.append("post_type", backendPostType);
     formData.append("type", payload.type);

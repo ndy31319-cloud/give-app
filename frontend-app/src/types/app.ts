@@ -182,6 +182,7 @@ export interface ProductRecord {
   productId: string;
   category: string;
   productName: string;
+  categoryLabel?: string;
 }
 
 export interface ItemRecord {

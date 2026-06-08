@@ -17,11 +17,10 @@ import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { PostCard } from '@/src/components/common/PostCard';
 import { useAppContext } from '@/src/context/AppContext';
-import { categoryOptions, mockProducts } from '@/src/data/mockData';
-import { postAPI } from '@/src/services/api';
+import { catalogAPI, postAPI } from '@/src/services/api';
 import { colors } from '@/src/theme/colors';
 import { styles } from '@/src/screens/home.styles';
-import { ImageAnalysisResult, SearchFilters, UploadableImage } from '@/src/types/app';
+import { ImageAnalysisResult, ProductCategoryRecord, ProductRecord, SearchFilters, UploadableImage } from '@/src/types/app';
 import { captureImage, pickImageFromLibrary, pickImagesFromLibrary } from '@/src/utils/imagePicker';
 import {
   filterPostsByRadius,
@@ -153,8 +152,62 @@ const itemConditionOptions = [
   '수리/확인 필요',
 ];
 
-function productsForCategory(category: string) {
-  return mockProducts.filter((product) => product.category === category);
+function productsForCategory(products: ProductRecord[], category: string) {
+  return products.filter((product) => product.category === category);
+}
+
+function categoriesFromProducts(products: ProductRecord[]): ProductCategoryRecord[] {
+  const categories = new Map<string, ProductCategoryRecord>();
+
+  products.forEach((product) => {
+    if (!product.category || categories.has(product.category)) {
+      return;
+    }
+
+    categories.set(product.category, {
+      id: product.category,
+      label: product.categoryLabel || product.category,
+    });
+  });
+
+  return Array.from(categories.values());
+}
+
+function useProductCatalog() {
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [categories, setCategories] = useState<ProductCategoryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCatalog() {
+      setLoading(true);
+      const [categoriesResult, productsResult] = await Promise.all([
+        catalogAPI.listCategories(),
+        catalogAPI.listProducts(),
+      ]);
+
+      if (!mounted) {
+        return;
+      }
+
+      const nextProducts = productsResult.data;
+      setProducts(nextProducts);
+      setCategories(categoriesResult.data.length ? categoriesResult.data : categoriesFromProducts(nextProducts));
+      setError(productsResult.error ?? categoriesResult.error);
+      setLoading(false);
+    }
+
+    loadCatalog();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return { categories, products, loading, error };
 }
 
 function showUnexpectedError(title = '오류가 발생했습니다') {
@@ -529,6 +582,8 @@ const [skipImage, setSkipImage] = useState(false);
     description: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { categories, products, loading: catalogLoading, error: catalogError } = useProductCatalog();
+  const categoryProducts = productsForCategory(products, formData.category);
 
   const navigateToHome = () => {
     router.replace('/(tabs)');
@@ -666,7 +721,7 @@ if (selectedImages.length && !imageConfirmed) {
         return;
       }
 
-      const selectedProduct = mockProducts.find((product) => product.productId === formData.productId);
+      const selectedProduct = products.find((product) => product.productId === formData.productId);
       setSubmitting(true);
       const backendReady = await postAPI.checkBackendReady();
       if (!backendReady.ok) {
@@ -884,7 +939,7 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
             <View style={{ gap: 8 }}>
               <Text style={styles.fieldLabel}>카테고리</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-                {categoryOptions.filter((category) => category.id !== 'all').map((category) => {
+                {categories.map((category) => {
                   const active = formData.category === category.id;
                   return (
                     <Pressable
@@ -902,7 +957,7 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
             <View style={{ gap: 8 }}>
               <Text style={styles.fieldLabel}>하위 품목</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-                {productsForCategory(formData.category).map((product) => {
+                {categoryProducts.map((product) => {
                   const active = formData.productId === product.productId;
                   return (
                     <Pressable
@@ -916,7 +971,11 @@ aiAnalysis: selectedImages.length ? aiAnalysis : null,
                   );
                 })}
               </ScrollView>
-              {formData.category && !productsForCategory(formData.category).length ? (
+              {catalogLoading ? (
+                <Text style={styles.sectionDescription}>상품 목록을 불러오는 중입니다.</Text>
+              ) : catalogError ? (
+                <Text style={styles.errorText}>{catalogError}</Text>
+              ) : formData.category && !categoryProducts.length ? (
                 <Text style={styles.sectionDescription}>등록된 하위 품목이 없습니다.</Text>
               ) : null}
               {errors.productId ? <Text style={styles.errorText}>{errors.productId}</Text> : null}
@@ -992,6 +1051,8 @@ export function PostEditScreen() {
     description: post?.description ?? '',
     urgency: post?.urgency ?? 'normal',
   });
+  const { categories, products, loading: catalogLoading, error: catalogError } = useProductCatalog();
+  const categoryProducts = productsForCategory(products, formData.category);
 
   if (!post) {
     return (
@@ -1034,7 +1095,7 @@ export function PostEditScreen() {
       return;
     }
 
-    const selectedProduct = mockProducts.find((product) => product.productId === formData.productId);
+    const selectedProduct = products.find((product) => product.productId === formData.productId);
     setSubmitting(true);
     const result = await updatePost({
       postId: post.id,
@@ -1091,7 +1152,7 @@ export function PostEditScreen() {
           <View style={{ gap: 8 }}>
             <Text style={styles.fieldLabel}>카테고리</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-              {categoryOptions.filter((category) => category.id !== 'all').map((category) => {
+              {categories.map((category) => {
                 const active = formData.category === category.id;
                 return (
                   <Pressable
@@ -1109,7 +1170,7 @@ export function PostEditScreen() {
           <View style={{ gap: 8 }}>
             <Text style={styles.fieldLabel}>하위 품목</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-              {productsForCategory(formData.category).map((product) => {
+              {categoryProducts.map((product) => {
                 const active = formData.productId === product.productId;
                 return (
                   <Pressable
@@ -1123,6 +1184,13 @@ export function PostEditScreen() {
                 );
               })}
             </ScrollView>
+            {catalogLoading ? (
+              <Text style={styles.sectionDescription}>상품 목록을 불러오는 중입니다.</Text>
+            ) : catalogError ? (
+              <Text style={styles.errorText}>{catalogError}</Text>
+            ) : formData.category && !categoryProducts.length ? (
+              <Text style={styles.sectionDescription}>등록된 하위 품목이 없습니다.</Text>
+            ) : null}
             {errors.productId ? <Text style={styles.errorText}>{errors.productId}</Text> : null}
           </View>
 

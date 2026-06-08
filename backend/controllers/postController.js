@@ -38,16 +38,6 @@ const CATEGORY_PRODUCT_ID_MAP = {
   other: 106,
   "기타": 106,
 };
-const MOCK_PRODUCT_ID_MAP = {
-  product_1: 1,
-  product_2: 51,
-  product_3: 51,
-  product_4: 106,
-  product_5: 2,
-  product_6: 91,
-  product_7: 51,
-  product_8: 2,
-};
 const ALLOWED_ITEM_CONDITIONS = new Set([
   "새상품",
   "사용감 적음",
@@ -100,12 +90,6 @@ const parseNumericId = (value) => {
 
 const resolveProductId = async (connection, productId, category) => {
   const normalizedProductId = String(productId || "").trim();
-  const mappedMockProductId = MOCK_PRODUCT_ID_MAP[normalizedProductId];
-
-  if (mappedMockProductId) {
-    return mappedMockProductId;
-  }
-
   const directProductId = parseNumericId(productId);
 
   if (directProductId) {

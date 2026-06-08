@@ -34,6 +34,7 @@ const deviceRoutes = require("./routes/device");
 const notificationsRoutes = require("./routes/notifications");
 const policiesRoutes = require("./routes/policies");
 const wantedRoutes = require("./routes/wanted");
+const productsRoutes = require("./routes/products");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/members", membersRoutes);
@@ -44,6 +45,7 @@ app.use("/api/device", deviceRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/policies", policiesRoutes);
 app.use("/api/wanted", wantedRoutes);
+app.use("/api/products", productsRoutes);
 
 
 // ==========================================
