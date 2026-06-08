@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -46,6 +47,41 @@ function formatMeetingDate(date: Date) {
 
 function formatMeetingTime(hour: number, minute: number) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function parseMeetingPlaceMessage(text: string) {
+  const lines = text.split("\n").map((line) => line.trim());
+  const placeLine = lines.find((line) => line.startsWith("약속장소 제안:"));
+  const dateLine = lines.find((line) => line.startsWith("날짜:"));
+  const timeLine = lines.find((line) => line.startsWith("시간:"));
+  const coordLine = lines.find((line) => line.startsWith("좌표:"));
+
+  if (!placeLine || !coordLine) {
+    return null;
+  }
+
+  const [latitudeText, longitudeText] = coordLine
+    .replace("좌표:", "")
+    .split(",")
+    .map((value) => value.trim());
+  const latitude = Number(latitudeText);
+  const longitude = Number(longitudeText);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return {
+    place: placeLine.replace("약속장소 제안:", "").trim(),
+    date: dateLine?.replace("날짜:", "").trim() ?? "",
+    time: timeLine?.replace("시간:", "").trim() ?? "",
+    latitude,
+    longitude,
+  };
+}
+
+function buildKakaoPlaceUrl(place: string, latitude: number, longitude: number) {
+  return `https://map.kakao.com/link/map/${encodeURIComponent(place)},${latitude},${longitude}`;
 }
 
 function buildCalendarDays(monthDate: Date) {
@@ -123,6 +159,9 @@ export function ChatRoomScreen() {
   const [plusOpen, setPlusOpen] = useState(false);
   const [meetingPlaceOpen, setMeetingPlaceOpen] = useState(false);
   const [meetingPlace, setMeetingPlace] = useState<NeighborhoodLocation | null>(null);
+  const [viewingMeetingPlace, setViewingMeetingPlace] = useState<ReturnType<
+    typeof parseMeetingPlaceMessage
+  > | null>(null);
   const [meetingDate, setMeetingDate] = useState(() => startOfDay(new Date()));
   const [calendarMonth, setCalendarMonth] = useState(() => startOfDay(new Date()));
   const [meetingHour, setMeetingHour] = useState(14);
@@ -285,32 +324,84 @@ export function ChatRoomScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {messages.map((item, index) => (
-          <View
-            key={`${item.id ?? item.messageId ?? "message"}-${index}`}
-            style={[
-              styles.messageBubble,
-              item.sender === "me" ? styles.messageMine : styles.messageOther,
-            ]}
-          >
-            <Text
+        {messages.map((item, index) => {
+          const meeting = parseMeetingPlaceMessage(item.text);
+
+          if (meeting) {
+            return (
+              <View
+                key={`${item.id ?? item.messageId ?? "message"}-${index}`}
+                style={[
+                  styles.meetingMessageWrap,
+                  item.sender === "me"
+                    ? styles.meetingMessageMine
+                    : styles.meetingMessageOther,
+                ]}
+              >
+                <Pressable
+                  style={styles.meetingMessageCard}
+                  onPress={() => setViewingMeetingPlace(meeting)}
+                >
+                  <View style={styles.meetingMessageIcon}>
+                    <Ionicons name="location" size={18} color={colors.brand} />
+                  </View>
+                  <View style={styles.meetingMessageBody}>
+                    <Text style={styles.meetingMessageLabel}>약속장소</Text>
+                    <Text style={styles.meetingMessageTitle} numberOfLines={2}>
+                      {meeting.place}
+                    </Text>
+                    <Text style={styles.meetingMessageMeta}>
+                      {[meeting.date, meeting.time].filter(Boolean).join(" ")}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={colors.textLight}
+                  />
+                </Pressable>
+                <Text style={styles.meetingMessageHint}>
+                  눌러서 약속장소 보기
+                </Text>
+                <Text
+                  style={[
+                    styles.messageTime,
+                    item.sender === "me" && styles.messageTimeMine,
+                  ]}
+                >
+                  {item.timeLabel}
+                </Text>
+              </View>
+            );
+          }
+
+          return (
+            <View
+              key={`${item.id ?? item.messageId ?? "message"}-${index}`}
               style={[
-                styles.messageText,
-                item.sender === "me" && styles.messageTextMine,
+                styles.messageBubble,
+                item.sender === "me" ? styles.messageMine : styles.messageOther,
               ]}
             >
-              {item.text}
-            </Text>
-            <Text
-              style={[
-                styles.messageTime,
-                item.sender === "me" && styles.messageTimeMine,
-              ]}
-            >
-              {item.timeLabel}
-            </Text>
-          </View>
-        ))}
+              <Text
+                style={[
+                  styles.messageText,
+                  item.sender === "me" && styles.messageTextMine,
+                ]}
+              >
+                {item.text}
+              </Text>
+              <Text
+                style={[
+                  styles.messageTime,
+                  item.sender === "me" && styles.messageTimeMine,
+                ]}
+              >
+                {item.timeLabel}
+              </Text>
+            </View>
+          );
+        })}
       </ScrollView>
 
       <View style={styles.chatComposer}>
@@ -374,7 +465,8 @@ export function ChatRoomScreen() {
         <Text style={styles.modalTitle}>채팅방 메뉴</Text>
 
         <Pressable
-          style={styles.menuAction}
+          disabled={isLeaving}
+          style={[styles.menuAction, isLeaving && { opacity: 0.5 }]}
           onPress={() => {
             setMenuOpen(false);
             setRatingOpen(true);
@@ -455,7 +547,7 @@ export function ChatRoomScreen() {
         >
           <Ionicons name="exit-outline" size={20} color={colors.danger} />
           <Text style={[styles.menuActionText, { color: colors.danger }]}>
-            채팅방 나가기
+            {isLeaving ? "나가는 중" : "채팅방 나가기"}
           </Text>
         </Pressable>
 
@@ -659,6 +751,67 @@ export function ChatRoomScreen() {
             />
           </View>
         </ScrollView>
+      </AppModal>
+
+      <AppModal
+        visible={Boolean(viewingMeetingPlace)}
+        onClose={() => setViewingMeetingPlace(null)}
+      >
+        {viewingMeetingPlace ? (
+          <View style={styles.meetingModalContent}>
+            <Text style={styles.modalTitle}>약속장소</Text>
+            <View style={styles.meetingPlaceSummary}>
+              <Ionicons name="location" size={18} color={colors.brand} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.meetingPlaceTitle}>
+                  {viewingMeetingPlace.place}
+                </Text>
+                <Text style={styles.meetingPlaceCoords}>
+                  {[viewingMeetingPlace.date, viewingMeetingPlace.time]
+                    .filter(Boolean)
+                    .join(" ")}
+                </Text>
+              </View>
+            </View>
+            <KakaoMapPreview
+              location={{
+                id: "shared_meeting_place",
+                city: "",
+                district: "",
+                neighborhood: viewingMeetingPlace.place,
+                dongName: viewingMeetingPlace.place,
+                fullAddress: viewingMeetingPlace.place,
+                latitude: viewingMeetingPlace.latitude,
+                longitude: viewingMeetingPlace.longitude,
+                radiusKm: 5,
+              }}
+              onLocationChange={() => undefined}
+              moveMarkerOnMapInteraction={false}
+              moveMarkerOnMapDragEnd={false}
+            />
+            <View style={styles.modalButtonRow}>
+              <AppButton
+                label="닫기"
+                variant="secondary"
+                onPress={() => setViewingMeetingPlace(null)}
+                style={{ flex: 1 }}
+              />
+              <AppButton
+                label="카카오맵 열기"
+                onPress={() =>
+                  Linking.openURL(
+                    buildKakaoPlaceUrl(
+                      viewingMeetingPlace.place,
+                      viewingMeetingPlace.latitude,
+                      viewingMeetingPlace.longitude,
+                    ),
+                  )
+                }
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        ) : null}
       </AppModal>
 
       <AppModal visible={profileOpen} onClose={() => setProfileOpen(false)}>
@@ -943,6 +1096,62 @@ const styles = StyleSheet.create({
   },
   messageTimeMine: {
     color: "#dbeafe",
+  },
+  meetingMessageWrap: {
+    maxWidth: "86%",
+    gap: 6,
+  },
+  meetingMessageMine: {
+    alignSelf: "flex-end",
+    alignItems: "flex-end",
+  },
+  meetingMessageOther: {
+    alignSelf: "flex-start",
+    alignItems: "flex-start",
+  },
+  meetingMessageCard: {
+    width: 270,
+    maxWidth: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  meetingMessageIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brandSoft,
+  },
+  meetingMessageBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  meetingMessageLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.brand,
+  },
+  meetingMessageTitle: {
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  meetingMessageMeta: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  meetingMessageHint: {
+    fontSize: 11,
+    color: colors.textLight,
   },
   chatComposer: {
     position: "absolute",
