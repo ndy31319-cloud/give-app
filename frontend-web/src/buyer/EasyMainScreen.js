@@ -13,10 +13,14 @@ function EasyMainScreen() {
 
   const categories = [
     { id: 'all', name: '전체' },
-    { id: 'digital', name: '가전' },
-    { id: 'fashion', name: '의류' },
+    { id: 'clothing', name: '의류' },
+    { id: 'electronics', name: '전자제품' },
     { id: 'furniture', name: '가구' },
-    { id: 'book', name: '도서' },
+    { id: 'books', name: '도서' },
+    { id: 'household', name: '생활용품' },
+    { id: 'baby', name: '육아용품' },
+    { id: 'kitchen', name: '주방용품' },
+    { id: 'digital', name: '디지털기기' },
   ];
 
   useEffect(() => {
@@ -49,9 +53,24 @@ function EasyMainScreen() {
     };
   }, []);
 
+  const normalizeCategory = (category) => {
+    const categoryMap = {
+      fashion: 'clothing',
+      clothes: 'clothing',
+      book: 'books',
+      daily: 'household',
+      '패션/의류': 'clothing',
+      '디지털/가전': 'electronics',
+      '가전': 'electronics',
+      '가구/인테리어': 'furniture',
+    };
+
+    return categoryMap[category] || category;
+  };
+
   const filteredItems = selectedCategory === 'all'
     ? items
-    : items.filter((item) => item.category === selectedCategory);
+    : items.filter((item) => normalizeCategory(item.category) === selectedCategory);
 
   const pageCount = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
   const pageItems = filteredItems.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
@@ -117,12 +136,12 @@ function EasyMainScreen() {
         </div>
       </div>
 
-      <div className="px-10 py-5 bg-white border-b-4 border-gray-200 flex gap-5 shadow-sm shrink-0">
+      <div className="px-8 py-4 bg-white border-b-4 border-gray-200 grid grid-cols-9 gap-3 shadow-sm shrink-0">
         {categories.map((category) => (
           <button
             key={category.id}
             onClick={() => setSelectedCategory(category.id)}
-            className={`flex-1 py-5 rounded-[34px] text-[42px] font-bold border-4 transition-all ${
+            className={`h-[78px] rounded-[26px] text-[25px] font-bold border-4 transition-all break-keep ${
               selectedCategory === category.id
                 ? 'bg-[#0047FF] text-white border-[#0047FF] shadow-md'
                 : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100'

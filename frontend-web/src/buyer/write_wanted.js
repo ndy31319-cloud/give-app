@@ -43,10 +43,10 @@ function WriteWanted() {
 
   return (
     <div
-      className="p-8 flex justify-center bg-[#F8F9FA] min-h-screen"
+      className="easy-write-scroll h-screen overflow-y-auto p-8 flex justify-center bg-[#F8F9FA]"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
     >
-      <div className="w-full max-w-2xl bg-white shadow-xl p-10 rounded-[40px] border border-gray-100">
+      <div className="w-full max-w-2xl h-fit mb-8 bg-white shadow-xl p-10 rounded-[40px] border border-gray-100">
         <header className="mb-12 flex items-center gap-4">
           <button
             type="button"
