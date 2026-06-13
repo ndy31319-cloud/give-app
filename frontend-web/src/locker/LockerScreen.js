@@ -54,6 +54,7 @@ function LockerScreen() {
   const donationTitle = useMemo(() => {
     return status.donation?.title || status.session?.displayCode || '보관함 입고 QR';
   }, [status.donation, status.session]);
+  const showDeviceStatus = Boolean(status.token) && status.step !== 'error';
 
   const stopScanner = async () => {
     const scanner = scannerRef.current;
@@ -299,6 +300,13 @@ function LockerScreen() {
             </div>
           </div>
 
+          {!showDeviceStatus ? (
+            <div className="rounded-[26px] bg-[#F3F6F1] px-8 py-7 flex gap-5 items-start mt-8">
+              <span className="w-12 h-12 rounded-full bg-[#2E8B57] text-white flex items-center justify-center text-[30px] font-black">i</span>
+              <p className="text-[30px] leading-snug">{status.message}</p>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-6 mt-8">
             <button
               type="button"
@@ -319,6 +327,7 @@ function LockerScreen() {
           </div>
         </section>
 
+        {showDeviceStatus ? (
         <section className="bg-white border border-[#E2E8DE] rounded-[36px] p-10 shadow-sm">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-[40px] font-black">디바이스 진행 상태</h2>
@@ -350,15 +359,6 @@ function LockerScreen() {
             <p className="text-[30px] leading-snug">{status.message}</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 mb-8">
-            <div className="h-[94px] rounded-[26px] bg-[#F3F6F1] flex items-center justify-center text-[30px] font-black text-[#17211B]">
-              {status.lockerOpen ? '잠금 해제' : '잠금 유지'}
-            </div>
-            <div className="h-[94px] rounded-[26px] bg-[#F3F6F1] flex items-center justify-center text-[30px] font-black text-[#17211B]">
-              {status.itemDetected ? '감지 완료' : '감지 대기'}
-            </div>
-          </div>
-
           <button
             type="button"
             onClick={handleItemDetected}
@@ -376,6 +376,7 @@ function LockerScreen() {
             시뮬레이터 초기화
           </button>
         </section>
+        ) : null}
       </main>
     </div>
   );
