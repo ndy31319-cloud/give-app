@@ -804,6 +804,7 @@ export const dynamicQrAPI = {
     purpose: DynamicQrPurpose = "donation_access",
     ttlSeconds = defaultDynamicQrTtlSeconds,
     authToken?: string,
+    donateId?: string | number | null,
   ): ApiResult<DynamicQrSession | null> {
     const backendResult = await requestEnvelope<any>(
       backendConfig.endpoints.dynamicQrIssue,
@@ -812,7 +813,7 @@ export const dynamicQrAPI = {
         headers: buildAuthHeaders(authToken, {
           "Content-Type": "application/json",
         }),
-        body: JSON.stringify({ memberId, purpose, ttlSeconds }),
+        body: JSON.stringify({ memberId, purpose, ttlSeconds, donateId }),
       },
     );
 
@@ -851,6 +852,7 @@ export const dynamicQrAPI = {
     const createdSession: DynamicQrSession = {
       id: `dynamic_qr_${issuedAtMs}`,
       memberId,
+      donateId: donateId !== undefined && donateId !== null ? String(donateId) : null,
       purpose,
       token: buildDynamicQrToken(memberId, purpose, issuedAtMs, expiresAtMs),
       displayCode: buildDynamicQrDisplayCode(memberId, purpose, issuedAtMs),

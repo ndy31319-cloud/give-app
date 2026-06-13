@@ -27,8 +27,12 @@ export function getQrStatusLabel(status: DynamicQrStatus) {
 }
 
 export function getQrPurposeLabel(purpose: DynamicQrPurpose) {
-  if (purpose === 'pickup_access') {
+  if (purpose === 'pickup_access' || purpose === 'pickup_auth') {
     return '수령 인증';
+  }
+
+  if (purpose === 'donation_storage') {
+    return '보관함 입고 인증';
   }
 
   return '기부함 인증';

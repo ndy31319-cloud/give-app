@@ -17,11 +17,26 @@ const toIsoString = (value) => {
 };
 
 const normalizePurpose = (purpose) => {
-  if (purpose === "pickup_access") {
-    return "pickup_access";
+  if (purpose === "pickup_auth" || purpose === "pickup_access") {
+    return "pickup_auth";
   }
 
-  return "donation_access";
+  if (purpose === "donation_storage") {
+    return "donation_storage";
+  }
+
+  return "kiosk_login";
+};
+
+const parsePositiveInteger = (value) => {
+  const normalizedValue = String(value || "").trim();
+
+  if (!/^\d+$/.test(normalizedValue)) {
+    return null;
+  }
+
+  const parsed = Number(normalizedValue);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
 const normalizeTtl = (rawValue) => {
@@ -43,6 +58,8 @@ const toResponseSession = (session) => ({
   id: session.id,
   memberId: session.memberId,
   member_id: session.memberId,
+  donateId: session.donateId,
+  donate_id: session.donateId,
   purpose: session.purpose,
   token: session.token,
   displayCode: session.displayCode,
@@ -192,20 +209,34 @@ router.post("/qr/kiosk-login", requireKioskAccess, async (req, res) => {
 router.post("/qr/issue", authenticateToken, async (req, res) => {
   const memberId = String(req.body.memberId || req.body.member_id || getMemberId(req));
   const purpose = normalizePurpose(req.body.purpose);
+  const donateId = parsePositiveInteger(req.body.donateId || req.body.donate_id);
   const ttlSeconds = normalizeTtl(req.body.ttlSeconds || req.body.ttl_seconds);
   const issuedAtMs = Date.now();
   const expiresAtMs = issuedAtMs + ttlSeconds * 1000;
 
+  if (purpose === "donation_storage" && !donateId) {
+    return res.status(400).json({
+      success: false,
+      message: "Donation storage QR requires a donateId.",
+    });
+  }
+
   for (const session of sessionsByToken.values()) {
-    if (session.memberId === memberId && session.purpose === purpose && session.status === "active") {
+    if (
+      session.memberId === memberId &&
+      session.purpose === purpose &&
+      session.donateId === donateId &&
+      session.status === "active"
+    ) {
       session.status = "expired";
     }
   }
 
-  const token = `give|${purpose}|${memberId}|${issuedAtMs}|${expiresAtMs}|${crypto.randomUUID()}`;
+  const token = ["give", purpose, memberId, donateId || "none", issuedAtMs, expiresAtMs, crypto.randomUUID()].join("|");
   const session = {
     id: `qr_${issuedAtMs}`,
     memberId,
+    donateId,
     purpose,
     token,
     displayCode: buildDisplayCode(),
@@ -216,20 +247,43 @@ router.post("/qr/issue", authenticateToken, async (req, res) => {
     usedAt: null,
   };
 
-  sessionsByToken.set(token, session);
-
   try {
+    if (purpose === "donation_storage") {
+      const [donateRows] = await db.query(
+        `SELECT donate_id, member_id, status
+         FROM ITEM_DONATE
+         WHERE donate_id = ? AND member_id = ?
+         LIMIT 1`,
+        [donateId, memberId],
+      );
+
+      if (donateRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Selected donation post was not found.",
+        });
+      }
+
+      if (["completed", "canceled", "stored"].includes(donateRows[0].status)) {
+        return res.status(409).json({
+          success: false,
+          message: "Selected donation post is already closed or stored.",
+        });
+      }
+    }
+
     await db.query(
       `UPDATE DYNAMIC_QR
        SET status = 'expired'
-       WHERE member_id = ? AND purpose = ? AND status = 'active'`,
-      [memberId, purpose],
+       WHERE member_id = ? AND purpose = ? AND status = 'active'
+         AND (donate_id <=> ?)`,
+      [memberId, purpose, donateId],
     );
     const [result] = await db.query(
       `INSERT INTO DYNAMIC_QR
-        (member_id, purpose, token, display_code, status, ttl_seconds, issued_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [memberId, purpose, token, session.displayCode, session.status, ttlSeconds, new Date(issuedAtMs), new Date(expiresAtMs)],
+        (member_id, donate_id, purpose, token, display_code, status, ttl_seconds, issued_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [memberId, donateId, purpose, token, session.displayCode, session.status, ttlSeconds, new Date(issuedAtMs), new Date(expiresAtMs)],
     );
 
     session.id = String(result.insertId);
@@ -238,21 +292,23 @@ router.post("/qr/issue", authenticateToken, async (req, res) => {
       console.error("Issue QR DB error:", error);
       return res.status(500).json({
         success: false,
-        message: "동적 QR 발급에 실패했습니다.",
+        message: "Dynamic QR issue failed.",
       });
     }
   }
 
+  sessionsByToken.set(token, session);
+
   return res.status(201).json({
     success: true,
     data: toResponseSession(session),
-    message: "동적 QR을 발급했습니다.",
+    message: "Dynamic QR issued.",
   });
 });
 
 const loadDbQrSession = async (token) => {
   const [rows] = await db.query(
-    `SELECT qr_id, member_id, purpose, token, display_code, status,
+    `SELECT qr_id, member_id, donate_id, purpose, token, display_code, status,
             issued_at, expires_at, used_at, ttl_seconds
      FROM DYNAMIC_QR
      WHERE token = ?
@@ -268,6 +324,7 @@ const loadDbQrSession = async (token) => {
   const session = {
     id: String(row.qr_id),
     memberId: String(row.member_id),
+    donateId: row.donate_id ? String(row.donate_id) : null,
     purpose: row.purpose,
     token: row.token,
     displayCode: row.display_code,
@@ -385,6 +442,15 @@ router.post("/qr/consume", authenticateToken, async (req, res) => {
       "UPDATE DYNAMIC_QR SET status = 'used', used_at = NOW() WHERE token = ?",
       [token],
     );
+
+    if (session.purpose === "donation_storage" && session.donateId) {
+      await db.query(
+        `UPDATE ITEM_DONATE
+         SET status = 'stored', updated_at = NOW()
+         WHERE donate_id = ? AND member_id = ?`,
+        [session.donateId, session.memberId],
+      );
+    }
   } catch (error) {
     if (error?.code !== "ER_NO_SUCH_TABLE") {
       console.error("Consume QR update DB error:", error);

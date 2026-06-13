@@ -1,4 +1,10 @@
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://give-app.onrender.com';
+
+export const KIOSK_DEFAULT_LOCATION = {
+  dongName: '안양동',
+  latitude: 37.3798657,
+  longitude: 126.9288104,
+};
 
 function getToken() {
   return localStorage.getItem('givegive_access_token');
@@ -69,13 +75,22 @@ export async function fetchPosts(params = {}) {
   return request(`/api/posts${query ? `?${query}` : ''}`);
 }
 
+export function getSavedUserDongName() {
+  try {
+    const user = JSON.parse(localStorage.getItem('givegive_user') || 'null');
+    return user?.dongName || user?.dong_name || user?.location?.dongName || KIOSK_DEFAULT_LOCATION.dongName;
+  } catch {
+    return KIOSK_DEFAULT_LOCATION.dongName;
+  }
+}
+
 export async function fetchPost(postId, type) {
   const query = type ? `?type=${encodeURIComponent(type)}` : '';
   return request(`/api/posts/${postId}${query}`);
 }
 
-export async function fetchWantedPosts() {
-  const posts = await fetchPosts();
+export async function fetchWantedPosts(params = {}) {
+  const posts = await fetchPosts(params);
   const items = posts.content || posts.posts || posts || [];
   return items.filter((item) => (item.post_type || item.postType || item.type) === 'request');
 }

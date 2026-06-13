@@ -1,4 +1,22 @@
-### 2026-06-09
+﻿### 2026-06-13
+
+- 웹키오스크 API 연결과 동네 기반 조회 흐름을 정리했다.
+  - `frontend-web/src/api/client.js`의 기본 API 주소를 Render 백엔드 `https://give-app.onrender.com`로 변경했다.
+  - 웹키오스크 기본 위치를 성결대학교 시연 기준 `안양동` 및 좌표 `37.3798657, 126.9288104`로 잡았다.
+  - 웹키오스크 물품 목록/쉬운모드/요청 목록이 저장된 사용자 동네 또는 기본 `안양동` 기준으로 `/api/posts?dongName=...`를 호출하도록 연결했다.
+  - 백엔드 `/api/posts` 목록 조회가 `dongName`, `dong_name`, `neighborhood`, `location` 쿼리를 받아 해당 동네 게시글만 반환하도록 보강했다.
+  - 로컬 웹키오스크 개발 주소 `localhost:3000`, `127.0.0.1:3000`을 백엔드 CORS 기본 허용 목록에 추가했다.
+- 물품보관함용 동적 QR을 게시글 기반 흐름으로 변경했다.
+  - 기존 QR 화면의 자동 발급을 제거하고, 본인이 작성한 `나눔해요` 게시글을 먼저 선택한 뒤 QR을 발급하도록 앱 화면을 수정했다.
+  - 앱 QR 발급 요청에 `purpose: donation_storage`와 선택한 `donateId`를 포함하도록 연결했다.
+  - `DynamicQrSession`에 `donateId`를 포함하고, 백엔드 응답 매핑과 로컬 fallback 세션에도 반영했다.
+  - 백엔드 `/api/device/qr/issue`가 `donation_storage` 목적일 때 `donate_id`를 필수로 검증하고, 선택한 나눔 게시글이 현재 로그인 회원의 게시글인지 확인하도록 보강했다.
+  - `DYNAMIC_QR` 저장 시 `donate_id`를 함께 기록하고, 같은 회원/목적/게시글의 기존 active QR은 만료 처리하도록 했다.
+  - QR 사용 완료 시 `DYNAMIC_QR.status = used`로 변경하고, 연결된 `ITEM_DONATE.status`를 `stored`로 갱신하도록 했다.
+- 검증
+  - `node --check backend/routes/device.js` 통과.
+  - `frontend-web` production build 통과.
+  - `frontend-app`의 `npx tsc --noEmit`은 기존 `chat.tsx messageId`, `backendClient.ts latitude undefined` 타입 오류로 실패했다. QR 변경분에서 새 타입 오류는 확인되지 않았다.`r`n`r`n### 2026-06-09
 
 - 채팅 메시지 전송 흐름을 중복 전송이 생기지 않도록 정리했다.
   - `sendMessage` 성공 후 프론트 상태에 메시지를 직접 한 번 더 추가하던 처리를 제거했다.
@@ -464,3 +482,4 @@
 - `.env`, Firebase service account JSON, `ca.pem` ??濡쒖뺄 誘쇨컧 ?뚯씪??Git?먯꽌 ?쒖쇅?섎뒗 諛⑺뼢?쇰줈 ?뺣━?덈떎.
 - ??먯씠 `git pull`, `git clone`, ZIP ?ㅼ슫濡쒕뱶 以??대뼡 諛⑹떇?쇰줈 理쒖떊 肄붾뱶瑜?諛쏆븘???섎뒗吏 ?덈궡?덈떎.
 - Git 誘몄꽕移? ZIP ?대뜑??`.git`???녿뒗 寃쎌슦, `ca.pem` ?꾨씫?쇰줈 諛깆뿏?쒓? ?ㅽ뻾?섏? ?딅뒗 寃쎌슦瑜?媛곴컖 ?뺣━?덈떎.
+

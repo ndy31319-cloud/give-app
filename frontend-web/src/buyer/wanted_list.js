@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWantedPosts } from '../api/client';
+import { fetchWantedPosts, getSavedUserDongName } from '../api/client';
 
 function WantedList() {
   const navigate = useNavigate();
@@ -13,7 +13,8 @@ function WantedList() {
     async function loadWantedPosts() {
       try {
         setIsLoading(true);
-        const data = await fetchWantedPosts();
+        const dongName = getSavedUserDongName();
+        const data = await fetchWantedPosts(dongName ? { dongName } : {});
         const nextItems = data.content || data.posts || data || [];
 
         if (!ignore) {

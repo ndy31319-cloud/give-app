@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchPosts } from '../api/client';
+import { fetchPosts, getSavedUserDongName } from '../api/client';
 
 const PAGE_SIZE = 4;
 
@@ -25,7 +25,8 @@ function EasyMainScreen() {
     async function loadPosts() {
       try {
         setIsLoading(true);
-        const data = await fetchPosts();
+        const dongName = getSavedUserDongName();
+        const data = await fetchPosts(dongName ? { dongName } : {});
         const nextItems = data.content || data.posts || data || [];
 
         if (!ignore) {

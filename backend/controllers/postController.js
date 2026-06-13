@@ -19,27 +19,27 @@ const DEFAULT_PRODUCT_ID = 51;
 const CATEGORY_PRODUCT_ID_MAP = {
   clothing: 1,
   clothes: 1,
-  "의류": 1,
+  의류: 1,
   electronics: 2,
   electronic: 2,
   digital: 2,
-  "전자제품": 2,
-  "디지털": 2,
-  "디지털기기": 2,
+  전자제품: 2,
+  디지털: 2,
+  디지털기기: 2,
   household: 51,
   kitchen: 51,
   baby: 51,
-  "생활용품": 51,
-  "주방용품": 51,
-  "육아용품": 51,
+  생활용품: 51,
+  주방용품: 51,
+  육아용품: 51,
   furniture: 91,
-  "가구": 91,
+  가구: 91,
   books: 106,
   book: 106,
-  "도서": 106,
+  도서: 106,
   "도서/문구": 106,
   other: 106,
-  "기타": 106,
+  기타: 106,
 };
 const ALLOWED_ITEM_CONDITIONS = new Set([
   "새상품",
@@ -146,11 +146,12 @@ const getUploadedImages = (req) => {
 const isCloudinaryConfigured = () =>
   Boolean(
     process.env.CLOUDINARY_CLOUD_NAME &&
-      process.env.CLOUDINARY_API_KEY &&
-      process.env.CLOUDINARY_API_SECRET,
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET,
   );
 
-const isFirebaseStorageConfigured = () => Boolean(process.env.FIREBASE_STORAGE_BUCKET);
+const isFirebaseStorageConfigured = () =>
+  Boolean(process.env.FIREBASE_STORAGE_BUCKET);
 
 const buildFirebaseDownloadUrl = (bucketName, destination, token) =>
   `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(destination)}?alt=media&token=${token}`;
@@ -161,9 +162,14 @@ const uploadImagesToFirebaseStorage = async (imageFiles) => {
   return Promise.all(
     imageFiles.map(async (file) => {
       const token = crypto.randomUUID();
-      const ext = path.extname(file.originalname || file.filename || "") || ".jpg";
-      const rawBaseName = path.basename(file.originalname || file.filename || "post-image", ext);
-      const safeBaseName = rawBaseName.replace(/[^\w.-]+/g, "-").slice(0, 60) || "post-image";
+      const ext =
+        path.extname(file.originalname || file.filename || "") || ".jpg";
+      const rawBaseName = path.basename(
+        file.originalname || file.filename || "post-image",
+        ext,
+      );
+      const safeBaseName =
+        rawBaseName.replace(/[^\w.-]+/g, "-").slice(0, 60) || "post-image";
       const destination = `give-app/posts/${Date.now()}-${crypto.randomUUID()}-${safeBaseName}${ext}`;
 
       await bucket.upload(file.path, {
@@ -192,7 +198,11 @@ const removeLocalUploadedFiles = async (imageFiles) => {
         await fs.promises.unlink(file.path);
       } catch (error) {
         if (error.code !== "ENOENT") {
-          console.warn("Uploaded temp file cleanup failed:", file.path, error.message);
+          console.warn(
+            "Uploaded temp file cleanup failed:",
+            file.path,
+            error.message,
+          );
         }
       }
     }),
@@ -209,8 +219,12 @@ const uploadPostImages = async (imageFiles) => {
   }
 
   if (!isCloudinaryConfigured()) {
-    console.warn("Cloudinary is not configured. Falling back to local upload paths.");
-    return imageFiles.map((file) => `/uploads/${file.filename || file.path.split(/[\\/]/).pop()}`);
+    console.warn(
+      "Cloudinary is not configured. Falling back to local upload paths.",
+    );
+    return imageFiles.map(
+      (file) => `/uploads/${file.filename || file.path.split(/[\\/]/).pop()}`,
+    );
   }
 
   const uploadedImages = await Promise.all(
@@ -306,7 +320,8 @@ const analyzeImagesWithAI = async (imageFiles) => {
         : [],
       ai_generated_post: aiGeneratedPost,
       confidence: aiResult.confidence ?? null,
-      ai_guess: aiResult.ai_guess || suggestedTitle || aiResult.category || null,
+      ai_guess:
+        aiResult.ai_guess || suggestedTitle || aiResult.category || null,
       ai_message: aiResult.message || aiGeneratedPost || null,
       raw_ai_result: aiResult,
     });
@@ -315,7 +330,13 @@ const analyzeImagesWithAI = async (imageFiles) => {
   return results;
 };
 
-const insertPostImages = async (connection, tableName, idColumn, postId, imageUrls) => {
+const insertPostImages = async (
+  connection,
+  tableName,
+  idColumn,
+  postId,
+  imageUrls,
+) => {
   if (!imageUrls.length) {
     return;
   }
@@ -353,6 +374,13 @@ const normalizeUploadUrl = (req, imageUrl) => {
 
 const getAllPosts = async (req, res) => {
   try {
+    const requestedDongName = String(
+      req.query.dongName ||
+        req.query.dong_name ||
+        req.query.neighborhood ||
+        req.query.location ||
+        "",
+    ).trim();
     const sql = `
       SELECT
         d.donate_id AS post_id,
@@ -475,10 +503,16 @@ const getAllPosts = async (req, res) => {
       };
     });
 
-    return res.status(200).json(posts);
+    const filteredPosts = requestedDongName
+      ? posts.filter((post) => post.dong_name === requestedDongName)
+      : posts;
+
+    return res.status(200).json(filteredPosts);
   } catch (error) {
     console.error("게시글 목록 조회 오류:", error);
-    return res.status(500).json({ message: "게시글 목록을 불러오지 못했습니다." });
+    return res
+      .status(500)
+      .json({ message: "게시글 목록을 불러오지 못했습니다." });
   }
 };
 
@@ -491,7 +525,9 @@ const analyzeImage = async (req, res) => {
 
   try {
     const analysisResults = await analyzeImagesWithAI(imageFiles);
-    const dangerousImages = analysisResults.filter((image) => image.is_dangerous);
+    const dangerousImages = analysisResults.filter(
+      (image) => image.is_dangerous,
+    );
 
     if (dangerousImages.length > 0) {
       return res.status(400).json({
@@ -531,7 +567,8 @@ const analyzeImage = async (req, res) => {
   } catch (error) {
     if (isAiConnectionError(error)) {
       return res.status(503).json({
-        message: "AI 서버에 연결할 수 없습니다. AI 서버 실행 상태를 확인해주세요.",
+        message:
+          "AI 서버에 연결할 수 없습니다. AI 서버 실행 상태를 확인해주세요.",
       });
     }
 
@@ -546,8 +583,11 @@ const createPost = async (req, res) => {
   const connection = await db.getConnection();
 
   try {
-    const { title, content, item_name, item_condition, product_id, category } = req.body;
-    const createdFromValue = String(req.body.createdFrom || req.body.created_from || "app")
+    const { title, content, item_name, item_condition, product_id, category } =
+      req.body;
+    const createdFromValue = String(
+      req.body.createdFrom || req.body.created_from || "app",
+    )
       .trim()
       .toLowerCase();
     const createdFrom = createdFromValue === "web" ? "web" : "app";
@@ -556,7 +596,11 @@ const createPost = async (req, res) => {
     const imageFiles = getUploadedImages(req);
     let uploadedImageUrls = [];
     const normalizedItemCondition = normalizeItemCondition(item_condition);
-    const normalizedProductId = await resolveProductId(connection, product_id, category);
+    const normalizedProductId = await resolveProductId(
+      connection,
+      product_id,
+      category,
+    );
 
     if (role_id !== ROLE_GENERAL && role_id !== ROLE_VULNERABLE) {
       return res.status(403).json({ message: "게시글 작성 권한이 없습니다." });
@@ -616,7 +660,16 @@ const createPost = async (req, res) => {
       const [postResult] = await connection.query(
         `INSERT INTO ITEM_REQUEST (member_id, title, content, dong_name, latitude, longitude, status, created_from)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [member_id, title, content || null, dong_name, latitude, longitude, "open", createdFrom],
+        [
+          member_id,
+          title,
+          content || null,
+          dong_name,
+          latitude,
+          longitude,
+          "open",
+          createdFrom,
+        ],
       );
 
       postId = postResult.insertId;
@@ -705,13 +758,23 @@ const getPostDetail = async (req, res) => {
     });
   } catch (error) {
     console.error("게시글 상세 조회 오류:", error);
-    return res.status(500).json({ message: "게시글 상세 정보를 불러오지 못했습니다." });
+    return res
+      .status(500)
+      .json({ message: "게시글 상세 정보를 불러오지 못했습니다." });
   }
 };
 
 const updatePost = async (req, res) => {
   const postId = req.params.id;
-  const { title, content, item_name, item_condition, product_id, category, status } = req.body;
+  const {
+    title,
+    content,
+    item_name,
+    item_condition,
+    product_id,
+    category,
+    status,
+  } = req.body;
   const postType =
     req.query.type ||
     req.body.post_type ||
@@ -725,7 +788,9 @@ const updatePost = async (req, res) => {
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
     connection.release();
-    return res.status(400).json({ message: "type은 donate 또는 request여야 합니다." });
+    return res
+      .status(400)
+      .json({ message: "type은 donate 또는 request여야 합니다." });
   }
 
   try {
@@ -777,7 +842,11 @@ const updatePost = async (req, res) => {
     const itemUpdateParams = [];
 
     if (product_id !== undefined) {
-      const normalizedProductId = await resolveProductId(db, product_id, category);
+      const normalizedProductId = await resolveProductId(
+        db,
+        product_id,
+        category,
+      );
       itemUpdateFields.push("product_id = ?");
       itemUpdateParams.push(normalizedProductId);
     }
@@ -816,7 +885,9 @@ const deletePost = async (req, res) => {
   const connection = await db.getConnection();
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
-    return res.status(400).json({ message: "type은 donate 또는 request여야 합니다." });
+    return res
+      .status(400)
+      .json({ message: "type은 donate 또는 request여야 합니다." });
   }
 
   try {
@@ -841,16 +912,37 @@ const deletePost = async (req, res) => {
     }
 
     if (postType === "donate") {
-      await deleteIfTableExists(connection, "DELETE FROM REVIEW WHERE donate_id = ?", [postId]);
-      await deleteIfTableExists(connection, "DELETE FROM PICKUP_REQUEST WHERE donate_id = ?", [postId]);
-      await deleteIfTableExists(connection, "DELETE FROM ITEM_DONATE_LIKE WHERE donate_id = ?", [postId]);
+      await deleteIfTableExists(
+        connection,
+        "DELETE FROM REVIEW WHERE donate_id = ?",
+        [postId],
+      );
+      await deleteIfTableExists(
+        connection,
+        "DELETE FROM PICKUP_REQUEST WHERE donate_id = ?",
+        [postId],
+      );
+      await deleteIfTableExists(
+        connection,
+        "DELETE FROM ITEM_DONATE_LIKE WHERE donate_id = ?",
+        [postId],
+      );
     } else {
-      await deleteIfTableExists(connection, "DELETE FROM ITEM_REQUEST_LIKE WHERE request_id = ?", [postId]);
+      await deleteIfTableExists(
+        connection,
+        "DELETE FROM ITEM_REQUEST_LIKE WHERE request_id = ?",
+        [postId],
+      );
     }
 
-    await connection.query(`DELETE FROM ${imageTableName} WHERE ${idColumn} = ?`, [postId]);
+    await connection.query(
+      `DELETE FROM ${imageTableName} WHERE ${idColumn} = ?`,
+      [postId],
+    );
     await connection.query(`DELETE FROM ITEM WHERE ${idColumn} = ?`, [postId]);
-    await connection.query(`DELETE FROM ${tableName} WHERE ${idColumn} = ?`, [postId]);
+    await connection.query(`DELETE FROM ${tableName} WHERE ${idColumn} = ?`, [
+      postId,
+    ]);
 
     await connection.commit();
 

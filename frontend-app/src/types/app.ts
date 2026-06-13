@@ -10,7 +10,7 @@ export type RequestStatus = 'open' | 'completed' | 'canceled' | 'hidden' | 'pick
 export type PostStatus = DonateStatus | RequestStatus;
 export type RoleCode = 'USER' | 'BENEFICIARY' | 'ADMIN';
 export type CertificationCodeStatus = 'unused' | 'used' | 'expired';
-export type DynamicQrPurpose = 'donation_access' | 'pickup_access';
+export type DynamicQrPurpose = 'donation_access' | 'donation_storage' | 'pickup_access' | 'pickup_auth';
 export type DynamicQrStatus = 'active' | 'used' | 'expired';
 export type NotificationType = 'share' | 'chat' | 'system';
 export type NotificationRelatedType =
@@ -153,6 +153,7 @@ export interface CertificationCodeRecord {
 export interface DynamicQrSession {
   id: string;
   memberId: string;
+  donateId?: string | null;
   purpose: DynamicQrPurpose;
   token: string;
   displayCode: string;

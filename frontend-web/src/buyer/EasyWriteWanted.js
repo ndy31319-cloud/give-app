@@ -1,12 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createWantedPost } from '../api/client';
-
-const DEFAULT_KIOSK_LOCATION = {
-  dongName: '안양동',
-  latitude: 37.3943,
-  longitude: 126.9568,
-};
+import { createWantedPost, KIOSK_DEFAULT_LOCATION } from '../api/client';
 
 const ITEM_OPTIONS = [
   { id: 'blanket', name: '전기장판' },
@@ -69,9 +63,9 @@ function EasyWriteWanted() {
         title: title.trim(),
         content: content.trim(),
         urgency,
-        dongName: savedUser?.dongName || savedUser?.dong_name || DEFAULT_KIOSK_LOCATION.dongName,
-        latitude: savedUser?.latitude || savedUser?.lat || DEFAULT_KIOSK_LOCATION.latitude,
-        longitude: savedUser?.longitude || savedUser?.lng || DEFAULT_KIOSK_LOCATION.longitude,
+        dongName: savedUser?.dongName || savedUser?.dong_name || KIOSK_DEFAULT_LOCATION.dongName,
+        latitude: savedUser?.latitude || savedUser?.lat || KIOSK_DEFAULT_LOCATION.latitude,
+        longitude: savedUser?.longitude || savedUser?.lng || KIOSK_DEFAULT_LOCATION.longitude,
       });
       alert('나눔 요청이 등록되었습니다.');
       navigate('/easy-wanted');

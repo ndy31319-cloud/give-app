@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +15,7 @@ import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { useAppContext } from '@/src/context/AppContext';
 import { colors, radius, spacing } from '@/src/theme/colors';
-import { DeviceSimulationStep, DynamicQrSession } from '@/src/types/app';
+import { DeviceSimulationStep, DynamicQrSession, Post } from '@/src/types/app';
 import {
   createPseudoQrMatrix,
   getEffectiveQrStatus,
@@ -198,6 +199,7 @@ export function DynamicQrScreen() {
 export function DeviceSimulatorScreen() {
   const {
     user,
+    posts,
     activeQrSession,
     deviceSimulation,
     issueDynamicQr,
@@ -209,9 +211,21 @@ export function DeviceSimulatorScreen() {
   const [tokenInput, setTokenInput] = useState('');
   const [working, setWorking] = useState(false);
   const [issuing, setIssuing] = useState(false);
+  const [selectedDonateId, setSelectedDonateId] = useState<string | null>(null);
 
   const activeStatus = getEffectiveQrStatus(activeQrSession);
   const activeStepIndex = deviceStepOrder.indexOf(deviceSimulation.step);
+  const myDonationPosts = useMemo(
+    () =>
+      posts.filter(
+        (post) =>
+          post.type === 'share' &&
+          post.author.id === user?.id &&
+          !['completed', 'canceled', 'stored'].includes(post.status),
+      ),
+    [posts, user?.id],
+  );
+  const selectedPost = myDonationPosts.find((post) => String(post.recordId) === selectedDonateId);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -221,24 +235,6 @@ export function DeviceSimulatorScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-
-    if (!user || activeQrSession) {
-      return;
-    }
-
-    void (async () => {
-      const result = await issueDynamicQr('donation_access', 30);
-      if (active && result.error) {
-        Alert.alert('QR 발급 실패', result.error);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [activeQrSession, issueDynamicQr, user]);
 
   const handleStartWithToken = async (token: string) => {
     setWorking(true);
@@ -261,8 +257,13 @@ export function DeviceSimulatorScreen() {
   };
 
   const handleIssueAndApply = async () => {
+    if (!selectedPost) {
+      Alert.alert('게시글 선택 필요', '보관함에 넣을 나눔해요 게시글을 먼저 선택해주세요.');
+      return;
+    }
+
     setIssuing(true);
-    const issueResult = await issueDynamicQr('donation_access', 30);
+    const issueResult = await issueDynamicQr('donation_storage', 30, selectedPost.recordId);
     setIssuing(false);
 
     if (issueResult.error) {
@@ -270,7 +271,7 @@ export function DeviceSimulatorScreen() {
       return;
     }
 
-    Alert.alert('새 QR 발급 완료', '동적 QR이 새로 발급되었습니다. 현재 활성 QR로 바로 테스트할 수 있습니다.');
+    Alert.alert('QR 발급 완료', '선택한 나눔 게시글의 보관함 입고용 QR이 발급되었습니다.');
   };
 
   return (
@@ -295,6 +296,52 @@ export function DeviceSimulatorScreen() {
         </View>
 
         {activeQrSession ? <DynamicQrStatusCard session={activeQrSession} now={now} /> : null}
+
+        <View style={styles.simulatorCard}>
+          <View style={styles.simulatorTop}>
+            <Text style={styles.sectionTitle}>보관함에 넣을 나눔글</Text>
+            <Text style={styles.simulationStatus}>
+              {selectedPost ? '선택됨' : '선택 필요'}
+            </Text>
+          </View>
+
+          {myDonationPosts.length === 0 ? (
+            <View style={styles.emptyPostState}>
+              <Text style={styles.emptyTitle}>선택할 나눔글이 없습니다</Text>
+              <Text style={styles.emptyText}>
+                본인이 작성했고 아직 보관 완료되지 않은 나눔해요 게시글이 필요합니다.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.postList}>
+              {myDonationPosts.map((post: Post) => {
+                const isSelected = String(post.recordId) === selectedDonateId;
+
+                return (
+                  <Pressable
+                    key={post.id}
+                    onPress={() => setSelectedDonateId(String(post.recordId))}
+                    style={[styles.postSelectCard, isSelected && styles.postSelectCardActive]}
+                  >
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={styles.postSelectTitle} numberOfLines={1}>
+                        {post.title}
+                      </Text>
+                      <Text style={styles.postSelectMeta} numberOfLines={1}>
+                        donate_id {post.recordId} · {post.status}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={22}
+                      color={isSelected ? colors.brand : colors.textMuted}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </View>
 
         <View style={styles.simulatorCard}>
           <View style={styles.simulatorTop}>
@@ -330,7 +377,7 @@ export function DeviceSimulatorScreen() {
               label="새 QR 발급"
               variant="secondary"
               onPress={handleIssueAndApply}
-              disabled={!user}
+              disabled={!user || !selectedPost}
               loading={issuing}
             />
           </View>
@@ -628,6 +675,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.textMuted,
   },
+  emptyPostState: {
+    padding: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    gap: spacing.sm,
+  },
+  postList: {
+    gap: spacing.sm,
+  },
+  postSelectCard: {
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  postSelectCardActive: {
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  postSelectTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  postSelectMeta: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
   simulatorCard: {
     padding: spacing.lg,
     borderRadius: radius.lg,
@@ -742,3 +821,4 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 });
+

@@ -87,6 +87,7 @@ interface AppContextValue {
   issueDynamicQr: (
     purpose?: DynamicQrPurpose,
     ttlSeconds?: number,
+    donateId?: string | number | null,
   ) => Promise<{ error: string | null }>;
   startDeviceAuthentication: (
     token: string,
@@ -669,6 +670,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   async function issueDynamicQr(
     purpose: DynamicQrPurpose = "donation_access",
     ttlSeconds = 30,
+    donateId?: string | number | null,
   ) {
     if (!user) {
       return { error: "로그인 후 동적 QR을 발급할 수 있습니다." };
@@ -679,6 +681,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       purpose,
       ttlSeconds,
       authToken ?? undefined,
+      donateId,
     );
     if (result.error || !result.data) {
       return { error: result.error ?? "동적 QR 발급에 실패했습니다." };
@@ -811,6 +814,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       const consumedSession = result.data;
+
+      if (consumedSession.donateId) {
+        setPosts((prev) =>
+          prev.map((post) =>
+            post.type === "share" && String(post.recordId) === String(consumedSession.donateId)
+              ? { ...post, status: "stored" }
+              : post,
+          ),
+        );
+      }
 
       setDeviceSimulation({
         step: "completed",

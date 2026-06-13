@@ -433,6 +433,10 @@ export function mapBackendDynamicQrSession(
   return {
     id: String(raw?.id ?? `dynamic_qr_${Date.now()}`),
     memberId: String(raw?.memberId ?? fallback.memberId),
+    donateId:
+      raw?.donateId !== undefined || raw?.donate_id !== undefined
+        ? String(raw?.donateId ?? raw?.donate_id)
+        : null,
     purpose: raw?.purpose ?? fallback.purpose,
     token: raw?.token ?? '',
     displayCode: raw?.displayCode ?? raw?.code ?? '',
