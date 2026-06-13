@@ -208,8 +208,33 @@ function LockerScreen() {
     }
   };
 
+  const handleSkipScanForTest = async () => {
+    await stopScanner();
+    setStatus({
+      step: 'awaiting_item',
+      token: 'test-locker-qr',
+      lockerOpen: true,
+      itemDetected: false,
+      message: '테스트 모드입니다. QR 인식 후 물품 대기 화면으로 이동했습니다.',
+      session: { displayCode: '테스트 QR' },
+      donation: { title: '테스트 보관함 QR' },
+      donor: null,
+    });
+  };
+
   const handleItemDetected = async () => {
     if (!canDetectItem) return;
+
+    if (status.token === 'test-locker-qr') {
+      setStatus((prev) => ({
+        ...prev,
+        step: 'completed',
+        lockerOpen: false,
+        itemDetected: true,
+        message: '테스트 모드입니다. 물품 감지와 완료 화면까지 확인했습니다.',
+      }));
+      return;
+    }
 
     setWorking(true);
     setStatus((prev) => ({
@@ -318,8 +343,7 @@ function LockerScreen() {
             </button>
             <button
               type="button"
-              onClick={stopScanner}
-              disabled={!scanning}
+              onClick={handleSkipScanForTest}
               className="h-[104px] rounded-[28px] bg-[#EEF3EC] text-[#17211B] text-[34px] font-black border border-[#E2E8DE] disabled:opacity-50 active:scale-[0.98]"
             >
               스캔 중지
