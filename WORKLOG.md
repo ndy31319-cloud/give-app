@@ -13,6 +13,18 @@
   - 백엔드 `/api/device/qr/issue`가 `donation_storage` 목적일 때 `donate_id`를 필수로 검증하고, 선택한 나눔 게시글이 현재 로그인 회원의 게시글인지 확인하도록 보강했다.
   - `DYNAMIC_QR` 저장 시 `donate_id`를 함께 기록하고, 같은 회원/목적/게시글의 기존 active QR은 만료 처리하도록 했다.
   - QR 사용 완료 시 `DYNAMIC_QR.status = used`로 변경하고, 연결된 `ITEM_DONATE.status`를 `stored`로 갱신하도록 했다.
+- 웹키오스크에서 물품보관함 QR을 사용할 수 있는 흐름을 추가했다.
+  - 홈 화면 좌측 상단에 `물품보관함` 버튼을 추가하고 `/locker` 라우트로 이동하도록 했다.
+  - 홈 화면의 `필요한 물품 찾기`는 중간 선택 화면 없이 바로 쉬운모드 물품 목록으로 이동하도록 정리했다.
+  - `frontend-web/src/locker/LockerScreen.js`를 추가해 QR 토큰 입력, 서버 검증, 잠금 해제, 물품 대기, 물품 감지, 데이터 반영, 완료 단계를 한 화면에서 확인할 수 있게 했다.
+  - 실제 릴레이/센서 장비가 아직 없으므로 웹에서는 시뮬레이터 방식으로 잠금 해제와 물품 투입 감지 상태를 표시하도록 했다.
+  - `frontend-web/src/api/client.js`에 `validateLockerQr`, `consumeLockerQr`를 추가해 웹키오스크가 보관함 QR 검증/완료 API를 호출하도록 연결했다.
+  - 백엔드에 `POST /api/device/qr/storage/validate`, `POST /api/device/qr/storage/consume`을 추가해 웹키오스크가 로그인 없이 `donation_storage` QR을 검증하고 입고 완료 처리할 수 있게 했다.
+  - 보관함 완료 처리 시 기존 QR 사용 처리와 동일하게 `DYNAMIC_QR.status = used`, 연결된 `ITEM_DONATE.status = stored`로 반영하도록 했다.
+- 웹키오스크 일반회원 로그인/회원가입 진입점을 정리했다.
+  - 웹 홈의 기부자 로그인 버튼과 `/login-seller`, `/signup-seller`, `/login-buyer`, `/signup-buyer` 라우트를 제거했다.
+  - 나눔받는 사람은 물품을 둘러본 뒤 수령 단계에서 `/code-login`으로 회원코드를 입력하는 흐름만 남겼다.
+  - 기존 `BuyerSelect`의 회원가입 카드를 제거하고, 현재 흐름에서는 사실상 중간 선택 화면이 필요 없도록 홈에서 바로 쉬운모드 목록으로 이동하게 했다.
 - 검증
   - `node --check backend/routes/device.js` 통과.
   - `frontend-web` production build 통과.

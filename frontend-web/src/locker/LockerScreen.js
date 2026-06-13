@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { consumeLockerQr, validateLockerQr } from '../api/client';
 
@@ -36,7 +37,9 @@ function statusLabel(step) {
 
 function LockerScreen() {
   const navigate = useNavigate();
-  const [tokenInput, setTokenInput] = useState('');
+  const scannerRef = useRef(null);
+  const scanningRef = useRef(false);
+  const [scanning, setScanning] = useState(false);
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState(initialStatus);
 
@@ -52,14 +55,46 @@ function LockerScreen() {
     return status.donation?.title || status.session?.displayCode || '보관함 입고 QR';
   }, [status.donation, status.session]);
 
-  const handleValidate = async () => {
-    const token = tokenInput.trim();
+  const stopScanner = async () => {
+    const scanner = scannerRef.current;
+    scanningRef.current = false;
+    setScanning(false);
+
+    if (!scanner) return;
+
+    try {
+      if (scanner.isScanning) {
+        await scanner.stop();
+      }
+    } catch (error) {
+      console.warn('QR scanner stop failed:', error);
+    }
+
+    try {
+      await scanner.clear();
+    } catch (error) {
+      console.warn('QR scanner clear failed:', error);
+    }
+
+    scannerRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  const handleValidate = async (rawToken) => {
+    const token = String(rawToken || '').trim();
 
     if (!token) {
       setStatus({
         ...initialStatus,
         step: 'error',
-        message: 'QR 토큰을 입력해주세요.',
+        message: 'QR을 다시 인식해주세요.',
       });
       return;
     }
@@ -116,6 +151,62 @@ function LockerScreen() {
     }
   };
 
+  const handleStartScan = async () => {
+    if (working || scanning) return;
+
+    if (!window.isSecureContext) {
+      setStatus({
+        ...initialStatus,
+        step: 'error',
+        message: '카메라 인식은 HTTPS 주소에서만 사용할 수 있습니다.',
+      });
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus({
+        ...initialStatus,
+        step: 'error',
+        message: '이 브라우저에서는 카메라를 사용할 수 없습니다.',
+      });
+      return;
+    }
+
+    setStatus({
+      ...initialStatus,
+      message: '카메라가 켜졌습니다. 앱에서 발급된 보관함 QR을 비춰주세요.',
+    });
+
+    try {
+      const scanner = new Html5Qrcode('locker-qr-reader');
+      scannerRef.current = scanner;
+      scanningRef.current = true;
+      setScanning(true);
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 360, height: 360 },
+          aspectRatio: 1,
+        },
+        async (decodedText) => {
+          if (!scanningRef.current) return;
+          await stopScanner();
+          await handleValidate(decodedText);
+        },
+        () => {}
+      );
+    } catch (error) {
+      await stopScanner();
+      setStatus({
+        ...initialStatus,
+        step: 'error',
+        message: error?.message || '카메라를 시작하지 못했습니다. 카메라 권한을 확인해주세요.',
+      });
+    }
+  };
+
   const handleItemDetected = async () => {
     if (!canDetectItem) return;
 
@@ -160,7 +251,7 @@ function LockerScreen() {
   };
 
   const handleReset = () => {
-    setTokenInput('');
+    stopScanner();
     setStatus(initialStatus);
   };
 
@@ -199,32 +290,31 @@ function LockerScreen() {
             <div className={`text-[30px] font-black ${statusTone}`}>{statusLabel(status.step)}</div>
           </div>
 
-          <label className="block text-[24px] font-black mb-4" htmlFor="locker-token">
-            QR 토큰
-          </label>
-          <textarea
-            id="locker-token"
-            value={tokenInput}
-            onChange={(event) => setTokenInput(event.target.value)}
-            placeholder="앱에서 발급한 time-based QR 토큰을 입력하세요"
-            className="w-full min-h-[150px] rounded-[26px] border-2 border-[#E2E8DE] bg-[#F5F8F3] px-8 py-6 text-[26px] outline-none focus:border-[#2E8B57] resize-none"
-          />
+          <div className="rounded-[32px] border-2 border-[#E2E8DE] bg-[#F5F8F3] p-6">
+            <div
+              id="locker-qr-reader"
+              className="w-full min-h-[420px] rounded-[26px] overflow-hidden bg-[#17211B] flex items-center justify-center text-white text-[30px] font-black"
+            >
+              {scanning ? null : 'QR 스캔 대기'}
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-6 mt-8">
             <button
               type="button"
-              onClick={handleValidate}
-              disabled={working || !tokenInput.trim()}
+              onClick={handleStartScan}
+              disabled={working || scanning}
               className="h-[104px] rounded-[28px] bg-[#9BC5AE] text-white text-[34px] font-black disabled:opacity-50 active:scale-[0.98]"
             >
-              {working && status.step !== 'awaiting_item' ? '인증 중' : 'QR 인증'}
+              {working ? '인증 중' : scanning ? '스캔 중' : 'QR 스캔 시작'}
             </button>
             <button
               type="button"
-              onClick={() => setTokenInput(status.token || tokenInput)}
-              className="h-[104px] rounded-[28px] bg-[#EEF3EC] text-[#17211B] text-[34px] font-black border border-[#E2E8DE] active:scale-[0.98]"
+              onClick={stopScanner}
+              disabled={!scanning}
+              className="h-[104px] rounded-[28px] bg-[#EEF3EC] text-[#17211B] text-[34px] font-black border border-[#E2E8DE] disabled:opacity-50 active:scale-[0.98]"
             >
-              현재 QR 채우기
+              스캔 중지
             </button>
           </div>
         </section>
