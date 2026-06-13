@@ -304,7 +304,7 @@ function LockerScreen() {
               type="button"
               onClick={handleStartScan}
               disabled={working || scanning}
-              className="h-[104px] rounded-[28px] bg-[#9BC5AE] text-white text-[34px] font-black disabled:opacity-50 active:scale-[0.98]"
+              className="h-[104px] rounded-[28px] bg-[#2E8B57] text-white text-[34px] font-black shadow-[0_12px_30px_rgba(46,139,87,0.24)] disabled:bg-[#9BC5AE] disabled:opacity-60 active:scale-[0.98]"
             >
               {working ? '인증 중' : scanning ? '스캔 중' : 'QR 스캔 시작'}
             </button>
@@ -363,7 +363,7 @@ function LockerScreen() {
             type="button"
             onClick={handleItemDetected}
             disabled={!canDetectItem || working}
-            className="w-full h-[112px] rounded-[28px] bg-[#9BC5AE] text-white text-[36px] font-black disabled:opacity-50 active:scale-[0.98] mb-8"
+            className="w-full h-[112px] rounded-[28px] bg-[#2E8B57] text-white text-[36px] font-black shadow-[0_12px_30px_rgba(46,139,87,0.24)] disabled:bg-[#9BC5AE] disabled:opacity-60 active:scale-[0.98] mb-8"
           >
             물품 투입 감지
           </button>
