@@ -343,6 +343,98 @@ const loadDbQrSession = async (token) => {
   return session;
 };
 
+const loadAnyQrSession = async (token, actionLabel) => {
+  let session = null;
+
+  try {
+    session = await loadDbQrSession(token);
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error(`${actionLabel} QR DB error:`, error);
+      throw error;
+    }
+  }
+
+  return session || findSession(token);
+};
+
+const loadDonationStorageContext = async (session) => {
+  if (session.purpose !== "donation_storage" || !session.donateId) {
+    return null;
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT d.donate_id, d.title, d.status, d.dong_name,
+              m.member_id, m.name, m.nickname, m.phone
+       FROM ITEM_DONATE d
+       LEFT JOIN MEMBER m ON m.member_id = d.member_id
+       WHERE d.donate_id = ? AND d.member_id = ?
+       LIMIT 1`,
+      [session.donateId, session.memberId],
+    );
+
+    if (!rows[0]) {
+      return null;
+    }
+
+    const row = rows[0];
+    return {
+      donation: {
+        donateId: String(row.donate_id),
+        donate_id: String(row.donate_id),
+        title: row.title,
+        status: row.status,
+        dongName: row.dong_name,
+        dong_name: row.dong_name,
+      },
+      donor: {
+        memberId: row.member_id,
+        member_id: row.member_id,
+        name: row.name,
+        nickname: row.nickname,
+        phone: row.phone,
+      },
+    };
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error("Load donation storage context error:", error);
+      throw error;
+    }
+  }
+
+  return null;
+};
+
+const ensureUsableDonationStorageSession = (session, res) => {
+  if (!session) {
+    res.status(404).json({
+      success: false,
+      message: "Valid storage QR session was not found.",
+    });
+    return false;
+  }
+
+  if (session.purpose !== "donation_storage") {
+    res.status(409).json({
+      success: false,
+      data: toResponseSession(session),
+      message: "This QR is not for donation storage.",
+    });
+    return false;
+  }
+
+  if (session.status !== "active") {
+    res.status(409).json({
+      success: false,
+      data: toResponseSession(session),
+      message: "This QR is already used or expired.",
+    });
+    return false;
+  }
+
+  return true;
+};
 router.post("/qr/validate", authenticateToken, async (req, res) => {
   const token = String(req.body.token || "").trim();
 
@@ -392,6 +484,50 @@ router.post("/qr/validate", authenticateToken, async (req, res) => {
   });
 });
 
+router.post("/qr/storage/validate", requireKioskAccess, async (req, res) => {
+  const token = String(req.body.token || "").trim();
+
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      message: "QR token is required.",
+    });
+  }
+
+  let session = null;
+  try {
+    session = await loadAnyQrSession(token, "Kiosk storage validate");
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Storage QR validation failed.",
+    });
+  }
+
+  if (!ensureUsableDonationStorageSession(session, res)) {
+    return;
+  }
+
+  let context = null;
+  try {
+    context = await loadDonationStorageContext(session);
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load donation post information.",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      qrSession: toResponseSession(session),
+      qr_session: toResponseSession(session),
+      ...(context || {}),
+    },
+    message: "Storage QR validation succeeded.",
+  });
+});
 router.post("/qr/consume", authenticateToken, async (req, res) => {
   const token = String(req.body.token || "").trim();
 
@@ -468,6 +604,72 @@ router.post("/qr/consume", authenticateToken, async (req, res) => {
   });
 });
 
+router.post("/qr/storage/consume", requireKioskAccess, async (req, res) => {
+  const token = String(req.body.token || "").trim();
+
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      message: "QR token is required.",
+    });
+  }
+
+  let session = null;
+  try {
+    session = await loadAnyQrSession(token, "Kiosk storage consume");
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Storage QR consume failed.",
+    });
+  }
+
+  if (!ensureUsableDonationStorageSession(session, res)) {
+    return;
+  }
+
+  session.status = "used";
+  session.usedAt = new Date().toISOString();
+
+  try {
+    await db.query(
+      "UPDATE DYNAMIC_QR SET status = 'used', used_at = NOW() WHERE token = ?",
+      [token],
+    );
+
+    await db.query(
+      `UPDATE ITEM_DONATE
+       SET status = 'stored', updated_at = NOW()
+       WHERE donate_id = ? AND member_id = ?`,
+      [session.donateId, session.memberId],
+    );
+  } catch (error) {
+    if (error?.code !== "ER_NO_SUCH_TABLE") {
+      console.error("Kiosk storage consume update DB error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Storage QR consume failed.",
+      });
+    }
+  }
+
+  let context = null;
+  try {
+    context = await loadDonationStorageContext(session);
+  } catch {
+    context = null;
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      qrSession: toResponseSession(session),
+      qr_session: toResponseSession(session),
+      ...(context || {}),
+    },
+    message: "Donation storage was completed.",
+  });
+});
 router.get("/relay", authenticateToken, (req, res) => {
   return res.status(200).json({
     success: true,

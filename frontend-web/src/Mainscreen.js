@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchPosts, getSavedUserDongName } from './api/client';
+import { fetchPosts } from './api/client';
 
 function MainScreen() {
   const navigate = useNavigate();
@@ -10,10 +10,14 @@ function MainScreen() {
 
   const categories = useMemo(() => [
     { id: 'all', name: '전체' },
-    { id: 'digital', name: '디지털/가전' },
-    { id: 'fashion', name: '패션/의류' },
-    { id: 'furniture', name: '가구/인테리어' },
-    { id: 'book', name: '도서' },
+    { id: 'clothing', name: '의류' },
+    { id: 'electronics', name: '전자제품' },
+    { id: 'furniture', name: '가구' },
+    { id: 'books', name: '도서' },
+    { id: 'household', name: '생활용품' },
+    { id: 'baby', name: '육아용품' },
+    { id: 'kitchen', name: '주방용품' },
+    { id: 'digital', name: '디지털기기' },
   ], []);
 
   useEffect(() => {
@@ -22,8 +26,7 @@ function MainScreen() {
     async function loadPosts() {
       try {
         setIsLoading(true);
-        const dongName = getSavedUserDongName();
-        const data = await fetchPosts(dongName ? { dongName } : {});
+        const data = await fetchPosts();
         const nextItems = data.content || data.posts || data || [];
 
         if (!ignore) {
@@ -47,9 +50,24 @@ function MainScreen() {
     };
   }, []);
 
+  const normalizeCategory = (category) => {
+    const categoryMap = {
+      fashion: 'clothing',
+      clothes: 'clothing',
+      book: 'books',
+      daily: 'household',
+      '패션/의류': 'clothing',
+      '디지털/가전': 'electronics',
+      '가전': 'electronics',
+      '가구/인테리어': 'furniture',
+    };
+
+    return categoryMap[category] || category;
+  };
+
   const filteredItems = selectedCategory === 'all'
     ? items
-    : items.filter((item) => item.category === selectedCategory);
+    : items.filter((item) => normalizeCategory(item.category) === selectedCategory);
 
   const currentCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
 
@@ -72,7 +90,7 @@ function MainScreen() {
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
-              className={`w-full text-left pl-8 py-5 text-[22px] font-bold transition-all relative ${
+              className={`w-full text-left pl-7 py-3.5 text-[20px] font-bold transition-all relative ${
                 selectedCategory === category.id
                   ? 'bg-[#F4F6F8] text-[#0047FF] rounded-l-[30px] ml-4 w-[calc(100%-16px)] shadow-[-5px_0_15px_rgba(0,0,0,0.1)]'
                   : 'text-white/70 hover:text-white'

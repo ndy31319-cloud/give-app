@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWantedPosts, getSavedUserDongName } from '../api/client';
+import { fetchWantedPosts } from '../api/client';
 
 function WantedList() {
   const navigate = useNavigate();
@@ -13,8 +13,7 @@ function WantedList() {
     async function loadWantedPosts() {
       try {
         setIsLoading(true);
-        const dongName = getSavedUserDongName();
-        const data = await fetchWantedPosts(dongName ? { dongName } : {});
+        const data = await fetchWantedPosts();
         const nextItems = data.content || data.posts || data || [];
 
         if (!ignore) {
@@ -60,7 +59,7 @@ function WantedList() {
         </div>
 
         <button
-          onClick={() => navigate('/write-wanted')}
+          onClick={() => navigate('/Write-Wanted')}
           className="bg-[#0047FF] text-white px-8 py-4 rounded-[20px] flex items-center gap-3 text-[20px] font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all hover:bg-blue-700"
         >
           물품 요청하기

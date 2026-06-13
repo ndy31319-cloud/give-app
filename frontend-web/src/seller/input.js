@@ -101,11 +101,14 @@ function SellerInput() {
             <div className="border-2 border-[#E5E7EB] rounded-[20px] transition-all bg-white focus-within:border-[#22C55E] px-6 py-5">
               <select defaultValue="" required style={selectStyle} className="w-full text-[20px] outline-none bg-transparent text-gray-500">
                 <option value="" disabled>카테고리를 선택하세요</option>
-                <option value="digital">디지털/가전</option>
-                <option value="furniture">가구/인테리어</option>
-                <option value="fashion">패션/의류</option>
-                <option value="book">도서</option>
-                <option value="sports">스포츠/레저</option>
+                <option value="clothing">의류</option>
+                <option value="electronics">전자제품</option>
+                <option value="furniture">가구</option>
+                <option value="books">도서</option>
+                <option value="household">생활용품</option>
+                <option value="baby">육아용품</option>
+                <option value="kitchen">주방용품</option>
+                <option value="digital">디지털기기</option>
               </select>
             </div>
           </div>

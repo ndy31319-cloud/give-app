@@ -2,10 +2,6 @@ import React from 'react';
 import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 
 import CodeLogin from './auth/code_login';
-import LoginBuyer from './auth/login_buyer';
-import LoginSeller from './auth/login_seller';
-import SignupBuyer from './auth/signup_buyer';
-import SignupSeller from './auth/signup_seller';
 import BuyerSelect from './buyer/BuyerSelect';
 import BuyerEdit from './buyer/buyer_edit';
 import EasyMainScreen from './buyer/EasyMainScreen';
@@ -18,6 +14,7 @@ import SettingsBuyer from './buyer/settings_buyer';
 import WantedList from './buyer/wanted_list';
 import Wishlist from './buyer/wishlist';
 import WriteWanted from './buyer/write_wanted';
+import LockerScreen from './locker/LockerScreen';
 import MainScreen from './Mainscreen';
 import SellerInput from './seller/input';
 import SellerHome from './seller/seller_home';
@@ -43,6 +40,14 @@ function Home() {
     >
       <button
         type="button"
+        onClick={() => navigate('/locker')}
+        className="absolute top-10 left-10 bg-white text-[#2E8B57] border-4 border-[#2E8B57] px-9 py-5 rounded-[32px] text-[28px] font-bold shadow-lg active:scale-95"
+      >
+        물품보관함
+      </button>
+
+      <button
+        type="button"
         onClick={() => navigate('/easy-main')}
         className="absolute top-10 right-10 bg-white text-[#0047FF] border-4 border-[#0047FF] px-9 py-5 rounded-[32px] text-[28px] font-bold shadow-lg active:scale-95"
       >
@@ -63,7 +68,7 @@ function Home() {
         <div className="w-full flex justify-center px-4">
           <button
             type="button"
-            onClick={() => navigate('/buyer-select')}
+            onClick={() => navigate('/easy-main')}
             className="w-full max-w-[600px] bg-white rounded-[48px] shadow-[0_20px_60px_rgba(0,71,255,0.08)] hover:scale-[1.02] hover:shadow-[0_24px_70px_rgba(0,71,255,0.15)] transition-all flex flex-col items-center border border-[#E9F0FF] group py-20"
           >
             <div className="bg-[#E9F0FF] rounded-full flex items-center justify-center group-hover:bg-[#D4E4FF] transition-colors w-56 h-56 mb-12">
@@ -82,19 +87,7 @@ function Home() {
         </div>
       </div>
 
-      <div className="w-full flex justify-end shrink-0 mt-auto">
-        <button
-          type="button"
-          onClick={() => navigate('/login-seller')}
-          className="flex items-center gap-3 bg-white border-2 border-[#22C55E] text-[#22C55E] hover:bg-[#22C55E] hover:text-white transition-all px-8 py-4 rounded-[28px] shadow-sm active:scale-95"
-        >
-          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 21c0-4.418-3.582-8-8-8s-8 3.582-8 8" />
-            <circle cx="12" cy="8" r="4" />
-          </svg>
-          <span className="text-[22px] font-bold">기부자로 시작하기</span>
-        </button>
-      </div>
+      <div className="w-full shrink-0 mt-auto" />
     </div>
   );
 }
@@ -104,16 +97,13 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/locker" element={<LockerScreen />} />
 
-        <Route path="/login-seller" element={<LoginSeller />} />
-        <Route path="/signup-seller" element={<SignupSeller />} />
         <Route path="/seller-home" element={<SellerHome />} />
         <Route path="/mypage-seller" element={<MypageSeller />} />
         <Route path="/seller-input" element={<SellerInput />} />
 
-        <Route path="/login-buyer" element={<LoginBuyer />} />
         <Route path="/buyer-select" element={<BuyerSelect />} />
-        <Route path="/signup-buyer" element={<SignupBuyer />} />
         <Route path="/buyer-main" element={<MainScreen />} />
         <Route path="/posts/:postId" element={<PostDetail />} />
         <Route path="/code-login" element={<CodeLogin />} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWantedPosts, getSavedUserDongName } from '../api/client';
+import { fetchWantedPosts } from '../api/client';
 
 const PAGE_SIZE = 4;
 
@@ -16,8 +16,7 @@ function EasyWantedList() {
     async function loadWantedPosts() {
       try {
         setIsLoading(true);
-        const dongName = getSavedUserDongName();
-        const data = await fetchWantedPosts(dongName ? { dongName } : {});
+        const data = await fetchWantedPosts();
         const nextItems = data.content || data.posts || data || [];
 
         if (!ignore) {
@@ -69,7 +68,7 @@ function EasyWantedList() {
             {page + 1} / {pageCount}
           </div>
           <button
-            onClick={() => navigate('/easy-write-wanted')}
+            onClick={() => navigate('/Write-Wanted')}
             className="bg-[#22C55E] text-white px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-[#22C55E] active:bg-green-700"
           >
             요청 글쓰기

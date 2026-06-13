@@ -33,6 +33,12 @@ async function request(path, options = {}) {
   return data;
 }
 
+function buildKioskHeaders() {
+  return process.env.REACT_APP_KIOSK_API_KEY
+    ? { 'x-kiosk-key': process.env.REACT_APP_KIOSK_API_KEY }
+    : {};
+}
+
 export async function loginMember({ email, password }) {
   return request('/api/auth/login', {
     method: 'POST',
@@ -114,6 +120,22 @@ export async function createWantedPost({
       longitude,
       createdFrom: 'web',
     }),
+  });
+}
+
+export async function validateLockerQr(token) {
+  return request('/api/device/qr/storage/validate', {
+    method: 'POST',
+    headers: buildKioskHeaders(),
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function consumeLockerQr(token) {
+  return request('/api/device/qr/storage/consume', {
+    method: 'POST',
+    headers: buildKioskHeaders(),
+    body: JSON.stringify({ token }),
   });
 }
 
