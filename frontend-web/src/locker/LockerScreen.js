@@ -302,6 +302,7 @@ function LockerScreen() {
       </header>
 
       <main className="max-w-[980px] mx-auto px-10 py-12 space-y-10">
+        {!showDeviceStatus ? (
         <section className="bg-white border border-[#E2E8DE] rounded-[36px] p-10 shadow-sm">
           <div className="flex items-start justify-between gap-8 mb-8">
             <div>
@@ -325,12 +326,10 @@ function LockerScreen() {
             </div>
           </div>
 
-          {!showDeviceStatus ? (
-            <div className="rounded-[26px] bg-[#F3F6F1] px-8 py-7 flex gap-5 items-start mt-8">
-              <span className="w-12 h-12 rounded-full bg-[#2E8B57] text-white flex items-center justify-center text-[30px] font-black">i</span>
-              <p className="text-[30px] leading-snug">{status.message}</p>
-            </div>
-          ) : null}
+          <div className="rounded-[26px] bg-[#F3F6F1] px-8 py-7 flex gap-5 items-start mt-8">
+            <span className="w-12 h-12 rounded-full bg-[#2E8B57] text-white flex items-center justify-center text-[30px] font-black">i</span>
+            <p className="text-[30px] leading-snug">{status.message}</p>
+          </div>
 
           <div className="grid grid-cols-2 gap-6 mt-8">
             <button
@@ -350,6 +349,7 @@ function LockerScreen() {
             </button>
           </div>
         </section>
+        ) : null}
 
         {showDeviceStatus ? (
         <section className="bg-white border border-[#E2E8DE] rounded-[36px] p-10 shadow-sm">
