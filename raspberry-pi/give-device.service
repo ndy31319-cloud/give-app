@@ -1,0 +1,16 @@
+[Unit]
+Description=Give donation box controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__WORKING_DIRECTORY__
+EnvironmentFile=__WORKING_DIRECTORY__/.env
+ExecStart=__WORKING_DIRECTORY__/.venv/bin/python give_device.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
