@@ -66,14 +66,19 @@ function MainScreen() {
     return categoryMap[category] || category;
   };
 
-  const filteredItems = selectedCategory === 'all'
-    ? items
-    : items.filter((item) => normalizeCategory(item.category) === selectedCategory);
-
-  const currentCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
-
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
+  const isDonatePost = (item) => {
+    const postType = getPostType(item);
+    return postType === 'donate' || postType === 'share';
+  };
+
+  const donateItems = items.filter(isDonatePost);
+  const filteredItems = selectedCategory === 'all'
+    ? donateItems
+    : donateItems.filter((item) => normalizeCategory(item.category) === selectedCategory);
+
+  const currentCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
 
   return (
     <div

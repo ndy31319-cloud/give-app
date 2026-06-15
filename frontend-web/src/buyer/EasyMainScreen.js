@@ -71,9 +71,17 @@ function EasyMainScreen() {
     return categoryMap[category] || category;
   };
 
+  const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
+  const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
+  const isDonatePost = (item) => {
+    const postType = getPostType(item);
+    return postType === 'donate' || postType === 'share';
+  };
+
+  const donateItems = items.filter(isDonatePost);
   const filteredItems = selectedCategory === 'all'
-    ? items
-    : items.filter((item) => normalizeCategory(item.category) === selectedCategory);
+    ? donateItems
+    : donateItems.filter((item) => normalizeCategory(item.category) === selectedCategory);
 
   const pageCount = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
   const pageItems = filteredItems.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
@@ -94,9 +102,6 @@ function EasyMainScreen() {
   const goToPrevPage = () => {
     setPage((current) => (current - 1 + pageCount) % pageCount);
   };
-
-  const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
-  const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
 
   const handleReceive = (item) => {
     setPendingReceiveItem(item);

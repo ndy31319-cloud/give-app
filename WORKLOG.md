@@ -1,4 +1,30 @@
-﻿### 2026-06-13
+﻿### 2026-06-16
+
+- 웹키오스크 물품 목록과 상세 화면 표시 흐름을 정리했다.
+  - 홈 화면의 `필요한 물품 찾기` 버튼이 쉬운모드가 아니라 기본 물품 목록(`/buyer-main`)으로 이동하도록 변경했다.
+  - 홈 화면의 고정 크기 UI가 창 크기에 따라 잘리지 않도록 전용 반응형 스타일을 추가했다.
+  - 기본 물품 목록과 쉬운모드 목록에서 `request`/`need` 게시글이 보이지 않도록 `donate`/`share` 게시글만 필터링했다.
+  - 게시글 목록에서 상세 화면으로 이동할 때 목록 응답의 게시글 데이터를 함께 넘겨, 상세 API가 이미지를 누락해도 목록 이미지 정보를 fallback으로 사용할 수 있게 했다.
+  - 상세 화면이 `description`만 보던 문제를 정리해 백엔드가 내려주는 `content`도 실제 게시글 본문으로 표시하도록 했다.
+  - 깨진 이미지 URL이나 누락된 이미지가 브라우저 기본 깨진 이미지 아이콘으로 보이지 않도록 `PostImage` 공통 컴포넌트와 `이미지 없음` placeholder를 추가했다.
+  - 상세 화면의 이미지/본문/버튼 영역 비율을 조정해 창 크기가 변해도 사진만 커지거나 `물품 받기` 버튼이 잘리지 않도록 했다.
+- 웹키오스크 수령 확인 흐름을 브라우저 기본 팝업에서 화면 중앙 모달로 변경했다.
+  - 쉬운모드 목록과 상세 화면의 `물품 받기` 버튼이 `window.confirm` 대신 앱 내부 `ReceiveConfirmModal`을 띄우도록 했다.
+  - 확인 시 기존과 동일하게 `/code-login?postId=...&type=...`로 이동해 회원코드를 입력받도록 유지했다.
+- 이미지 저장 백엔드 흐름을 Cloudinary 우선으로 정리했다.
+  - `FIREBASE_STORAGE_BUCKET` 값이 잘못 들어간 경우 Cloudinary 설정이 있어도 Firebase 분기가 먼저 실행되던 문제를 피하기 위해 Cloudinary 설정이 있으면 Cloudinary 업로드를 먼저 사용하도록 순서를 변경했다.
+  - Render 프록시 환경에서 업로드 URL이 `http://.../uploads/...`로 내려오는 문제를 줄이기 위해 업로드 URL 정규화 helper를 추가했다.
+  - 게시글 작성 응답과 상세 조회 응답에 `image`, `imageUrl`, `image_url`, `images` 계열 필드를 함께 내려주도록 보강했다.
+  - 기존 `/uploads/...` DB 값을 Firebase URL로 옮길 수 있는 dry-run 기본 복구 스크립트 `backend/scripts/migrateUploadsToFirebase.js`를 추가했다.
+- 이미지 깨짐 원인을 점검했다.
+  - 배포 API의 기존 게시글 이미지 URL이 Firebase/Cloudinary가 아니라 Render `/uploads/...`를 가리키고 있음을 확인했다.
+  - 일부 기존 업로드 파일은 Render와 로컬 `backend/uploads` 양쪽에 원본이 없어 프론트만으로 복구할 수 없고, 원본 이미지 또는 Cloudinary/Firebase에 이미 올라간 실제 URL로 DB를 업데이트해야 함을 정리했다.
+  - Firebase 프로젝트의 Cloud Storage bucket이 생성되어 있지 않거나 현재 서비스 계정에서 접근 가능한 bucket이 없음을 확인했다.
+- 검증
+  - `node --check backend/controllers/postController.js`, `backend/server.js`, `backend/routes/members.js`, `backend/routes/mypage.js`, `backend/scripts/migrateUploadsToFirebase.js` 통과.
+  - `frontend-web` production build 통과.
+
+### 2026-06-13
 
 - 웹키오스크 API 연결과 동네 기반 조회 흐름을 정리했다.
   - `frontend-web/src/api/client.js`의 기본 API 주소를 Render 백엔드 `https://give-app.onrender.com`로 변경했다.
