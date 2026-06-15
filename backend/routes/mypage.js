@@ -2,6 +2,7 @@
 const router = express.Router();
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
+const { buildUploadUrl } = require("../lib/uploadUrl");
 
 const inMemoryContacts = [];
 
@@ -17,17 +18,7 @@ const toIsoString = (value) => {
 };
 
 const normalizeUploadUrl = (req, imageUrl) => {
-  if (!imageUrl) {
-    return null;
-  }
-
-  const rawUrl = String(imageUrl);
-  if (/^https?:\/\//i.test(rawUrl)) {
-    return rawUrl;
-  }
-
-  const filename = rawUrl.split(/[\\/]/).pop();
-  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+  return buildUploadUrl(req, imageUrl);
 };
 
 const mapDonateStatus = (status) => {

@@ -50,3 +50,222 @@ body {
   height: var(--screen-height);
   min-height: 0;
 }
+
+.home-screen {
+  width: var(--screen-width);
+  height: var(--screen-height);
+  min-height: 0;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(12px, 2.2vmin, 28px);
+  padding: clamp(16px, 3vmin, 40px) !important;
+  overflow: hidden;
+  font-family: "Noto Sans KR", sans-serif;
+  letter-spacing: 0 !important;
+}
+
+.home-screen > button {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  width: fit-content;
+  max-width: 100%;
+  border-width: clamp(2px, 0.45vmin, 4px) !important;
+  border-radius: clamp(18px, 3vmin, 32px) !important;
+  padding: clamp(10px, 1.8vmin, 20px) clamp(18px, 3.2vmin, 36px) !important;
+  font-size: clamp(18px, 2.4vmin, 28px) !important;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.home-screen > button:first-of-type {
+  justify-self: start;
+}
+
+.home-screen > button:nth-of-type(2) {
+  justify-self: end;
+}
+
+.home-screen > .flex-1 {
+  grid-column: 1 / -1;
+  min-height: 0;
+  height: 100%;
+  justify-content: center;
+  padding-top: clamp(4px, 1vmin, 12px);
+}
+
+.home-screen h1 {
+  margin-bottom: clamp(4px, 1vmin, 16px) !important;
+  font-size: clamp(38px, 7vmin, 72px) !important;
+  line-height: 1.08;
+}
+
+.home-screen h1 + p {
+  margin-bottom: clamp(18px, 4.8vmin, 64px) !important;
+  font-size: clamp(20px, 3vmin, 32px) !important;
+  line-height: 1.25;
+}
+
+.home-screen .w-full.flex.justify-center {
+  min-height: 0;
+  padding-left: clamp(4px, 1vmin, 16px) !important;
+  padding-right: clamp(4px, 1vmin, 16px) !important;
+}
+
+.home-screen .w-full.flex.justify-center > button {
+  width: min(100%, clamp(320px, 52vmin, 600px));
+  max-height: min(58vh, 560px);
+  border-radius: clamp(28px, 4.5vmin, 48px) !important;
+  padding: clamp(24px, 6vmin, 80px) clamp(20px, 4vmin, 48px) !important;
+}
+
+.home-screen .w-full.flex.justify-center > button > div:first-child {
+  width: clamp(112px, 20vmin, 224px) !important;
+  height: clamp(112px, 20vmin, 224px) !important;
+  margin-bottom: clamp(18px, 4vmin, 48px) !important;
+  flex: 0 0 auto;
+}
+
+.home-screen svg {
+  width: clamp(64px, 11vmin, 120px) !important;
+  height: clamp(64px, 11vmin, 120px) !important;
+}
+
+.home-screen h2 {
+  margin-bottom: clamp(10px, 2vmin, 24px) !important;
+  font-size: clamp(30px, 5.2vmin, 56px) !important;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.home-screen h2 + p {
+  font-size: clamp(18px, 2.8vmin, 28px) !important;
+}
+
+.home-screen > .w-full.shrink-0 {
+  display: none;
+}
+
+@media (max-height: 620px) {
+  .home-screen > .flex-1 {
+    justify-content: flex-start;
+  }
+
+  .home-screen h1 + p {
+    margin-bottom: clamp(12px, 3vmin, 28px) !important;
+  }
+
+  .home-screen .w-full.flex.justify-center > button {
+    padding-top: clamp(18px, 4vmin, 40px) !important;
+    padding-bottom: clamp(18px, 4vmin, 40px) !important;
+  }
+}
+
+.image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2f6;
+  color: #7b8794;
+  font-size: clamp(16px, 2vmin, 24px);
+  font-weight: 700;
+}
+
+.main-content {
+  min-height: 0;
+  overflow-y: auto !important;
+}
+
+.main-post-grid {
+  grid-auto-rows: auto;
+  height: auto;
+  overflow: visible;
+}
+
+.main-post-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.post-thumb {
+  aspect-ratio: 4 / 3;
+  height: auto !important;
+  min-height: 150px;
+  max-height: 220px;
+  flex: 0 0 auto;
+}
+
+.easy-post-thumb {
+  width: clamp(160px, 18vmin, 260px) !important;
+  height: clamp(160px, 18vmin, 260px) !important;
+}
+
+.post-detail-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 4vmin, 48px) !important;
+}
+
+.post-detail-card {
+  width: min(100%, 1240px);
+  height: auto !important;
+  min-height: min(620px, calc(100vh - clamp(40px, 8vmin, 96px)));
+  max-height: calc(100vh - clamp(40px, 8vmin, 96px));
+  overflow: visible !important;
+}
+
+.post-detail-image {
+  width: min(48%, 560px);
+  aspect-ratio: 4 / 3;
+  align-self: center;
+  border-radius: clamp(24px, 3vmin, 36px);
+  overflow: hidden;
+  margin-left: clamp(20px, 4vmin, 48px);
+  flex: 0 0 auto;
+}
+
+.post-detail-info {
+  min-width: 0;
+  padding: clamp(28px, 5vmin, 56px) !important;
+  overflow: visible;
+}
+
+.post-detail-info > .flex-1 {
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+.post-detail-info h1 {
+  font-size: clamp(34px, 4.6vmin, 58px) !important;
+  line-height: 1.12;
+  margin-bottom: clamp(18px, 3vmin, 32px) !important;
+}
+
+.post-detail-info p {
+  font-size: clamp(20px, 2.6vmin, 28px) !important;
+}
+
+.post-detail-info button:last-child {
+  margin-top: clamp(24px, 4vmin, 44px);
+  flex: 0 0 auto;
+}
+
+@media (max-height: 760px) {
+  .post-detail-card {
+    min-height: 0;
+  }
+
+  .post-detail-image {
+    width: min(42%, 460px);
+  }
+
+  .post-detail-info {
+    padding: clamp(20px, 3.5vmin, 40px) !important;
+  }
+}

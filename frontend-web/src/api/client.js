@@ -81,6 +81,12 @@ export async function fetchPosts(params = {}) {
   return request(`/api/posts${query ? `?${query}` : ''}`);
 }
 
+export function getPostImageUrl(item) {
+  const imageList = item?.images || item?.imageUrls || item?.image_urls;
+  const firstImage = Array.isArray(imageList) ? imageList.find(Boolean) : null;
+  return item?.image || item?.img || item?.image_url || item?.imageUrl || firstImage || null;
+}
+
 export function getSavedUserDongName() {
   try {
     const user = JSON.parse(localStorage.getItem('givegive_user') || 'null');

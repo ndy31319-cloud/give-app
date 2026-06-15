@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
 const upload = require("../uploads/upload");
+const { buildUploadUrl } = require("../lib/uploadUrl");
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "give-local-development-secret";
@@ -45,17 +46,7 @@ const formatPhoneNumber = (phone) => {
 };
 
 const normalizeUploadUrl = (req, imageUrl) => {
-  if (!imageUrl) {
-    return null;
-  }
-
-  const rawUrl = String(imageUrl);
-  if (/^https?:\/\//i.test(rawUrl)) {
-    return rawUrl;
-  }
-
-  const filename = rawUrl.split(/[\\/]/).pop();
-  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+  return buildUploadUrl(req, imageUrl);
 };
 
 const isNicknameTaken = async (nickname, excludeMemberId = null) => {

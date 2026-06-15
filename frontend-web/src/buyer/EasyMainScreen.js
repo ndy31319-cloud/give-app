@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPosts } from '../api/client';
+import PostImage from './PostImage';
+import ReceiveConfirmModal from './ReceiveConfirmModal';
 
 const PAGE_SIZE = 4;
 
@@ -10,6 +12,7 @@ function EasyMainScreen() {
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingReceiveItem, setPendingReceiveItem] = useState(null);
 
   const categories = [
     { id: 'all', name: '전체' },
@@ -94,14 +97,17 @@ function EasyMainScreen() {
 
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
-  const getPostImage = (item) => item.image || item.img || item.image_url || item.imageUrl;
 
   const handleReceive = (item) => {
-    const isConfirmed = window.confirm('이 물품을 받으시겠습니까?');
+    setPendingReceiveItem(item);
+  };
 
-    if (isConfirmed) {
-      navigate(`/code-login?postId=${getPostId(item)}&type=${getPostType(item)}`);
+  const confirmReceive = () => {
+    if (!pendingReceiveItem) {
+      return;
     }
+
+    navigate(`/code-login?postId=${getPostId(pendingReceiveItem)}&type=${getPostType(pendingReceiveItem)}`);
   };
 
   return (
@@ -167,10 +173,10 @@ function EasyMainScreen() {
                 >
                   <button
                     type="button"
-                    onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}`)}
-                    className="w-[260px] h-[260px] self-center bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner"
+                    onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}`, { state: { fallbackPost: item } })}
+                    className="easy-post-thumb self-center bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner"
                   >
-                    <img src={getPostImage(item)} alt={item.title} className="w-full h-full object-cover" />
+                    <PostImage item={item} alt={item.title} className="w-full h-full object-cover" />
                   </button>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center gap-4 py-2">
@@ -222,6 +228,12 @@ function EasyMainScreen() {
           다음장
         </button>
       </div>
+
+      <ReceiveConfirmModal
+        open={Boolean(pendingReceiveItem)}
+        onCancel={() => setPendingReceiveItem(null)}
+        onConfirm={confirmReceive}
+      />
     </div>
   );
 }

@@ -1,10 +1,12 @@
-require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 const db = require("./db");
 
 const app = express();
+app.set("trust proxy", 1);
 const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",

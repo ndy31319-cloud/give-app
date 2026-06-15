@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { fetchPost } from '../api/client';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { fetchPost, getPostImageUrl } from '../api/client';
+import PostImage from './PostImage';
+import ReceiveConfirmModal from './ReceiveConfirmModal';
 
 function PostDetail() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { postId } = useParams();
   const [searchParams] = useSearchParams();
   const postType = searchParams.get('type') || 'donate';
+  const fallbackPost = location.state?.fallbackPost || null;
   const [item, setItem] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [receiveConfirmOpen, setReceiveConfirmOpen] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -17,9 +22,21 @@ function PostDetail() {
       try {
         setIsLoading(true);
         const data = await fetchPost(postId, postType);
+        const description =
+          data?.description ||
+          data?.content ||
+          fallbackPost?.description ||
+          fallbackPost?.content ||
+          '';
 
         if (!ignore) {
-          setItem(data);
+          setItem({
+            ...fallbackPost,
+            ...data,
+            description,
+            image: getPostImageUrl(data) || getPostImageUrl(fallbackPost),
+            imageUrl: getPostImageUrl(data) || getPostImageUrl(fallbackPost),
+          });
         }
       } catch (error) {
         if (!ignore) {
@@ -38,14 +55,14 @@ function PostDetail() {
     return () => {
       ignore = true;
     };
-  }, [navigate, postId, postType]);
+  }, [fallbackPost, navigate, postId, postType]);
 
   const handleReceive = () => {
-    const isConfirmed = window.confirm('이 물품을 받으시겠습니까?');
+    setReceiveConfirmOpen(true);
+  };
 
-    if (isConfirmed) {
-      navigate(`/code-login?postId=${postId}&type=${postType}`);
-    }
+  const confirmReceive = () => {
+    navigate(`/code-login?postId=${postId}&type=${postType}`);
   };
 
   if (isLoading) {
@@ -62,19 +79,15 @@ function PostDetail() {
 
   return (
     <div
-      className="bg-[#F4F6F8] h-screen overflow-hidden p-12"
+      className="post-detail-screen bg-[#F4F6F8] h-screen overflow-hidden p-12"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
-      <div className="h-full bg-white rounded-[36px] shadow-sm border border-gray-100 overflow-hidden flex">
-        <div className="w-[52%] bg-gray-100">
-          <img
-            src={item.image || item.img || item.image_url || item.imageUrl}
-            alt={item.title}
-            className="w-full h-full object-cover"
-          />
+      <div className="post-detail-card h-full bg-white rounded-[36px] shadow-sm border border-gray-100 overflow-hidden flex">
+        <div className="post-detail-image bg-gray-100">
+          <PostImage item={item} alt={item.title} className="w-full h-full object-cover" />
         </div>
 
-        <div className="flex-1 p-14 flex flex-col">
+        <div className="post-detail-info flex-1 p-14 flex flex-col">
           <button
             type="button"
             onClick={() => navigate('/buyer-main')}
@@ -91,7 +104,7 @@ function PostDetail() {
               {item.title}
             </h1>
             <p className="text-[28px] text-gray-600 leading-relaxed mb-10">
-              {item.description || '등록된 물품 상세 정보입니다.'}
+              {item.description || item.content}
             </p>
 
             <div className="bg-[#F8F9FA] rounded-[28px] p-8">
@@ -109,6 +122,12 @@ function PostDetail() {
           </button>
         </div>
       </div>
+
+      <ReceiveConfirmModal
+        open={receiveConfirmOpen}
+        onCancel={() => setReceiveConfirmOpen(false)}
+        onConfirm={confirmReceive}
+      />
     </div>
   );
 }

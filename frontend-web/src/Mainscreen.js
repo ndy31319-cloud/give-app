@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPosts } from './api/client';
+import PostImage from './buyer/PostImage';
 
 function MainScreen() {
   const navigate = useNavigate();
@@ -73,7 +74,6 @@ function MainScreen() {
 
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
-  const getPostImage = (item) => item.image || item.img || item.image_url || item.imageUrl;
 
   return (
     <div
@@ -131,26 +131,22 @@ function MainScreen() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-hidden p-10 bg-[#F4F6F8]">
+        <div className="main-content flex-1 overflow-hidden p-10 bg-[#F4F6F8]">
           {isLoading ? (
             <div className="h-full flex items-center justify-center text-[28px] font-bold text-gray-500">
               물품을 불러오는 중입니다...
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-6 pb-24">
+            <div className="main-post-grid grid grid-cols-3 gap-6 pb-24">
               {filteredItems.map((item) => (
                 <button
                   type="button"
                   key={item.id || item.post_id}
-                  onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}`)}
-                  className="text-left bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 active:scale-[0.98] transition-all cursor-pointer"
+                  onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}`, { state: { fallbackPost: item } })}
+                  className="main-post-card text-left bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  <div className="h-48 bg-gray-100 relative">
-                    <img
-                      src={getPostImage(item)}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="post-thumb bg-gray-100 relative">
+                    <PostImage item={item} alt={item.title} className="w-full h-full object-cover" />
                   </div>
                   <div className="p-6">
                     <h3 className="text-[22px] font-bold text-[#333] mb-2 truncate">{item.title}</h3>

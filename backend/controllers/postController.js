@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const db = require("../db");
 const { getStorageBucket } = require("../lib/firebaseAdmin");
+const { buildUploadUrl } = require("../lib/uploadUrl");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -214,6 +215,19 @@ const uploadPostImages = async (imageFiles) => {
     return [];
   }
 
+  if (isCloudinaryConfigured()) {
+    const uploadedImages = await Promise.all(
+      imageFiles.map((file) =>
+        cloudinary.uploader.upload(file.path, {
+          folder: "give-app/posts",
+          resource_type: "image",
+        }),
+      ),
+    );
+
+    return uploadedImages.map((image) => image.secure_url);
+  }
+
   if (isFirebaseStorageConfigured()) {
     return uploadImagesToFirebaseStorage(imageFiles);
   }
@@ -226,17 +240,6 @@ const uploadPostImages = async (imageFiles) => {
       (file) => `/uploads/${file.filename || file.path.split(/[\\/]/).pop()}`,
     );
   }
-
-  const uploadedImages = await Promise.all(
-    imageFiles.map((file) =>
-      cloudinary.uploader.upload(file.path, {
-        folder: "give-app/posts",
-        resource_type: "image",
-      }),
-    ),
-  );
-
-  return uploadedImages.map((image) => image.secure_url);
 };
 
 const firstTextValue = (...values) => {
@@ -359,17 +362,7 @@ const deleteIfTableExists = async (connection, sql, params) => {
 };
 
 const normalizeUploadUrl = (req, imageUrl) => {
-  if (!imageUrl) {
-    return null;
-  }
-
-  const rawUrl = String(imageUrl);
-  if (/^https?:\/\//i.test(rawUrl)) {
-    return rawUrl;
-  }
-
-  const filename = rawUrl.split(/[\\/]/).pop();
-  return `${req.protocol}://${req.get("host")}/uploads/${filename}`;
+  return buildUploadUrl(req, imageUrl);
 };
 
 const getAllPosts = async (req, res) => {
@@ -692,15 +685,23 @@ const createPost = async (req, res) => {
 
     await connection.commit();
 
+    const responseImageUrls = uploadedImageUrls.map((imageUrl) =>
+      normalizeUploadUrl(req, imageUrl),
+    );
+
     return res.status(201).json({
       message: "게시글이 성공적으로 등록되었습니다.",
       post_id: postId,
       post_type: postType,
       created_from: postType === "request" ? createdFrom : "app",
       createdFrom: postType === "request" ? createdFrom : "app",
-      image_count: uploadedImageUrls.length,
-      image_urls: uploadedImageUrls,
-      imageUrls: uploadedImageUrls,
+      image_count: responseImageUrls.length,
+      image_urls: responseImageUrls,
+      imageUrls: responseImageUrls,
+      images: responseImageUrls,
+      image: responseImageUrls[0] || null,
+      image_url: responseImageUrls[0] || null,
+      imageUrl: responseImageUrls[0] || null,
     });
   } catch (error) {
     await connection.rollback();
@@ -750,11 +751,27 @@ const getPostDetail = async (req, res) => {
     }
 
     const post = rows[0];
+    const imageTableName =
+      postType === "donate" ? "ITEM_DONATE_IMAGE" : "ITEM_REQUEST_IMAGE";
+    const idColumn = postType === "donate" ? "donate_id" : "request_id";
+    const [imageRows] = await db.query(
+      `SELECT image_url FROM ${imageTableName} WHERE ${idColumn} = ?`,
+      [postId],
+    );
+    const images = imageRows
+      .map((row) => normalizeUploadUrl(req, row.image_url))
+      .filter(Boolean);
 
     return res.status(200).json({
       ...post,
       createdFrom: post.created_from || "app",
       created_from: post.created_from || "app",
+      images,
+      image: images[0] || null,
+      image_url: images[0] || null,
+      imageUrl: images[0] || null,
+      image_urls: images,
+      imageUrls: images,
     });
   } catch (error) {
     console.error("게시글 상세 조회 오류:", error);
