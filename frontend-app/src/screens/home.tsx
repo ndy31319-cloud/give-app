@@ -1019,6 +1019,15 @@ export function WriteFormScreen() {
       return;
     }
 
+    if (result.data.isSameItem === false) {
+      Alert.alert(
+        "AI 사진 판독 실패",
+        result.data.reason ??
+          "동일한 물품 사진인지 확인할 수 없습니다. 다른 사진으로 다시 시도해주세요.",
+      );
+      return;
+    }
+
     const analysis = result.data;
     setSelectedImages(images);
     setSkipImage(false);
@@ -1886,7 +1895,7 @@ export function PostEditScreen() {
 }
 
 export function SearchScreen() {
-  const { user, posts } = useAppContext();
+  const { user, posts, authToken } = useAppContext();
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({
     type: "all",
@@ -1933,7 +1942,11 @@ export function SearchScreen() {
       const image = await pickImage(source);
       if (!image) return;
 
-      const result = await postAPI.checkHarmfulItem(image);
+      const result = await postAPI.checkHarmfulItem(
+        image,
+        {},
+        authToken ?? undefined,
+      );
       if (!result.data) {
         Alert.alert(
           "AI 판독 실패",
@@ -1947,6 +1960,15 @@ export function SearchScreen() {
         Alert.alert(
           "검색 안내",
           "유해물품으로 분류된 이미지는 검색 기준으로 사용하지 않았습니다.",
+        );
+        return;
+      }
+
+      if (result.data.isSameItem === false) {
+        Alert.alert(
+          "이미지 인식 실패",
+          result.data.reason ??
+            "검색할 물품을 확인할 수 없습니다. 다른 사진으로 다시 시도해주세요.",
         );
         return;
       }

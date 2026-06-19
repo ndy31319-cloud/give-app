@@ -2405,7 +2405,8 @@ export const postAPI = {
           isHarmful: Boolean(
             response.data.isHarmful ??
             response.data.is_dangerous ??
-            firstProblem,
+            firstProblem?.is_dangerous ??
+            false,
           ),
           reason:
             response.data.reason ??
@@ -2433,6 +2434,8 @@ export const postAPI = {
           isSameItem:
             firstAnalysis?.is_same_item ??
             firstAnalysis?.isSameItem ??
+            firstProblem?.is_same_item ??
+            firstProblem?.isSameItem ??
             rawAiResult?.is_same_item ??
             rawAiResult?.isSameItem ??
             response.data.is_same_item ??

@@ -5,6 +5,8 @@ const db = require("../db");
 
 const router = express.Router();
 let memberColumnsCache = null;
+const AI_REQUEST_TIMEOUT_MS = 30000;
+const AI_RETRY_DELAY_MS = 1000;
 
 const normalizeAiBaseUrl = (rawUrl) => {
   let normalizedUrl = String(rawUrl || "").trim().replace(/\/+$/, "");
@@ -16,36 +18,76 @@ const normalizeAiBaseUrl = (rawUrl) => {
   return normalizedUrl;
 };
 
+const splitConfiguredUrls = (value) =>
+  String(value || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+const uniqueUrls = (urls) => [...new Set(urls.filter(Boolean))];
+
 const resolveAiChatbotApiUrls = () => {
-  const explicitUrl = String(process.env.AI_CHATBOT_URL || "").trim();
+  const explicitUrls = splitConfiguredUrls(process.env.AI_CHATBOT_URL);
+  const primaryUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_PRIMARY);
+  const legacyUrls = splitConfiguredUrls(process.env.AI_SERVER_URL);
+  const fallbackUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_FALLBACK);
+  const baseUrls = [
+    ...(primaryUrls.length ? primaryUrls : legacyUrls),
+    ...fallbackUrls,
+  ];
+  const configuredUrls = explicitUrls.length
+    ? [...explicitUrls, ...fallbackUrls]
+    : baseUrls;
+  const urls = uniqueUrls(
+    configuredUrls.map((rawUrl) => {
+      const normalizedUrl = normalizeAiBaseUrl(rawUrl);
 
-  if (explicitUrl) {
-    return [explicitUrl.replace(/\/+$/, "")];
-  }
+      if (normalizedUrl.endsWith("/api/chat")) {
+        return `${normalizedUrl}/`;
+      }
 
-  const baseUrl = normalizeAiBaseUrl(process.env.AI_SERVER_URL);
+      return `${normalizedUrl}/api/chat/`;
+    }),
+  );
 
-  if (!baseUrl) {
+  if (!urls.length) {
     const error = new Error("AI 서버 URL이 설정되어 있지 않습니다.");
     error.statusCode = 503;
     throw error;
   }
 
-  if (
-    baseUrl.endsWith("/api/policies/chatbot") ||
-    baseUrl.endsWith("/api/policy/chatbot") ||
-    baseUrl.endsWith("/api/chatbot") ||
-    baseUrl.endsWith("/api/chat")
-  ) {
-    return [baseUrl];
-  }
+  return urls;
+};
 
-  return [
-    `${baseUrl}/api/policies/chatbot`,
-    `${baseUrl}/api/policy/chatbot`,
-    `${baseUrl}/api/chatbot`,
-    `${baseUrl}/api/chat/`,
-  ];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientAiError = (error) => {
+  const status = error.response?.status;
+  return (
+    !error.response ||
+    ["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "ETIMEDOUT"].includes(
+      error.code,
+    ) ||
+    [500, 502, 503, 504].includes(status)
+  );
+};
+
+const canFailOverAiError = (error) =>
+  isTransientAiError(error) || error.response?.status === 404;
+
+const summarizeAiErrorResponse = (responseData) =>
+  typeof responseData === "string" ? responseData.slice(0, 500) : responseData;
+
+const logAiRequestError = ({ url, attempt, startedAt, error }) => {
+  console.error("AI chatbot request failed", {
+    url,
+    attempt,
+    durationMs: Date.now() - startedAt,
+    code: error.code || null,
+    status: error.response?.status || null,
+    response: summarizeAiErrorResponse(error.response?.data) || null,
+    message: error.message,
+  });
 };
 
 const toPolicyResponse = (policy) => ({
@@ -288,31 +330,47 @@ router.get("/recommended", authenticateToken, async (req, res) => {
 const callAiChatbot = async (payload) => {
   const urls = resolveAiChatbotApiUrls();
   let lastError = null;
+  const requestPayload = {
+    user_message: payload.message,
+    member_id: payload.user?.member_id ?? null,
+    conversation_history: Array.isArray(payload.conversationHistory)
+      ? payload.conversationHistory.map((message) => ({
+          role: message.role === "bot" ? "assistant" : message.role,
+          message: message.message,
+        }))
+      : [],
+  };
 
-  for (const url of urls) {
-    try {
-      const normalizedUrl = url.replace(/\/+$/, "");
-      const requestPayload = normalizedUrl.endsWith("/api/chat")
-        ? {
-            user_message: payload.message,
-            member_id: payload.user?.member_id ?? null,
-          }
-        : payload;
+  for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
+    const url = urls[urlIndex];
 
-      const response = await axios.post(url, requestPayload, {
-        headers: {
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true",
-        },
-        proxy: false,
-        timeout: 30000,
-      });
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const startedAt = Date.now();
+      try {
+        const response = await axios.post(url, requestPayload, {
+          headers: {
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "true",
+          },
+          proxy: false,
+          timeout: AI_REQUEST_TIMEOUT_MS,
+        });
 
-      return response.data;
-    } catch (error) {
-      lastError = error;
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        logAiRequestError({ url, attempt, startedAt, error });
 
-      if (error.response && error.response.status !== 404) {
+        if (attempt < 2 && isTransientAiError(error)) {
+          await sleep(AI_RETRY_DELAY_MS);
+          continue;
+        }
+
+        const hasFallback = urlIndex < urls.length - 1;
+        if (hasFallback && canFailOverAiError(error)) {
+          break;
+        }
+
         throw error;
       }
     }
@@ -396,7 +454,32 @@ router.post("/chatbot", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Policy chatbot error:", error.response?.data || error.message);
-    return res.status(error.statusCode || 500).json({
+    const isTimeout =
+      error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
+    const isConnectionError =
+      error.statusCode === 503 ||
+      ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND"].includes(error.code) ||
+      (!error.response && Boolean(error.request));
+
+    if (isTimeout) {
+      return res.status(504).json({
+        message: "AI 챗봇 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.",
+      });
+    }
+
+    if (isConnectionError) {
+      return res.status(503).json({
+        message: "AI 챗봇 서버에 연결할 수 없습니다.",
+      });
+    }
+
+    if (error.response) {
+      return res.status(502).json({
+        message: `AI 챗봇 요청이 실패했습니다. (HTTP ${error.response.status})`,
+      });
+    }
+
+    return res.status(500).json({
       message: "챗봇 답변 생성 중 오류가 발생했습니다.",
     });
   }

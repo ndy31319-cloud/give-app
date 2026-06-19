@@ -17,6 +17,8 @@ cloudinary.config({
 const ROLE_GENERAL = 1;
 const ROLE_VULNERABLE = 3;
 const DEFAULT_PRODUCT_ID = 51;
+const AI_REQUEST_TIMEOUT_MS = 30000;
+const AI_RETRY_DELAY_MS = 1000;
 const CATEGORY_PRODUCT_ID_MAP = {
   clothing: 1,
   clothes: 1,
@@ -60,26 +62,43 @@ const normalizeItemCondition = (value) => {
   return "상태 무관";
 };
 
-const resolveAiPostGenerationApiUrl = (rawUrl) => {
-  const trimmedUrl = String(rawUrl || "").trim();
+const splitConfiguredUrls = (value) =>
+  String(value || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
 
-  if (!trimmedUrl) {
+const resolveAiPostGenerationApiUrls = () => {
+  const primaryUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_PRIMARY);
+  const legacyUrls = splitConfiguredUrls(process.env.AI_SERVER_URL);
+  const fallbackUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_FALLBACK);
+  const configuredUrls = [
+    ...(primaryUrls.length ? primaryUrls : legacyUrls),
+    ...fallbackUrls,
+  ];
+  const urls = configuredUrls.map((rawUrl) => {
+    const trimmedUrl = String(rawUrl || "").trim();
+    let normalizedUrl = trimmedUrl.replace(/\/+$/, "");
+
+    if (normalizedUrl.endsWith("/api/post/generate-post")) {
+      return normalizedUrl;
+    }
+
+    if (normalizedUrl.endsWith("/docs")) {
+      normalizedUrl = normalizedUrl.slice(0, -"/docs".length);
+    }
+
+    return `${normalizedUrl}/api/post/generate-post`;
+  });
+
+  const uniqueResolvedUrls = [...new Set(urls.filter(Boolean))];
+  if (!uniqueResolvedUrls.length) {
     const error = new Error("AI 서버가 아직 연결되지 않았습니다.");
     error.statusCode = 503;
     throw error;
   }
 
-  let normalizedUrl = trimmedUrl.replace(/\/+$/, "");
-
-  if (normalizedUrl.endsWith("/api/post/generate-post")) {
-    return normalizedUrl;
-  }
-
-  if (normalizedUrl.endsWith("/docs")) {
-    normalizedUrl = normalizedUrl.slice(0, -"/docs".length);
-  }
-
-  return `${normalizedUrl}/api/post/generate-post`;
+  return uniqueResolvedUrls;
 };
 
 const parseNumericId = (value) => {
@@ -252,41 +271,104 @@ const firstTextValue = (...values) => {
   return null;
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientAiError = (error) => {
+  const status = error.response?.status;
+  return (
+    !error.response ||
+    ["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "ETIMEDOUT"].includes(
+      error.code,
+    ) ||
+    [500, 502, 503, 504].includes(status)
+  );
+};
+
+const canFailOverAiError = (error) =>
+  isTransientAiError(error) || error.response?.status === 404;
+
+const summarizeAiErrorResponse = (responseData) =>
+  typeof responseData === "string" ? responseData.slice(0, 500) : responseData;
+
+const logAiRequestError = ({ url, attempt, startedAt, error }) => {
+  console.error("AI image request failed", {
+    url,
+    attempt,
+    durationMs: Date.now() - startedAt,
+    code: error.code || null,
+    status: error.response?.status || null,
+    response: summarizeAiErrorResponse(error.response?.data) || null,
+    message: error.message,
+  });
+};
+
 const analyzeImageWithAI = async (imageFile) => {
   if (!imageFile) {
     throw new Error("이미지 파일이 필요합니다.");
   }
 
-  const aiPredictUrl = resolveAiPostGenerationApiUrl(process.env.AI_SERVER_URL);
+  const aiPredictUrls = resolveAiPostGenerationApiUrls();
+  let lastError = null;
 
-  const form = new FormData();
-  form.append("file1", fs.createReadStream(imageFile.path), {
-    filename: imageFile.originalname,
-    contentType: imageFile.mimetype,
-  });
-  form.append("generate_post", "true");
-  form.append("write_post", "true");
-  form.append("with_post", "true");
-  form.append("mode", "write");
+  for (let urlIndex = 0; urlIndex < aiPredictUrls.length; urlIndex += 1) {
+    const aiPredictUrl = aiPredictUrls[urlIndex];
 
-  const aiResponse = await axios.post(aiPredictUrl, form, {
-    headers: {
-      ...form.getHeaders(),
-      "ngrok-skip-browser-warning": "true",
-    },
-    timeout: 20000,
-    maxBodyLength: Infinity,
-  });
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const form = new FormData();
+      form.append("file1", fs.createReadStream(imageFile.path), {
+        filename: imageFile.originalname,
+        contentType: imageFile.mimetype,
+      });
 
-  return aiResponse.data;
+      const startedAt = Date.now();
+      try {
+        const aiResponse = await axios.post(aiPredictUrl, form, {
+          headers: {
+            ...form.getHeaders(),
+            "ngrok-skip-browser-warning": "true",
+          },
+          proxy: false,
+          timeout: AI_REQUEST_TIMEOUT_MS,
+          maxBodyLength: Infinity,
+        });
+
+        return aiResponse.data;
+      } catch (error) {
+        lastError = error;
+        logAiRequestError({
+          url: aiPredictUrl,
+          attempt,
+          startedAt,
+          error,
+        });
+
+        if (attempt < 2 && isTransientAiError(error)) {
+          await sleep(AI_RETRY_DELAY_MS);
+          continue;
+        }
+
+        const hasFallback = urlIndex < aiPredictUrls.length - 1;
+        if (hasFallback && canFailOverAiError(error)) {
+          break;
+        }
+
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error("AI 이미지 분석 응답을 받을 수 없습니다.");
 };
 
 const isAiConnectionError = (error) =>
   error.statusCode === 503 ||
   error.code === "ECONNREFUSED" ||
-  error.code === "ECONNABORTED" ||
+  error.code === "ECONNRESET" ||
   error.code === "ENOTFOUND" ||
-  error.code === "ETIMEDOUT";
+  (!error.response && Boolean(error.request));
+
+const isAiTimeoutError = (error) =>
+  error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
 
 const analyzeImagesWithAI = async (imageFiles) => {
   const results = [];
@@ -314,7 +396,8 @@ const analyzeImagesWithAI = async (imageFiles) => {
       index,
       filename: imageFile.originalname,
       stored_path: imageFile.path,
-      is_dangerous: aiResult.is_dangerous === true,
+      is_dangerous:
+        aiResult.is_dangerous === true || aiResult.is_safe === false,
       is_same_item: aiResult.is_same_item ?? null,
       category: aiResult.category ?? null,
       suggested_title: suggestedTitle,
@@ -325,7 +408,8 @@ const analyzeImagesWithAI = async (imageFiles) => {
       confidence: aiResult.confidence ?? null,
       ai_guess:
         aiResult.ai_guess || suggestedTitle || aiResult.category || null,
-      ai_message: aiResult.message || aiGeneratedPost || null,
+      ai_message:
+        aiResult.rejection_reason || aiResult.message || aiGeneratedPost || null,
       raw_ai_result: aiResult,
     });
   }
@@ -518,16 +602,17 @@ const analyzeImage = async (req, res) => {
 
   try {
     const analysisResults = await analyzeImagesWithAI(imageFiles);
-    const dangerousImages = analysisResults.filter(
-      (image) => image.is_dangerous,
+    const problematicImages = analysisResults.filter(
+      (image) => image.is_dangerous || image.is_same_item === false,
     );
 
-    if (dangerousImages.length > 0) {
+    if (problematicImages.length > 0) {
       return res.status(400).json({
-        message: "유해 물품으로 판별된 사진이 있습니다.",
-        problematic_images: dangerousImages.map((image) => ({
+        message: "등록할 수 없는 사진이 있습니다.",
+        problematic_images: problematicImages.map((image) => ({
           index: image.index,
           filename: image.filename,
+          is_dangerous: image.is_dangerous,
           ai_reason: image.ai_message,
           ai_guess: image.ai_guess,
           is_same_item: image.is_same_item,
@@ -558,6 +643,12 @@ const analyzeImage = async (req, res) => {
       })),
     });
   } catch (error) {
+    if (isAiTimeoutError(error)) {
+      return res.status(504).json({
+        message: "AI 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.",
+      });
+    }
+
     if (isAiConnectionError(error)) {
       return res.status(503).json({
         message:
@@ -565,10 +656,18 @@ const analyzeImage = async (req, res) => {
       });
     }
 
+    if (error.response) {
+      return res.status(502).json({
+        message: `AI 서버 요청이 실패했습니다. (HTTP ${error.response.status})`,
+      });
+    }
+
     console.error("AI 이미지 분석 오류:", error);
     return res.status(500).json({
       message: error.message || "이미지 분석 중 오류가 발생했습니다.",
     });
+  } finally {
+    await removeLocalUploadedFiles(imageFiles);
   }
 };
 

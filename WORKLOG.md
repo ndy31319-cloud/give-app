@@ -1,4 +1,52 @@
-﻿### 2026-06-16
+﻿### 2026-06-19
+
+- AI 서버 연동 구조와 장애 구간을 코드 및 실제 요청으로 점검했다.
+  - 앱은 Node 백엔드의 `POST /api/policies/chatbot`과 `POST /api/posts/analyze`를 호출하고, Node 백엔드가 별도 AI 서버를 호출하는 2단계 구조임을 정리했다.
+  - 실제 AI 서버의 챗봇 엔드포인트는 `POST /api/chat/`, 요청 body는 `{ user_message, member_id }`임을 OpenAPI와 소스에서 확인했다.
+  - 실제 AI 사진 글 생성 엔드포인트는 `POST /api/post/generate-post`, multipart 필드는 `file1`임을 확인했다.
+  - 앱용 `/api/policies/chatbot` 명세와 Node 백엔드에서 AI 서버로 호출하는 내부 `/api/chat/` 명세는 서로 다른 계약임을 정리했다.
+- AI 서버 저장소 `hyeon-wook919/ai_backend`의 `main` 브랜치를 프로젝트의 `ai-server/` 폴더에 가져왔다.
+  - 중첩 `ai-server/.git`은 로컬 전용 `.nested-git-backup/`으로 이름을 바꾸고 ignore 처리해, AI 소스가 기존 `give-app` 저장소의 일반 파일로 포함되도록 정리했다.
+  - AI 서버 실행에 `GEMINI_API_KEY`, `DB_URL` 환경변수가 필요하고, 로컬에서는 `ai-server/.env`, Render에서는 AI Web Service의 Environment에 각각 등록해야 함을 확인했다.
+  - `backend/.env`와 `ai-server/.env`는 역할이 다르며, Node 백엔드에는 AI 서버의 공개 base URL만 `AI_SERVER_URL`로 설정해야 함을 정리했다.
+- Node 백엔드 AI 호출 안정화 코드를 작업했다.
+  - 사진 분석과 챗봇 호출에 일시적 네트워크 오류 및 `502`, `503`, `504` 발생 시 1초 후 1회 재시도를 추가했다.
+  - 호출 URL, 시도 횟수, 소요시간, 오류 코드, HTTP 상태와 AI 응답을 로그로 남기도록 했다.
+  - 사진 분석 Axios 요청에 `proxy: false`를 추가하고, 분석 완료 후 업로드 임시파일을 정리하도록 했다.
+  - 타임아웃, 연결 실패, AI 서버 HTTP 오류를 서로 다른 상태와 메시지로 반환하도록 구분했다.
+  - 잘못 고정했던 AI 챗봇 경로를 실제 `/api/chat/`으로 복구하고, 앱의 `message`, `conversationHistory`와 JWT 회원 ID를 AI의 `user_message`, `conversation_history`, `member_id` 형식으로 변환하도록 정리했다.
+  - `AI_SERVER_URL_PRIMARY`, 기존 `AI_SERVER_URL`, `AI_SERVER_URL_FALLBACK`을 지원하고 PRIMARY 장애 시 FALLBACK으로 넘어가도록 챗봇과 사진 분석 호출을 이중화했다.
+  - AI의 일시적인 `500`, `502`, `503`, `504`, 연결 오류는 1회 재시도하고, ngrok offline `404`를 포함한 연결 실패는 다음 AI 주소로 전환하도록 했다.
+- 로컬에서 실행한 AI 서버를 직접 검증했다.
+  - `GET http://127.0.0.1:8000/health`가 `200`을 반환하고 OpenAPI에 `/api/chat/`, `/api/post/generate-post`가 등록된 것을 확인했다.
+  - 올바른 `{ user_message, member_id }` 요청으로 `/api/chat/`을 직접 호출했을 때 약 7.7초 만에 `200`과 정책 추천 응답을 받았다.
+  - 현재 Node 백엔드가 만드는 `{ message, conversationHistory, user, policies }` 요청을 AI `/api/chat/`에 보내면 필수 `user_message` 누락으로 `422`가 발생함을 재현했다.
+  - 현재 Node 백엔드가 호출하도록 변경된 AI `/api/policies/chatbot` 경로는 실제 AI 서버에서 `404`가 발생함을 확인했다.
+  - 테스트 이미지를 AI `/api/post/generate-post`에 직접 보냈을 때 Gemini 응답까지는 약 5.3초에 도달했으나, AI의 정상적인 등록 거절 `HTTPException(400)`을 광범위한 `except Exception`이 다시 잡아 `500`으로 바꾸는 문제를 재현했다.
+- 앱에서 보이는 AI 연결 오류의 실제 구간을 확인했다.
+  - 로컬 Uvicorn 서버 자체는 정상이나 Render 백엔드에 설정된 기존 ngrok 주소의 `/health`가 ngrok 오류 페이지와 `404`를 반환했다.
+  - Render 백엔드의 챗봇 API는 `500`, 사진 분석 API는 `500`과 내부 원인 `Request failed with status code 404`를 반환했다.
+  - 현재 배포 장애의 주된 원인은 프론트가 아니라 Render 백엔드에서 AI 서버로 이어지는 ngrok 주소이며, 로컬 Uvicorn만 실행해서는 Render가 PC의 AI 서버에 접근할 수 없음을 확인했다.
+  - `frontend-app/src/screens/home.tsx`의 이미지 검색 흐름은 인증이 필요한 `/api/posts/analyze`를 토큰 없이 호출하므로 별도로 `401`이 발생할 수 있음을 확인했다.
+- AI 서버 코드에서 추가 위험 요소를 확인했다.
+  - `ai-server/routes/post_router.py`가 `GEMINI_API_KEY` 존재 여부를 검사하기 전에 키 앞부분을 출력하던 코드를 제거하고, 키 검증 후 클라이언트를 생성하도록 정리했다.
+  - 유해물품·다중물품·식별 불가 사진을 서버 오류가 아닌 `is_safe`, `is_same_item`, `rejection_reason` 정상 판정 응답으로 반환하도록 AI 응답 스키마와 예외 처리를 수정했다.
+  - Node 백엔드가 `is_safe:false` 또는 `is_same_item:false`를 `problematic_images`로 변환하고, 앱이 유해물품과 사진 식별 실패를 구분해 안내하도록 수정했다.
+  - `ai-server/routes/chat_router.py`가 서버 시작 시 SentenceTransformer 모델을 다운로드하고 정책 DB를 읽어 FAISS 인덱스를 생성하므로 콜드스타트와 메모리 사용량이 커질 수 있다.
+  - 모델 다운로드는 Docker 이미지 빌드 단계에 포함하거나 Render 영구 디스크 캐시를 사용해 반복 다운로드를 줄일 수 있으며, 모델 변경 시 새 임베딩과 FAISS 인덱스 재생성이 필요함을 정리했다.
+- 로컬 및 배포 연결 방법을 정리했다.
+  - 같은 PC에서 Node 백엔드와 AI 서버를 함께 실행할 때는 `AI_SERVER_URL=http://127.0.0.1:8000`을 사용할 수 있다.
+  - Render 백엔드가 로컬 AI 서버에 접근하려면 Uvicorn과 함께 `ngrok http 8000`을 실행하거나 AI 서버 자체를 Render 등 외부 서비스에 배포해야 한다.
+  - ngrok 계정 토큰 등록 방법과 공개 주소 뒤에 `/docs`를 붙여 AI API 문서를 확인하는 방법을 안내했다.
+  - `ERR_NGROK_121`은 ngrok agent 버전이 너무 오래된 오류이며 `ngrok update` 또는 winget 업데이트/재설치가 필요함을 확인했다.
+- 검증
+  - `node --check backend/routes/policies.js`, `node --check backend/controllers/postController.js`, `git diff --check` 통과.
+  - AI 서버 직접 호출과 Render 백엔드 경유 호출을 비교해 챗봇은 Node의 AI 경로/요청 변환, 사진 거절 처리는 AI 서버의 예외 처리, 현재 배포 연결은 ngrok 주소에서 각각 실패함을 분리했다.
+  - 수정 후 AI `/api/chat/` 직접 호출이 `200`, Node 챗봇 PRIMARY 장애 → FALLBACK 호출과 앱 응답 변환이 `200`으로 동작함을 확인했다.
+  - 수정 후 AI 사진 부적합 판정이 `500`이 아닌 `200` 판정 응답으로 내려오고, Node 컨트롤러가 이를 `400 problematic_images`와 `is_dangerous:false`, `is_same_item:false`로 변환함을 확인했다.
+  - 이미지 검색 요청에도 JWT `authToken`을 전달하도록 수정했다.
+
+### 2026-06-16
 
 - 웹키오스크 물품 목록과 상세 화면 표시 흐름을 정리했다.
   - 홈 화면의 `필요한 물품 찾기` 버튼이 쉬운모드가 아니라 기본 물품 목록(`/buyer-main`)으로 이동하도록 변경했다.
@@ -526,4 +574,3 @@
 - `.env`, Firebase service account JSON, `ca.pem` ??濡쒖뺄 誘쇨컧 ?뚯씪??Git?먯꽌 ?쒖쇅?섎뒗 諛⑺뼢?쇰줈 ?뺣━?덈떎.
 - ??먯씠 `git pull`, `git clone`, ZIP ?ㅼ슫濡쒕뱶 以??대뼡 諛⑹떇?쇰줈 理쒖떊 肄붾뱶瑜?諛쏆븘???섎뒗吏 ?덈궡?덈떎.
 - Git 誘몄꽕移? ZIP ?대뜑??`.git`???녿뒗 寃쎌슦, `ca.pem` ?꾨씫?쇰줈 諛깆뿏?쒓? ?ㅽ뻾?섏? ?딅뒗 寃쎌슦瑜?媛곴컖 ?뺣━?덈떎.
-
