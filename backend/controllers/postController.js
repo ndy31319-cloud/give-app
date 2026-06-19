@@ -302,22 +302,25 @@ const logAiRequestError = ({ url, attempt, startedAt, error }) => {
   });
 };
 
-const analyzeImageWithAI = async (imageFile) => {
-  if (!imageFile) {
+const callAiPostGeneration = async (imageFiles) => {
+  if (!imageFiles.length) {
     throw new Error("이미지 파일이 필요합니다.");
   }
 
   const aiPredictUrls = resolveAiPostGenerationApiUrls();
   let lastError = null;
+  const filesForAi = imageFiles.slice(0, 5);
 
   for (let urlIndex = 0; urlIndex < aiPredictUrls.length; urlIndex += 1) {
     const aiPredictUrl = aiPredictUrls[urlIndex];
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       const form = new FormData();
-      form.append("file1", fs.createReadStream(imageFile.path), {
-        filename: imageFile.originalname,
-        contentType: imageFile.mimetype,
+      filesForAi.forEach((imageFile, index) => {
+        form.append(`file${index + 1}`, fs.createReadStream(imageFile.path), {
+          filename: imageFile.originalname,
+          contentType: imageFile.mimetype,
+        });
       });
 
       const startedAt = Date.now();
@@ -371,50 +374,48 @@ const isAiTimeoutError = (error) =>
   error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
 
 const analyzeImagesWithAI = async (imageFiles) => {
-  const results = [];
+  const aiResult = await callAiPostGeneration(imageFiles);
+  const suggestedTitle = firstTextValue(
+    aiResult.suggested_title,
+    aiResult.title,
+    aiResult.post_title,
+    aiResult.generated_title,
+  );
+  const aiGeneratedPost = firstTextValue(
+    aiResult.ai_generated_post,
+    aiResult.generated_post,
+    aiResult.post,
+    aiResult.post_content,
+    aiResult.description,
+    aiResult.content,
+    aiResult.message,
+  );
+  const commonResult = {
+    is_dangerous:
+      aiResult.is_dangerous === true || aiResult.is_safe === false,
+    is_same_item: aiResult.is_same_item ?? null,
+    category: aiResult.category ?? null,
+    suggested_title: suggestedTitle,
+    extracted_features: Array.isArray(aiResult.extracted_features)
+      ? aiResult.extracted_features
+      : [],
+    ai_generated_post: aiGeneratedPost,
+    confidence: aiResult.confidence ?? null,
+    ai_guess: aiResult.ai_guess || suggestedTitle || aiResult.category || null,
+    ai_message:
+      aiResult.rejection_reason || aiResult.message || aiGeneratedPost || null,
+    raw_ai_result: aiResult,
+  };
 
-  for (let index = 0; index < imageFiles.length; index += 1) {
-    const imageFile = imageFiles[index];
-    const aiResult = await analyzeImageWithAI(imageFile);
-    const suggestedTitle = firstTextValue(
-      aiResult.suggested_title,
-      aiResult.title,
-      aiResult.post_title,
-      aiResult.generated_title,
-    );
-    const aiGeneratedPost = firstTextValue(
-      aiResult.ai_generated_post,
-      aiResult.generated_post,
-      aiResult.post,
-      aiResult.post_content,
-      aiResult.description,
-      aiResult.content,
-      aiResult.message,
-    );
-
-    results.push({
+  return {
+    ...commonResult,
+    analyzed_images: imageFiles.map((imageFile, index) => ({
       index,
       filename: imageFile.originalname,
       stored_path: imageFile.path,
-      is_dangerous:
-        aiResult.is_dangerous === true || aiResult.is_safe === false,
-      is_same_item: aiResult.is_same_item ?? null,
-      category: aiResult.category ?? null,
-      suggested_title: suggestedTitle,
-      extracted_features: Array.isArray(aiResult.extracted_features)
-        ? aiResult.extracted_features
-        : [],
-      ai_generated_post: aiGeneratedPost,
-      confidence: aiResult.confidence ?? null,
-      ai_guess:
-        aiResult.ai_guess || suggestedTitle || aiResult.category || null,
-      ai_message:
-        aiResult.rejection_reason || aiResult.message || aiGeneratedPost || null,
-      raw_ai_result: aiResult,
-    });
-  }
-
-  return results;
+      ...commonResult,
+    })),
+  };
 };
 
 const insertPostImages = async (
@@ -601,7 +602,8 @@ const analyzeImage = async (req, res) => {
   }
 
   try {
-    const analysisResults = await analyzeImagesWithAI(imageFiles);
+    const analysisResult = await analyzeImagesWithAI(imageFiles);
+    const analysisResults = analysisResult.analyzed_images;
     const problematicImages = analysisResults.filter(
       (image) => image.is_dangerous || image.is_same_item === false,
     );
@@ -628,6 +630,17 @@ const analyzeImage = async (req, res) => {
 
     return res.status(200).json({
       message: "등록 가능한 이미지입니다.",
+      is_dangerous: analysisResult.is_dangerous,
+      is_safe: !analysisResult.is_dangerous,
+      is_same_item: analysisResult.is_same_item,
+      category: analysisResult.category,
+      suggested_title: analysisResult.suggested_title,
+      extracted_features: analysisResult.extracted_features,
+      ai_generated_post: analysisResult.ai_generated_post,
+      confidence: analysisResult.confidence,
+      ai_guess: analysisResult.ai_guess,
+      ai_message: analysisResult.ai_message,
+      raw_ai_result: analysisResult.raw_ai_result,
       analyzed_images: analysisResults.map((image) => ({
         index: image.index,
         filename: image.filename,

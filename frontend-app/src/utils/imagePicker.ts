@@ -33,8 +33,26 @@ async function ensurePermission(
   return true;
 }
 
+async function ensureMediaLibraryPermission() {
+  const current = await ImagePicker.getMediaLibraryPermissionsAsync();
+
+  if (current.granted) {
+    return true;
+  }
+
+  if (!current.canAskAgain) {
+    Alert.alert(
+      '사진 접근 권한이 필요합니다',
+      '기기 설정에서 사진 접근 권한을 허용해주세요.',
+    );
+    return false;
+  }
+
+  return ensurePermission('mediaLibrary', ImagePicker.requestMediaLibraryPermissionsAsync);
+}
+
 export async function pickImageFromLibrary() {
-  const granted = await ensurePermission('mediaLibrary', ImagePicker.requestMediaLibraryPermissionsAsync);
+  const granted = await ensureMediaLibraryPermission();
   if (!granted) {
     return null;
   }
@@ -42,7 +60,6 @@ export async function pickImageFromLibrary() {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
-    legacy: true,
   });
 
   if (result.canceled || !result.assets[0]) {
@@ -53,7 +70,7 @@ export async function pickImageFromLibrary() {
 }
 
 export async function pickImagesFromLibrary() {
-  const granted = await ensurePermission('mediaLibrary', ImagePicker.requestMediaLibraryPermissionsAsync);
+  const granted = await ensureMediaLibraryPermission();
   if (!granted) {
     return null;
   }
@@ -63,7 +80,6 @@ export async function pickImagesFromLibrary() {
     quality: 0.9,
     allowsMultipleSelection: true,
     selectionLimit: 5,
-    legacy: true,
   });
 
   if (result.canceled || !result.assets.length) {

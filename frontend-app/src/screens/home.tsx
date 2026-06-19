@@ -981,8 +981,7 @@ export function WriteFormScreen() {
   };
 
   const analyzeImage = async (images: UploadableImage[]) => {
-    const image = images[0];
-    if (!image) {
+    if (!images.length) {
       return;
     }
 
@@ -990,7 +989,7 @@ export function WriteFormScreen() {
     let result;
     try {
       result = await postAPI.checkHarmfulItem(
-        image,
+        images,
         {},
         authToken ?? undefined,
       );

@@ -2309,12 +2309,21 @@ export const postAPI = {
   },
 
   async checkHarmfulItem(
-    image: UploadableImage,
+    image: UploadableImage | UploadableImage[],
     extras?: { title?: string; description?: string },
     token?: string,
   ) {
     const formData = new FormData();
-    formData.append("image", toBackendFilePart(image));
+    const images = Array.isArray(image) ? image : [image];
+    if (!images.length) {
+      return {
+        data: null as ImageAnalysisResult | null,
+        error: "분석할 이미지가 없습니다.",
+      };
+    }
+    images.forEach((item) => {
+      formData.append("images", toBackendFilePart(item));
+    });
     formData.append("title", extras?.title ?? "");
     formData.append("description", extras?.description ?? "");
 
@@ -2359,15 +2368,23 @@ export const postAPI = {
       const firstProblem = Array.isArray(response.data.problematic_images)
         ? response.data.problematic_images[0]
         : null;
-      const rawAiResult = firstAnalysis?.raw_ai_result ?? firstAnalysis;
+      const rawAiResult =
+        response.data.raw_ai_result ??
+        response.data.rawAiResult ??
+        firstAnalysis?.raw_ai_result ??
+        firstAnalysis;
       const suggestedTitle =
+        response.data.suggested_title ??
+        response.data.suggestedTitle ??
         firstAnalysis?.suggested_title ??
         firstAnalysis?.suggestedTitle ??
         rawAiResult?.suggested_title ??
-        rawAiResult?.suggestedTitle ??
-        response.data.suggested_title ??
-        response.data.suggestedTitle;
+        rawAiResult?.suggestedTitle;
       const aiGeneratedPost =
+        response.data.ai_generated_post ??
+        response.data.aiGeneratedPost ??
+        response.data.suggested_description ??
+        response.data.suggestedDescription ??
         firstAnalysis?.ai_generated_post ??
         firstAnalysis?.aiGeneratedPost ??
         firstAnalysis?.suggested_description ??
@@ -2375,29 +2392,25 @@ export const postAPI = {
         rawAiResult?.ai_generated_post ??
         rawAiResult?.aiGeneratedPost ??
         rawAiResult?.suggested_description ??
-        rawAiResult?.suggestedDescription ??
-        response.data.ai_generated_post ??
-        response.data.aiGeneratedPost ??
-        response.data.suggested_description ??
-        response.data.suggestedDescription;
+        rawAiResult?.suggestedDescription;
       const extractedFeatures =
+        response.data.extracted_features ??
+        response.data.extractedFeatures ??
         firstAnalysis?.extracted_features ??
         firstAnalysis?.extractedFeatures ??
         rawAiResult?.extracted_features ??
         rawAiResult?.extractedFeatures ??
-        response.data.extracted_features ??
-        response.data.extractedFeatures ??
         [];
       const category =
+        response.data.category ??
+        response.data.recommended_category ??
+        response.data.recommendedCategory ??
         firstAnalysis?.category ??
         firstAnalysis?.recommended_category ??
         firstAnalysis?.recommendedCategory ??
         rawAiResult?.category ??
         rawAiResult?.recommended_category ??
-        rawAiResult?.recommendedCategory ??
-        response.data.category ??
-        response.data.recommended_category ??
-        response.data.recommendedCategory;
+        rawAiResult?.recommendedCategory;
       const normalizedCategory = normalizeAiCategory(category);
 
       return {
@@ -2405,17 +2418,19 @@ export const postAPI = {
           isHarmful: Boolean(
             response.data.isHarmful ??
             response.data.is_dangerous ??
+            (response.data.is_safe === false ? true : undefined) ??
             firstProblem?.is_dangerous ??
             false,
           ),
           reason:
             response.data.reason ??
             response.data.message ??
+            response.data.ai_message ??
             firstProblem?.ai_reason,
           confidence: Number(
-            firstAnalysis?.confidence ??
+            response.data.confidence ??
+              firstAnalysis?.confidence ??
               rawAiResult?.confidence ??
-              response.data.confidence ??
               1,
           ),
           detectedItem:
@@ -2432,14 +2447,14 @@ export const postAPI = {
           suggestedTitle,
           suggestedDescription: aiGeneratedPost,
           isSameItem:
+            response.data.is_same_item ??
+            response.data.isSameItem ??
             firstAnalysis?.is_same_item ??
             firstAnalysis?.isSameItem ??
             firstProblem?.is_same_item ??
             firstProblem?.isSameItem ??
             rawAiResult?.is_same_item ??
-            rawAiResult?.isSameItem ??
-            response.data.is_same_item ??
-            response.data.isSameItem,
+            rawAiResult?.isSameItem,
           extractedFeatures,
           aiGeneratedPost,
           rawAiResult: rawAiResult ?? response.data,
@@ -2449,7 +2464,7 @@ export const postAPI = {
     }
 
     await sleep(1000);
-    return { data: inferFromFilename(image), error: null as string | null };
+    return { data: inferFromFilename(images[0]), error: null as string | null };
   },
 
   async listAll(authToken?: string) {

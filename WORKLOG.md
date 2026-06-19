@@ -1,5 +1,25 @@
 ﻿### 2026-06-19
 
+- Expo 앱 사진 등록과 AI 글쓰기 흐름을 다중 이미지 기준으로 정리했다.
+  - 앱 글쓰기 화면에서 갤러리로 여러 장을 선택해도 첫 번째 사진만 AI 분석으로 넘기던 흐름을 선택한 이미지 전체를 넘기도록 수정했다.
+  - `postAPI.checkHarmfulItem`이 단일 이미지와 이미지 배열을 모두 받을 수 있게 하고, 여러 장일 때 multipart `images` 필드로 백엔드 `/api/posts/analyze`에 전송하도록 했다.
+  - 백엔드 사진 분석이 이미지마다 AI 서버를 따로 호출하던 구조를 AI 서버의 `file1`~`file5` 계약에 맞춰 한 번의 요청으로 묶어 보내도록 변경했다.
+  - AI 서버가 여러 장을 보고 생성한 `suggested_title`, `ai_generated_post`, `category`, `is_same_item` 결과를 백엔드 응답 최상위에도 내려주고, 앱은 이 최상위 결과를 우선 사용하도록 정리했다.
+  - 기존 `analyzed_images` 배열 응답은 유지해 기존 파싱과 디버깅 흐름이 깨지지 않도록 했다.
+- Android/Expo 사진 선택과 개발 실행 상태를 점검했다.
+  - Expo SDK 54 프로젝트에서 실제 설치 패키지가 `expo@54.0.35`, `react-native@0.81.5`, `expo-router@6.0.24`로 맞는 것을 확인했다.
+  - `npx expo run` 실행 과정에서 생성된 Android package/permission 설정과 `ios` 실행 스크립트 변경이 작업트리에 남아 있음을 확인했다.
+  - 갤러리 선택은 권한 확인/요청을 유지하되, Android Photo Picker와 충돌할 수 있는 `legacy: true` 강제 옵션을 제거했다.
+  - 권한을 다시 물어볼 수 없는 상태에서는 기기 설정에서 사진 접근 권한을 허용하도록 안내하게 했다.
+- 로컬 AI 서버와 ngrok fallback 사용 흐름을 정리했다.
+  - Render 백엔드는 로컬 PC의 `127.0.0.1:8000`에 직접 접근할 수 없으므로, 로컬 AI 서버를 Render에서 사용하려면 ngrok 고정 도메인으로 터널링해야 함을 확인했다.
+  - `AI_SERVER_URL` 뒤의 `/docs`는 제거하고, 원래 AI 서버 장애 시 `AI_SERVER_URL_FALLBACK=https://establish-railroad-motivate.ngrok-free.dev`로 넘어가는 구성을 안내했다.
+  - ngrok agent `3.3.1`이 계정 최소 요구 버전보다 낮아 `ERR_NGROK_121`이 발생하는 것을 확인하고, `ngrok update`로 `3.39.8`까지 업데이트했다.
+  - Expo LAN 접속 문제는 PC에서 `localhost:8081`과 `172.30.1.68:8081`은 응답하지만, 폰에서 PC의 `8081`에 접근하지 못하는 네트워크/방화벽 문제로 분리했다.
+- 검증
+  - `node --check backend/controllers/postController.js` 통과.
+  - `frontend-app`에서 `npm run lint` 통과.
+  - `frontend-app`의 `npx tsc --noEmit`은 기존 `chat.tsx messageId`, `backendClient.ts latitude undefined` 타입 오류로 실패했으며, 이번 다중 이미지 변경분에서 새 타입 오류는 확인되지 않았다.
 - AI 서버 연동 구조와 장애 구간을 코드 및 실제 요청으로 점검했다.
   - 앱은 Node 백엔드의 `POST /api/policies/chatbot`과 `POST /api/posts/analyze`를 호출하고, Node 백엔드가 별도 AI 서버를 호출하는 2단계 구조임을 정리했다.
   - 실제 AI 서버의 챗봇 엔드포인트는 `POST /api/chat/`, 요청 body는 `{ user_message, member_id }`임을 OpenAPI와 소스에서 확인했다.

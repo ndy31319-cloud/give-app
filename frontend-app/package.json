@@ -8,7 +8,7 @@
     "android:clear": "expo start --android --lan --clear",
     "android:localhost": "expo start --android --localhost",
     "android:lan": "expo start --android --lan",
-    "ios": "expo start --ios",
+    "ios": "expo run:ios",
     "lint": "eslint ."
   },
   "dependencies": {
