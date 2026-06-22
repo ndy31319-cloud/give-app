@@ -14,6 +14,7 @@ const useAuthStore = create((set) => ({
   userRole: savedUser?.role || null,
   userId: savedUser?.email || '',
   nickname: savedUser?.nickname || '1111',
+  user: savedUser,
 
   login: (role, id, token, member = {}) => {
     if (token) {
@@ -33,8 +34,26 @@ const useAuthStore = create((set) => ({
       userRole: role,
       userId: id,
       nickname: user.nickname,
+      user,
     });
   },
+
+  setUser: (member = {}) => set((state) => {
+    const user = {
+      ...(state.user || {}),
+      ...member,
+      nickname: member.nickname || member.name || member.email || state.nickname || '회원',
+    };
+
+    localStorage.setItem('givegive_user', JSON.stringify(user));
+    return {
+      user,
+      userRole: user.role || user.role_id || user.roleId || null,
+      userId: user.email || user.member_id || user.memberId || '',
+      nickname: user.nickname,
+      isLoggedIn: true,
+    };
+  }),
 
   logout: () => {
     clearAuthToken();
@@ -44,6 +63,7 @@ const useAuthStore = create((set) => ({
       userRole: null,
       userId: '',
       nickname: '1111',
+      user: null,
     });
   },
 }));

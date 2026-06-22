@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPosts } from '../api/client';
 import PostImage from './PostImage';
 import ReceiveConfirmModal from './ReceiveConfirmModal';
+import { isDonatePost as isVisibleDonatePost, normalizeCategory as normalizeVisibleCategory } from './postListUtils';
 
 const PAGE_SIZE = 4;
 
@@ -68,14 +69,14 @@ function EasyMainScreen() {
       '가구/인테리어': 'furniture',
     };
 
-    return categoryMap[category] || category;
+    return normalizeVisibleCategory(categoryMap[category] || category);
   };
 
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
   const isDonatePost = (item) => {
     const postType = getPostType(item);
-    return postType === 'donate' || postType === 'share';
+    return isVisibleDonatePost({ ...item, post_type: postType });
   };
 
   const donateItems = items.filter(isDonatePost);
@@ -112,17 +113,17 @@ function EasyMainScreen() {
       return;
     }
 
-    navigate(`/code-login?postId=${getPostId(pendingReceiveItem)}&type=${getPostType(pendingReceiveItem)}`);
+    navigate(`/code-login?postId=${getPostId(pendingReceiveItem)}&type=${getPostType(pendingReceiveItem)}&easy=1`);
   };
 
   return (
     <div
-      className="bg-[#F8F9FA] h-screen flex flex-col overflow-hidden"
+      className="easy-screen bg-[#F8F9FA] h-screen flex flex-col overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
-      <div className="bg-[#0047FF] text-white px-12 py-7 flex justify-between items-center shadow-md shrink-0">
+      <div className="easy-header bg-[#0047FF] text-white px-12 py-7 flex justify-between items-center shadow-md shrink-0">
         <h1 className="text-[60px] font-bold leading-tight">무료 나눔 키오스크</h1>
-        <div className="flex items-center gap-5">
+        <div className="easy-header-actions flex items-center gap-5">
           <div className="bg-white/15 px-8 py-4 rounded-[28px] text-[34px] font-bold">
             {page + 1} / {pageCount}
           </div>
@@ -147,7 +148,7 @@ function EasyMainScreen() {
         </div>
       </div>
 
-      <div className="px-8 py-4 bg-white border-b-4 border-gray-200 grid grid-cols-9 gap-3 shadow-sm shrink-0">
+      <div className="easy-category-bar px-8 py-4 bg-white border-b-4 border-gray-200 grid grid-cols-9 gap-3 shadow-sm shrink-0">
         {categories.map((category) => (
           <button
             key={category.id}
@@ -163,28 +164,28 @@ function EasyMainScreen() {
         ))}
       </div>
 
-      <div className="flex-1 p-8 overflow-hidden">
+      <div className="easy-content flex-1 p-8 overflow-hidden">
         {isLoading ? (
           <div className="h-full flex items-center justify-center text-[42px] font-bold text-gray-500">
             물품을 불러오는 중입니다
           </div>
         ) : (
-          <div className="grid grid-cols-2 grid-rows-2 gap-7 h-full">
+          <div className="easy-card-grid grid grid-cols-2 grid-rows-2 gap-7 h-full">
             {visibleSlots.map((item, index) => (
               item ? (
                 <div
                   key={item.id || item.post_id}
-                  className="bg-white rounded-[34px] overflow-hidden shadow-md border-4 border-gray-200 p-7 flex gap-7 active:scale-[0.99] transition-transform h-full min-h-0"
+                  className="easy-post-card bg-white rounded-[34px] overflow-hidden shadow-md border-4 border-gray-200 p-7 active:scale-[0.99] transition-transform h-full min-h-0"
                 >
                   <button
                     type="button"
-                    onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}`, { state: { fallbackPost: item } })}
-                    className="easy-post-thumb self-center bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner"
+                    onClick={() => navigate(`/posts/${getPostId(item)}?type=${getPostType(item)}&easy=1`, { state: { fallbackPost: item, fromEasyMode: true } })}
+                    className="easy-post-thumb bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner"
                   >
                     <PostImage item={item} alt={item.title} className="w-full h-full object-cover" />
                   </button>
 
-                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-4 py-2">
+                  <div className="easy-post-info min-w-0 flex flex-col gap-4">
                     <h3 className="text-[48px] font-bold text-black leading-tight break-keep truncate">
                       {item.title}
                     </h3>
@@ -196,18 +197,18 @@ function EasyMainScreen() {
                         사진을 누르면 자세히 볼 수 있어요
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleReceive(item)}
-                      className="w-full bg-[#22C55E] text-white rounded-[24px] text-[38px] font-bold hover:bg-green-600 active:scale-[0.98] transition-all shadow-sm border-b-8 border-green-700 py-4"
-                    >
-                      물건 받기
-                    </button>
                   </div>
+                  <button
+                    onClick={() => handleReceive(item)}
+                    className="easy-receive-button w-full bg-[#22C55E] text-white rounded-[24px] text-[38px] font-bold hover:bg-green-600 active:scale-[0.98] transition-all shadow-sm border-b-8 border-green-700 py-4"
+                  >
+                    물건 받기
+                  </button>
                 </div>
               ) : (
                 <div
                   key={`empty-${index}`}
-                  className="bg-white/60 rounded-[34px] border-4 border-dashed border-gray-200 h-full min-h-0"
+                  className="easy-empty-card bg-white/60 rounded-[34px] border-4 border-dashed border-gray-200 h-full min-h-0"
                   aria-hidden="true"
                 />
               )
@@ -216,7 +217,7 @@ function EasyMainScreen() {
         )}
       </div>
 
-      <div className="bg-white border-t-4 border-gray-200 px-10 py-6 flex justify-between items-center shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+      <div className="easy-footer bg-white border-t-4 border-gray-200 px-10 py-6 flex justify-between items-center shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
         <button
           onClick={goToPrevPage}
           className="bg-gray-100 text-gray-700 px-14 py-5 rounded-[28px] text-[38px] font-bold border-4 border-gray-200 active:scale-95"

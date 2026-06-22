@@ -101,6 +101,18 @@ export async function fetchPost(postId, type) {
   return request(`/api/posts/${postId}${query}`);
 }
 
+export async function fetchCurrentMember() {
+  return request('/api/members/me');
+}
+
+export async function fetchMyPosts() {
+  return request('/api/members/me/posts');
+}
+
+export async function fetchMyLikes() {
+  return request('/api/members/me/likes');
+}
+
 export async function fetchWantedPosts(params = {}) {
   const posts = await fetchPosts(params);
   const items = posts.content || posts.posts || posts || [];

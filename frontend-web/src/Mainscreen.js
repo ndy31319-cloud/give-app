@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPosts } from './api/client';
 import PostImage from './buyer/PostImage';
+import { isDonatePost as isVisibleDonatePost, normalizeCategory as normalizeVisibleCategory } from './buyer/postListUtils';
 
 function MainScreen() {
   const navigate = useNavigate();
@@ -63,14 +64,14 @@ function MainScreen() {
       '가구/인테리어': 'furniture',
     };
 
-    return categoryMap[category] || category;
+    return normalizeVisibleCategory(categoryMap[category] || category);
   };
 
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
   const isDonatePost = (item) => {
     const postType = getPostType(item);
-    return postType === 'donate' || postType === 'share';
+    return isVisibleDonatePost({ ...item, post_type: postType });
   };
 
   const donateItems = items.filter(isDonatePost);
@@ -82,10 +83,10 @@ function MainScreen() {
 
   return (
     <div
-      className="bg-[#F4F6F8] h-screen flex overflow-hidden"
+      className="buyer-screen bg-[#F4F6F8] h-screen flex overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
-      <div className="w-[260px] bg-[#0047FF] flex flex-col shadow-2xl z-10 shrink-0">
+      <div className="buyer-sidebar w-[260px] bg-[#0047FF] flex flex-col shadow-2xl z-10 shrink-0">
         <div className="p-8 border-b border-white/20">
           <h1 className="text-[28px] font-bold text-white leading-tight">나눔<br />플랫폼</h1>
         </div>
@@ -108,7 +109,7 @@ function MainScreen() {
 
         <div className="p-6 space-y-3">
           <button
-            onClick={() => navigate('/buyer-select')}
+            onClick={() => navigate('/')}
             className="w-full bg-white/20 text-white py-4 rounded-2xl font-bold text-[18px] hover:bg-white/30 active:scale-95 transition-all"
           >
             처음으로
@@ -117,12 +118,12 @@ function MainScreen() {
       </div>
 
       <div className="flex-1 flex flex-col h-full relative min-w-0">
-        <div className="px-10 py-8 flex justify-between items-end border-b border-gray-200 bg-white shadow-sm shrink-0">
+        <div className="buyer-topbar px-10 py-8 flex justify-between items-end border-b border-gray-200 bg-white shadow-sm shrink-0">
           <h2 className="text-[36px] font-bold text-[#333] border-b-4 border-[#0047FF] pb-2 inline-block">
             {currentCategoryName}
           </h2>
 
-          <div className="flex items-center gap-4 pb-2">
+          <div className="buyer-topbar-actions flex items-center gap-4 pb-2">
             <p className="text-[22px] text-gray-500 font-bold">
               물품을 선택하면 상세 정보를 볼 수 있어요
             </p>
@@ -162,7 +163,7 @@ function MainScreen() {
           )}
         </div>
 
-        <div className="absolute bottom-0 right-0 w-full bg-white border-t border-gray-200 p-6 flex justify-end gap-4 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+        <div className="buyer-bottom-actions absolute bottom-0 right-0 w-full bg-white border-t border-gray-200 p-6 flex justify-end gap-4 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
           <button
             onClick={() => navigate('/wanted')}
             className="bg-[#E9F0FF] text-[#0047FF] px-8 py-4 rounded-2xl flex items-center gap-2 text-[20px] font-bold active:scale-95 transition-all"
@@ -172,7 +173,7 @@ function MainScreen() {
 
           <button
             onClick={() => navigate('/mypage-buyer')}
-            className="bg-[#0047FF] text-white px-8 py-4 rounded-2xl flex items-center gap-2 text-[20px] font-bold active:scale-95 transition-all shadow-lg"
+            className="hidden bg-[#0047FF] text-white px-8 py-4 rounded-2xl items-center gap-2 text-[20px] font-bold active:scale-95 transition-all shadow-lg"
           >
             마이페이지
           </button>

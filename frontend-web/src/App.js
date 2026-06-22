@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 
 import CodeLogin from './auth/code_login';
+import ReceiveSuccess from './auth/ReceiveSuccess';
 import BuyerSelect from './buyer/BuyerSelect';
 import BuyerEdit from './buyer/buyer_edit';
 import EasyMainScreen from './buyer/EasyMainScreen';
@@ -107,6 +108,7 @@ function App() {
         <Route path="/buyer-main" element={<MainScreen />} />
         <Route path="/posts/:postId" element={<PostDetail />} />
         <Route path="/code-login" element={<CodeLogin />} />
+        <Route path="/receive-success" element={<ReceiveSuccess />} />
         <Route path="/easy-main" element={<EasyMainScreen />} />
         <Route path="/easy-wanted" element={<EasyWantedList />} />
         <Route path="/easy-write-wanted" element={<EasyWriteWanted />} />

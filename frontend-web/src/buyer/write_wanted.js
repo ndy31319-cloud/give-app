@@ -78,10 +78,10 @@ function WriteWanted() {
 
   return (
     <div
-      className="p-8 flex justify-center bg-[#F8F9FA] min-h-screen"
+      className="wanted-write-screen p-8 flex justify-center bg-[#F8F9FA] min-h-screen"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
     >
-      <div className="w-full max-w-2xl bg-white shadow-xl p-10 rounded-[40px] border border-gray-100">
+      <div className="wanted-write-card w-full max-w-2xl bg-white shadow-xl p-10 rounded-[40px] border border-gray-100">
         <header className="mb-12 flex items-center gap-4">
           <button
             type="button"
@@ -95,10 +95,10 @@ function WriteWanted() {
           <h1 className="text-3xl font-bold text-gray-900">요청해요 글쓰기</h1>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-10">
+        <form onSubmit={handleSubmit} className="wanted-write-form space-y-10">
           <section>
             <label className="block text-xl font-bold text-gray-800 mb-4">필요한 물품 선택</label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="wanted-option-grid grid grid-cols-2 gap-4">
               {categories.map((cat) => (
                 <button
                   key={cat.id}
@@ -123,7 +123,7 @@ function WriteWanted() {
 
           <section>
             <label className="block text-xl font-bold text-gray-800 mb-4">긴급도</label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="wanted-urgency-grid grid grid-cols-3 gap-3">
               {URGENCY_OPTIONS.map((option) => (
                 <button
                   key={option.value}

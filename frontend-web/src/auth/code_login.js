@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { loginWithMemberCode } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
@@ -9,25 +9,54 @@ function CodeLogin() {
   const login = useAuthStore((state) => state.login);
   const postId = searchParams.get('postId');
   const postType = searchParams.get('type') || 'donate';
-  const [code, setCode] = useState('');
+  const isEasyMode = searchParams.get('easy') === '1';
+  const detailPath = postId ? `/posts/${postId}?type=${postType}${isEasyMode ? '&easy=1' : ''}` : '/buyer-main';
+  const serialInputRef = useRef(null);
+  const [codeYear, setCodeYear] = useState('');
+  const [codeSerial, setCodeSerial] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const certificateCode = useMemo(
+    () => `WF-${codeYear}-${codeSerial}`,
+    [codeYear, codeSerial]
+  );
+
+  const getDigits = (value) => value.replace(/\D/g, '');
+
+  const handleYearChange = (event) => {
+    const digits = getDigits(event.target.value).slice(0, 8);
+    const nextYear = digits.slice(0, 4);
+    const nextSerial = digits.slice(4, 8);
+
+    setCodeYear(nextYear);
+
+    if (nextSerial) {
+      setCodeSerial(nextSerial);
+    }
+
+    if (nextYear.length === 4) {
+      serialInputRef.current?.focus();
+    }
+  };
+
+  const handleSerialChange = (event) => {
+    setCodeSerial(getDigits(event.target.value).slice(0, 4));
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!code.trim()) {
+    if (codeYear.length !== 4 || codeSerial.length !== 4) {
       alert('회원코드를 입력해주세요.');
       return;
     }
 
     try {
       setIsLoading(true);
-      const result = await loginWithMemberCode({ code: code.trim(), postId });
+      const result = await loginWithMemberCode({ code: certificateCode, postId });
       const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
       const member = result.member || result.user || result.data?.user || result.data || {};
       login('buyer', member.email || member.nickname || 'buyer', token, member);
-      alert('회원코드 인증이 완료되었습니다.');
-      navigate('/buyer-main');
+      navigate('/receive-success', { replace: true });
     } catch (error) {
       alert(error.message);
     } finally {
@@ -46,7 +75,7 @@ function CodeLogin() {
       >
         <button
           type="button"
-          onClick={() => navigate(postId ? `/posts/${postId}?type=${postType}` : '/buyer-main')}
+          onClick={() => navigate(detailPath)}
           className="mb-12 text-[24px] font-bold text-gray-500"
         >
           ← 돌아가기
@@ -60,14 +89,34 @@ function CodeLogin() {
         </div>
 
         <label className="text-[22px] font-bold text-[#333] block mb-4">회원코드</label>
-        <input
-          type="text"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          placeholder="예: 1111"
-          className="w-full border-2 border-gray-100 rounded-[22px] px-6 py-6 text-[30px] outline-none focus:border-[#0047FF] mb-10 text-center font-bold"
-          autoFocus
-        />
+        <div className="mb-10 flex items-center gap-3">
+          <div className="h-[82px] px-6 rounded-[22px] bg-[#E9F0FF] text-[#0047FF] flex items-center justify-center text-[30px] font-black shrink-0">
+            WF-
+          </div>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={codeYear}
+            onChange={handleYearChange}
+            placeholder=""
+            maxLength={14}
+            className="min-w-0 flex-1 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#0047FF] text-center font-bold"
+            autoFocus
+            aria-label="회원코드 앞 4자리"
+          />
+          <span className="text-[34px] font-black text-gray-400">-</span>
+          <input
+            ref={serialInputRef}
+            type="text"
+            inputMode="numeric"
+            value={codeSerial}
+            onChange={handleSerialChange}
+            placeholder=""
+            maxLength={4}
+            className="min-w-0 flex-1 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#0047FF] text-center font-bold"
+            aria-label="회원코드 뒤 4자리"
+          />
+        </div>
 
         <button
           type="submit"

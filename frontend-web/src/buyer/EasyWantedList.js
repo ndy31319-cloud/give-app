@@ -58,17 +58,17 @@ function EasyWantedList() {
 
   return (
     <div
-      className="bg-[#F8F9FA] h-screen flex flex-col overflow-hidden"
+      className="easy-screen bg-[#F8F9FA] h-screen flex flex-col overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
-      <div className="bg-[#0047FF] text-white px-12 py-7 flex justify-between items-center shadow-md shrink-0">
+      <div className="easy-header bg-[#0047FF] text-white px-12 py-7 flex justify-between items-center shadow-md shrink-0">
         <h1 className="text-[58px] font-bold leading-tight">물품 요청 게시판</h1>
-        <div className="flex items-center gap-5">
+        <div className="easy-header-actions flex items-center gap-5">
           <div className="bg-white/15 px-8 py-4 rounded-[28px] text-[34px] font-bold">
             {page + 1} / {pageCount}
           </div>
           <button
-            onClick={() => navigate('/Write-Wanted')}
+            onClick={() => navigate('/easy-write-wanted')}
             className="bg-[#22C55E] text-white px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-[#22C55E] active:bg-green-700"
           >
             요청 글쓰기
@@ -82,18 +82,18 @@ function EasyWantedList() {
         </div>
       </div>
 
-      <div className="flex-1 p-8 overflow-hidden">
+      <div className="easy-content flex-1 p-8 overflow-hidden">
         {isLoading ? (
           <div className="h-full flex items-center justify-center text-[42px] font-bold text-gray-500">
             요청 글을 불러오는 중입니다
           </div>
         ) : (
-          <div className="grid grid-cols-2 grid-rows-2 gap-7 h-full">
+          <div className="easy-card-grid grid grid-cols-2 grid-rows-2 gap-7 h-full">
             {visibleSlots.map((item, index) => (
               item ? (
                 <div
                   key={item.id}
-                  className="bg-white rounded-[34px] shadow-md border-4 border-gray-200 p-8 flex flex-col justify-between h-full min-h-0"
+                  className="easy-wanted-card bg-white rounded-[34px] shadow-md border-4 border-gray-200 p-8 flex flex-col justify-between h-full min-h-0"
                 >
                   <div>
                     <div className="inline-flex bg-[#E9F0FF] text-[#0047FF] rounded-[20px] px-6 py-3 text-[28px] font-bold mb-5">
@@ -117,7 +117,7 @@ function EasyWantedList() {
               ) : (
                 <div
                   key={`empty-${index}`}
-                  className="bg-white/60 rounded-[34px] border-4 border-dashed border-gray-200 h-full min-h-0"
+                  className="easy-empty-card bg-white/60 rounded-[34px] border-4 border-dashed border-gray-200 h-full min-h-0"
                   aria-hidden="true"
                 />
               )
@@ -126,7 +126,7 @@ function EasyWantedList() {
         )}
       </div>
 
-      <div className="bg-white border-t-4 border-gray-200 px-10 py-6 flex justify-between items-center shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
+      <div className="easy-footer bg-white border-t-4 border-gray-200 px-10 py-6 flex justify-between items-center shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
         <button
           onClick={goToPrevPage}
           className="bg-gray-100 text-gray-700 px-14 py-5 rounded-[28px] text-[38px] font-bold border-4 border-gray-200 active:scale-95"

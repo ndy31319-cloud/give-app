@@ -1,8 +1,44 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchMyLikes } from '../api/client';
+
+function readLikes(payload) {
+  const data = payload?.data || payload || {};
+  return data.likes || payload?.likes || [];
+}
 
 function Wishlist() {
   const navigate = useNavigate();
+  const [items, setItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadLikes() {
+      try {
+        setIsLoading(true);
+        const result = await fetchMyLikes();
+        if (!ignore) {
+          setItems(readLikes(result));
+        }
+      } catch {
+        if (!ignore) {
+          setItems([]);
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadLikes();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   return (
     <div
@@ -21,12 +57,35 @@ function Wishlist() {
           </button>
           <h1 className="text-[36px] font-bold text-[#333]">관심 목록</h1>
         </div>
-        <span className="text-[20px] text-[#0047FF] font-bold">전체 0개</span>
+        <span className="text-[20px] text-[#0047FF] font-bold">전체 {items.length}개</span>
       </div>
 
-      <div className="bg-white rounded-[32px] p-16 text-center border border-gray-100">
-        <p className="text-[28px] font-bold text-gray-500">관심 목록이 없습니다.</p>
-      </div>
+      {isLoading ? (
+        <div className="bg-white rounded-[32px] p-16 text-center border border-gray-100">
+          <p className="text-[28px] font-bold text-gray-500">관심 목록을 불러오는 중입니다.</p>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="bg-white rounded-[32px] p-16 text-center border border-gray-100">
+          <p className="text-[28px] font-bold text-gray-500">관심 목록이 없습니다.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {items.map((item) => (
+            <button
+              type="button"
+              key={`${item.post_type || item.postType}-${item.post_id || item.postId}`}
+              onClick={() => navigate(`/posts/${item.post_id || item.postId}?type=${item.post_type || item.postType || 'donate'}`)}
+              className="w-full bg-white p-8 rounded-[28px] border border-gray-100 flex justify-between items-center text-left active:scale-[0.99] transition-all hover:bg-gray-50"
+            >
+              <div>
+                <p className="text-[24px] font-bold text-[#333]">{item.title}</p>
+                <p className="text-[18px] text-gray-400 mt-2">{item.status || '상태 없음'}</p>
+              </div>
+              <span className="text-[22px] font-bold text-[#0047FF]">보기</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

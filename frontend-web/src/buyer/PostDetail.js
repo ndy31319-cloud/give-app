@@ -10,6 +10,8 @@ function PostDetail() {
   const { postId } = useParams();
   const [searchParams] = useSearchParams();
   const postType = searchParams.get('type') || 'donate';
+  const isEasyMode = searchParams.get('easy') === '1' || Boolean(location.state?.fromEasyMode);
+  const listPath = isEasyMode ? '/easy-main' : '/buyer-main';
   const fallbackPost = location.state?.fallbackPost || null;
   const [item, setItem] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +43,7 @@ function PostDetail() {
       } catch (error) {
         if (!ignore) {
           alert(`물품 정보를 불러오지 못했습니다: ${error.message}`);
-          navigate('/buyer-main');
+          navigate(listPath);
         }
       } finally {
         if (!ignore) {
@@ -55,14 +57,14 @@ function PostDetail() {
     return () => {
       ignore = true;
     };
-  }, [fallbackPost, navigate, postId, postType]);
+  }, [fallbackPost, listPath, navigate, postId, postType]);
 
   const handleReceive = () => {
     setReceiveConfirmOpen(true);
   };
 
   const confirmReceive = () => {
-    navigate(`/code-login?postId=${postId}&type=${postType}`);
+    navigate(`/code-login?postId=${postId}&type=${postType}${isEasyMode ? '&easy=1' : ''}`);
   };
 
   if (isLoading) {
@@ -90,7 +92,7 @@ function PostDetail() {
         <div className="post-detail-info flex-1 p-14 flex flex-col">
           <button
             type="button"
-            onClick={() => navigate('/buyer-main')}
+            onClick={() => navigate(listPath)}
             className="self-start mb-14 text-[24px] font-bold text-gray-500 active:scale-95"
           >
             ← 목록으로
@@ -98,7 +100,7 @@ function PostDetail() {
 
           <div className="flex-1">
             <div className="inline-flex bg-[#E9F0FF] text-[#0047FF] px-6 py-3 rounded-[20px] text-[24px] font-bold mb-8">
-              나눔 가능
+              신청가능
             </div>
             <h1 className="text-[58px] font-bold text-[#222] leading-tight mb-8">
               {item.title}
