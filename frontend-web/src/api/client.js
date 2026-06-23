@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://give-app.onrender.com';
+const DEFAULT_API_BASE_URL =
+  process.env.NODE_ENV === 'development' ? '' : 'https://give-app.onrender.com';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || DEFAULT_API_BASE_URL;
 
 export const KIOSK_DEFAULT_LOCATION = {
   dongName: '안양동',

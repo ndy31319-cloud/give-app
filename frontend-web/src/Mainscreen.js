@@ -132,7 +132,7 @@ function MainScreen() {
               onClick={() => navigate('/easy-main')}
               className="bg-[#0047FF] text-white px-8 py-4 rounded-[24px] text-[24px] font-bold shadow-lg active:scale-95"
             >
-              쉬운모드
+              쉬운화면
             </button>
           </div>
         </div>

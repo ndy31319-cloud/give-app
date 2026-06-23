@@ -50,9 +50,9 @@ function Home() {
       <button
         type="button"
         onClick={() => navigate('/easy-main')}
-        className="absolute top-10 right-10 bg-white text-[#0047FF] border-4 border-[#0047FF] px-9 py-5 rounded-[32px] text-[28px] font-bold shadow-lg active:scale-95"
+        className="absolute top-10 right-10 bg-white text-[#0047FF] border-4 border-[#0047FF] px-12 py-7 rounded-[36px] text-[34px] font-bold shadow-lg active:scale-95"
       >
-        쉬운모드
+        쉬운화면
       </button>
 
       <div className="flex-1 flex flex-col items-center justify-center w-full">
