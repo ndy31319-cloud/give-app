@@ -122,6 +122,8 @@ export async function fetchWantedPosts(params = {}) {
 export async function createWantedPost({
   title,
   content,
+  category,
+  categoryId,
   urgency = 'normal',
   dongName,
   latitude,
@@ -132,6 +134,8 @@ export async function createWantedPost({
     body: JSON.stringify({
       title,
       content: content?.trim() ? content.trim() : null,
+      category,
+      category_id: categoryId,
       urgency,
       dongName,
       latitude,

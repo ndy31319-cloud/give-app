@@ -1,12 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createWantedPost, KIOSK_DEFAULT_LOCATION } from '../api/client';
-
-const URGENCY_OPTIONS = [
-  { value: 'urgent', label: '급해요' },
-  { value: 'normal', label: '급하지 않아요' },
-  { value: 'slow', label: '천천히 받아도  되요' },
-];
+import { getWantedCategoryPayload, URGENCY_OPTIONS, WANTED_CATEGORY_OPTIONS } from './wantedOptions';
 
 function getSavedUser() {
   try {
@@ -26,29 +21,25 @@ function isVulnerableMember(user) {
 function WriteWanted() {
   const navigate = useNavigate();
   const savedUser = useMemo(() => getSavedUser(), []);
-  const [category, setCategory] = useState('digital');
+  const [category, setCategory] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [urgency, setUrgency] = useState('normal');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmitWanted = isVulnerableMember(savedUser);
 
-  const categories = [
-    { id: 'blanket', name: '전기장판' },
-    { id: 'rice', name: '쌀' },
-    { id: 'ramen', name: '라면' },
-    { id: 'clothes', name: '겨울옷' },
-    { id: 'heater', name: '난방용품' },
-    { id: 'medicine', name: '상비약' },
-    { id: 'daily', name: '생활용품' },
-    { id: 'etc', name: '직접 입력' },
-  ];
+  const isCustomCategory = category === 'custom';
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!canSubmitWanted) {
       alert('요청해요 글쓰기는 취약계층 회원만 이용할 수 있습니다.');
+      return;
+    }
+
+    if (!category) {
+      alert('필요한 물품 카테고리를 선택해주세요.');
       return;
     }
 
@@ -59,9 +50,12 @@ function WriteWanted() {
 
     try {
       setIsSubmitting(true);
+      const categoryPayload = getWantedCategoryPayload(category);
       await createWantedPost({
         title: title.trim(),
         content: content.trim(),
+        category: categoryPayload.category,
+        categoryId: categoryPayload.categoryId,
         urgency,
         dongName: savedUser?.dongName || savedUser?.dong_name || KIOSK_DEFAULT_LOCATION.dongName,
         latitude: savedUser?.latitude || savedUser?.lat || KIOSK_DEFAULT_LOCATION.latitude,
@@ -97,16 +91,18 @@ function WriteWanted() {
 
         <form onSubmit={handleSubmit} className="wanted-write-form space-y-10">
           <section>
-            <label className="block text-xl font-bold text-gray-800 mb-4">필요한 물품 선택</label>
-            <div className="wanted-option-grid grid grid-cols-2 gap-4">
-              {categories.map((cat) => (
+            <label className="block text-xl font-bold text-gray-800 mb-4">필요한 물품 카테고리</label>
+            <div className="wanted-option-grid grid grid-cols-3 gap-4">
+              {WANTED_CATEGORY_OPTIONS.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
                   onClick={() => {
                     setCategory(cat.id);
-                    if (cat.id !== 'etc') {
+                    if (cat.id !== 'custom') {
                       setTitle(cat.name);
+                    } else {
+                      setTitle('');
                     }
                   }}
                   className={`px-5 py-5 rounded-2xl text-[22px] font-bold transition-all border-2 ${
@@ -119,6 +115,16 @@ function WriteWanted() {
                 </button>
               ))}
             </div>
+            {isCustomCategory ? (
+              <input
+                type="text"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="mt-4 w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] outline-none focus:border-[#0047FF] transition-all"
+                placeholder="필요한 물품 이름을 직접 입력하세요"
+                required
+              />
+            ) : null}
           </section>
 
           <section>
@@ -141,17 +147,19 @@ function WriteWanted() {
             </div>
           </section>
 
-          <section>
-            <label className="block text-xl font-bold text-gray-800 mb-4">요청 물품명</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className="w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] outline-none focus:border-[#0047FF] transition-all"
-              placeholder="필요한 물품 이름을 입력하세요"
-              required
-            />
-          </section>
+          {!isCustomCategory ? (
+            <section>
+              <label className="block text-xl font-bold text-gray-800 mb-4">요청 물품명</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] outline-none focus:border-[#0047FF] transition-all"
+                placeholder="필요한 물품 이름을 입력하세요"
+                required
+              />
+            </section>
+          ) : null}
 
           <section>
             <label className="block text-xl font-bold text-gray-800 mb-4">상세 내용</label>
