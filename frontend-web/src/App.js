@@ -70,7 +70,7 @@ function Home() {
         <div className="home-primary-wrap w-full flex justify-center px-4">
           <button
             type="button"
-            onClick={() => navigate('/easy-main')}
+            onClick={() => navigate('/buyer-main')}
             className="home-primary-action w-full bg-white rounded-[48px] shadow-[0_20px_60px_rgba(0,71,255,0.08)] hover:scale-[1.02] hover:shadow-[0_24px_70px_rgba(0,71,255,0.15)] transition-all flex flex-col items-center border border-[#E9F0FF] group py-20"
           >
             <div className="home-primary-icon bg-[#E9F0FF] rounded-full flex items-center justify-center group-hover:bg-[#D4E4FF] transition-colors w-56 h-56 mb-12">
