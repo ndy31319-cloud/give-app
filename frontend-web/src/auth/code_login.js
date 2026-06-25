@@ -1,28 +1,58 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { loginWithMemberCode, normalizeCertificateCode } from '../api/client';
+import { loginWithMemberCode } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
-
-const CERTIFICATE_DISPLAY_PREFIX = 'WF-';
 
 function CodeLogin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const login = useAuthStore((state) => state.login);
+  const firstInputRef = useRef(null);
+  const secondInputRef = useRef(null);
   const postId = searchParams.get('postId');
   const postType = searchParams.get('type') || 'donate';
   const isEasyMode = searchParams.get('easy') === '1';
   const detailPath = postId ? `/posts/${postId}?type=${postType}${isEasyMode ? '&easy=1' : ''}` : '/buyer-main';
-  const [codeInput, setCodeInput] = useState('');
+  const [codeYear, setCodeYear] = useState('');
+  const [codeNumber, setCodeNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const getDigits = (value) => value.replace(/\D/g, '');
 
-  const handleCodeChange = (event) => {
-    setCodeInput(getDigits(event.target.value).slice(0, 8));
+  const moveCursorToEnd = (input) => {
+    window.requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange?.(input.value.length, input.value.length);
+    });
   };
 
-  const buildCertificateCode = () => normalizeCertificateCode(codeInput);
+  const handleFirstCodeChange = (event) => {
+    const digits = getDigits(event.target.value).slice(0, 8);
+    const firstPart = digits.slice(0, 4);
+    const secondPart = digits.slice(4, 8);
+
+    setCodeYear(firstPart);
+
+    if (secondPart) {
+      setCodeNumber(secondPart);
+    }
+
+    if (firstPart.length === 4) {
+      moveCursorToEnd(secondInputRef.current);
+    }
+  };
+
+  const handleSecondCodeChange = (event) => {
+    setCodeNumber(getDigits(event.target.value).slice(0, 4));
+  };
+
+  const handleSecondCodeKeyDown = (event) => {
+    if (event.key === 'Backspace' && codeNumber.length === 0) {
+      moveCursorToEnd(firstInputRef.current);
+    }
+  };
+
+  const buildCertificateCode = () => `WF-${codeYear}-${codeNumber}`;
 
   const continueWithKioskCertificate = (certificateCode) => {
     const member = {
@@ -43,7 +73,7 @@ function CodeLogin() {
     const certificateCode = buildCertificateCode();
 
     if (!/^WF-\d{4}-\d{4}$/.test(certificateCode)) {
-      alert('0016 또는 20260016처럼 회원코드를 입력해주세요.');
+      alert('인증번호 숫자 8자리를 입력해주세요.');
       return;
     }
 
@@ -69,7 +99,7 @@ function CodeLogin() {
   return (
     <div
       className="code-login-screen bg-[#F9FAFB] h-screen flex items-center justify-center p-10 overflow-hidden"
-      style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
+      style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <form
         onSubmit={handleSubmit}
@@ -86,25 +116,42 @@ function CodeLogin() {
         <div className="code-login-title text-center mb-14">
           <h1 className="text-[48px] font-bold text-[#333] mb-5">회원코드 인증</h1>
           <p className="text-[24px] text-gray-500 leading-snug">
-            숫자 4자리만 입력하거나 전체 코드를 입력해주세요
+            인증번호 숫자 8자리를 입력해주세요
           </p>
         </div>
 
         <label className="code-login-label text-[22px] font-bold text-[#333] block mb-4">회원코드</label>
         <div className="code-login-input-row mb-10 flex items-center gap-5">
           <div className="code-login-prefix h-[82px] px-6 rounded-[22px] bg-[#E9F0FF] text-[#0047FF] flex items-center justify-center text-[30px] font-black shrink-0">
-            {CERTIFICATE_DISPLAY_PREFIX}
+            WF
           </div>
+          <span className="code-login-separator" aria-hidden="true">-</span>
           <input
-            type="text"
+            ref={firstInputRef}
+            type="tel"
             inputMode="numeric"
-            value={codeInput}
-            onChange={handleCodeChange}
+            pattern="[0-9]*"
+            value={codeYear}
+            onChange={handleFirstCodeChange}
             placeholder=""
-            maxLength={8}
-            className="code-login-input min-w-0 flex-1 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#0047FF] text-center font-bold"
+            maxLength={4}
+            className="code-login-input code-login-code-part min-w-0 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#0047FF] text-center font-bold"
             autoFocus
-            aria-label="회원코드 숫자 4자리"
+            aria-label="회원코드 앞 숫자 4자리"
+          />
+          <span className="code-login-separator" aria-hidden="true">-</span>
+          <input
+            ref={secondInputRef}
+            type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={codeNumber}
+            onChange={handleSecondCodeChange}
+            onKeyDown={handleSecondCodeKeyDown}
+            placeholder=""
+            maxLength={4}
+            className="code-login-input code-login-code-part min-w-0 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#0047FF] text-center font-bold"
+            aria-label="회원코드 뒤 숫자 4자리"
           />
         </div>
 
