@@ -74,9 +74,10 @@ body {
   max-width: 100%;
   border-width: clamp(2px, 0.45vmin, 4px) !important;
   border-radius: clamp(18px, 3vmin, 32px) !important;
-  padding: clamp(10px, 1.8vmin, 20px) clamp(18px, 3.2vmin, 36px) !important;
-  font-size: clamp(18px, 2.4vmin, 28px) !important;
+  padding: clamp(14px, 2.2vmin, 26px) clamp(26px, 4vmin, 48px) !important;
+  font-size: clamp(22px, 2.9vmin, 34px) !important;
   line-height: 1.15;
+  min-height: clamp(62px, 8vmin, 88px);
   white-space: nowrap;
 }
 
@@ -96,52 +97,63 @@ body {
   padding-top: clamp(4px, 1vmin, 12px);
 }
 
-.home-screen h1 {
-  margin-bottom: clamp(4px, 1vmin, 16px) !important;
-  font-size: clamp(38px, 7vmin, 72px) !important;
+.home-title-button {
+  margin-bottom: clamp(8px, 1.4vmin, 18px);
+  border: 0;
+  background: transparent;
+  color: #0047ff;
+  cursor: pointer;
+  font-size: clamp(42px, 7.2vmin, 82px);
+  font-weight: 900;
   line-height: 1.08;
+  text-align: center;
+  word-break: keep-all;
 }
 
-.home-screen h1 + p {
-  margin-bottom: clamp(18px, 4.8vmin, 64px) !important;
-  font-size: clamp(20px, 3vmin, 32px) !important;
+.home-lead {
+  margin-bottom: clamp(18px, 4.6vmin, 58px);
+  font-size: clamp(24px, 3.4vmin, 40px);
   line-height: 1.25;
+  word-break: keep-all;
 }
 
-.home-screen .w-full.flex.justify-center {
+.home-primary-wrap {
   min-height: 0;
   padding-left: clamp(4px, 1vmin, 16px) !important;
   padding-right: clamp(4px, 1vmin, 16px) !important;
 }
 
-.home-screen .w-full.flex.justify-center > button {
-  width: min(100%, clamp(320px, 52vmin, 600px));
-  max-height: min(58vh, 560px);
+.home-primary-action {
+  width: min(100%, clamp(440px, 64vmin, 760px)) !important;
+  max-height: min(62vh, 660px);
   border-radius: clamp(28px, 4.5vmin, 48px) !important;
-  padding: clamp(24px, 6vmin, 80px) clamp(20px, 4vmin, 48px) !important;
+  padding: clamp(28px, 6.2vmin, 86px) clamp(24px, 4.8vmin, 56px) !important;
+  border-width: clamp(2px, 0.3vmin, 4px) !important;
 }
 
-.home-screen .w-full.flex.justify-center > button > div:first-child {
-  width: clamp(112px, 20vmin, 224px) !important;
-  height: clamp(112px, 20vmin, 224px) !important;
-  margin-bottom: clamp(18px, 4vmin, 48px) !important;
+.home-primary-icon {
+  width: clamp(128px, 21vmin, 240px) !important;
+  height: clamp(128px, 21vmin, 240px) !important;
+  margin-bottom: clamp(20px, 4vmin, 48px) !important;
   flex: 0 0 auto;
 }
 
-.home-screen svg {
-  width: clamp(64px, 11vmin, 120px) !important;
-  height: clamp(64px, 11vmin, 120px) !important;
+.home-primary-icon svg {
+  width: clamp(72px, 12vmin, 132px) !important;
+  height: clamp(72px, 12vmin, 132px) !important;
 }
 
-.home-screen h2 {
+.home-primary-action h2 {
   margin-bottom: clamp(10px, 2vmin, 24px) !important;
-  font-size: clamp(30px, 5.2vmin, 56px) !important;
+  font-size: clamp(42px, 6vmin, 72px) !important;
   line-height: 1.15;
   text-align: center;
+  word-break: keep-all;
 }
 
-.home-screen h2 + p {
-  font-size: clamp(18px, 2.8vmin, 28px) !important;
+.home-primary-action h2 + p {
+  font-size: clamp(24px, 3.2vmin, 36px) !important;
+  word-break: keep-all;
 }
 
 .home-screen > .w-full.shrink-0 {
@@ -153,11 +165,11 @@ body {
     justify-content: flex-start;
   }
 
-  .home-screen h1 + p {
+  .home-lead {
     margin-bottom: clamp(12px, 3vmin, 28px) !important;
   }
 
-  .home-screen .w-full.flex.justify-center > button {
+  .home-primary-action {
     padding-top: clamp(18px, 4vmin, 40px) !important;
     padding-bottom: clamp(18px, 4vmin, 40px) !important;
   }
@@ -603,6 +615,10 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)) !important;
 }
 
+.easy-main-category-bar {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+}
+
 .easy-category-bar button {
   height: clamp(58px, 7.8vh, 78px) !important;
   min-width: 0;
@@ -642,6 +658,64 @@ body {
 
 .easy-post-card h3 {
   display: none;
+}
+
+.easy-main-heading {
+  min-width: 0;
+}
+
+.easy-main-heading p {
+  margin-top: clamp(6px, 0.8vw, 12px);
+  font-size: clamp(22px, 2vw, 34px);
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: keep-all;
+}
+
+.easy-main-card {
+  grid-template-columns: minmax(190px, 38%) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.easy-main-card h3 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: clamp(34px, 3.1vw, 50px) !important;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.easy-main-card-note {
+  margin-top: clamp(6px, 1vw, 12px);
+}
+
+.easy-main-card-note p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.22;
+}
+
+.easy-main-message {
+  gap: clamp(12px, 2vw, 22px);
+  color: #4b5563;
+}
+
+.easy-main-message strong {
+  font-size: clamp(36px, 4vw, 60px);
+  line-height: 1.18;
+  color: #111827;
+  word-break: keep-all;
+}
+
+.easy-main-message p {
+  max-width: min(860px, 88vw);
+  font-size: clamp(24px, 2.4vw, 36px);
+  line-height: 1.35;
+  word-break: keep-all;
 }
 
 .easy-post-thumb {
@@ -765,6 +839,10 @@ body {
 }
 
 @media (max-width: 980px) {
+  .easy-main-category-bar {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
   .easy-card-grid {
     height: auto !important;
     grid-template-columns: 1fr !important;
@@ -777,6 +855,10 @@ body {
 }
 
 @media (max-width: 720px) {
+  .easy-main-category-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
   .easy-post-card {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
@@ -837,6 +919,26 @@ body {
   overflow: hidden;
   margin-left: clamp(20px, 4vmin, 48px);
   flex: 0 0 auto;
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.post-detail-image span {
+  position: absolute;
+  right: clamp(14px, 2vmin, 22px);
+  bottom: clamp(14px, 2vmin, 22px);
+  border-radius: clamp(16px, 2vmin, 24px);
+  background: rgba(0, 87, 216, 0.92);
+  color: #fff;
+  padding: clamp(10px, 1.6vmin, 16px) clamp(16px, 2.4vmin, 24px);
+  font-size: clamp(18px, 2.2vmin, 26px);
+  font-weight: 800;
+  line-height: 1.1;
+  pointer-events: none;
+  word-break: keep-all;
 }
 
 .post-detail-info {
@@ -873,6 +975,15 @@ body {
 
 .post-detail-info .bg-\[\#F8F9FA\] {
   margin-bottom: 0;
+}
+
+.post-image-preview-card {
+  width: min(94vw, 980px);
+  max-height: 92vh;
+}
+
+.post-image-preview-image {
+  height: min(70vh, 680px);
 }
 
 @media (max-height: 760px) {

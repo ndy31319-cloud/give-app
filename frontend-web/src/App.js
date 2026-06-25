@@ -37,12 +37,12 @@ function Home() {
   return (
     <div
       className="home-screen bg-gradient-to-b from-[#E9F0FF] to-white min-h-screen flex flex-col w-full p-10 overflow-hidden relative"
-      style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
+      style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <button
         type="button"
         onClick={() => navigate('/locker')}
-        className="absolute top-10 left-10 bg-white text-[#2E8B57] border-4 border-[#2E8B57] px-9 py-5 rounded-[32px] text-[28px] font-bold shadow-lg active:scale-95"
+        className="home-support-button home-locker-button absolute top-10 left-10 bg-white text-[#177245] border-4 border-[#177245] px-9 py-5 rounded-[32px] text-[28px] font-bold shadow-lg active:scale-95"
       >
         물품보관함
       </button>
@@ -50,39 +50,44 @@ function Home() {
       <button
         type="button"
         onClick={() => navigate('/easy-main')}
-        className="absolute top-10 right-10 bg-white text-[#0047FF] border-4 border-[#0047FF] px-12 py-7 rounded-[36px] text-[34px] font-bold shadow-lg active:scale-95"
+        className="home-support-button home-easy-button absolute top-10 right-10 bg-white text-[#0047FF] border-4 border-[#0047FF] px-12 py-7 rounded-[36px] text-[34px] font-bold shadow-lg active:scale-95"
       >
         쉬운화면
       </button>
 
-      <div className="flex-1 flex flex-col items-center justify-center w-full">
-        <h1
+      <div className="home-main-area flex-1 flex flex-col items-center justify-center w-full">
+        <button
+          type="button"
           onClick={toggleFullScreen}
-          className="font-bold text-[#0047FF] mb-4 text-[72px] cursor-pointer text-center leading-tight"
+          className="home-title-button"
         >
           무료 나눔 플랫폼
-        </h1>
-        <p className="text-[#666666] mb-16 font-medium text-[32px] text-center">
-          화면을 터치해서 시작해주세요
+        </button>
+        <p className="home-lead text-[#4B5563] font-bold text-center">
+          아래 큰 버튼을 눌러 시작하세요
         </p>
 
-        <div className="w-full flex justify-center px-4">
+        <div className="home-primary-wrap w-full flex justify-center px-4">
           <button
             type="button"
-            onClick={() => navigate('/buyer-main')}
-            className="w-full max-w-[600px] bg-white rounded-[48px] shadow-[0_20px_60px_rgba(0,71,255,0.08)] hover:scale-[1.02] hover:shadow-[0_24px_70px_rgba(0,71,255,0.15)] transition-all flex flex-col items-center border border-[#E9F0FF] group py-20"
+            onClick={() => navigate('/easy-main')}
+            className="home-primary-action w-full bg-white rounded-[48px] shadow-[0_20px_60px_rgba(0,71,255,0.08)] hover:scale-[1.02] hover:shadow-[0_24px_70px_rgba(0,71,255,0.15)] transition-all flex flex-col items-center border border-[#E9F0FF] group py-20"
           >
-            <div className="bg-[#E9F0FF] rounded-full flex items-center justify-center group-hover:bg-[#D4E4FF] transition-colors w-56 h-56 mb-12">
-              <svg className="w-[120px] h-[120px]" viewBox="0 0 24 24" fill="none" stroke="#0047FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            <div className="home-primary-icon bg-[#E9F0FF] rounded-full flex items-center justify-center group-hover:bg-[#D4E4FF] transition-colors w-56 h-56 mb-12">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#0047FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 12v8H4v-8" />
+                <path d="M22 7H2v5h20V7Z" />
+                <path d="M12 22V7" />
+                <path d="M12 7H7.5a2.5 2.5 0 1 1 2.5-2.5C10 6 12 7 12 7Z" />
+                <path d="M12 7h4.5A2.5 2.5 0 1 0 14 4.5C14 6 12 7 12 7Z" />
               </svg>
             </div>
 
-            <h2 className="font-bold text-[#333333] mb-6 text-[56px]">
-              필요한 물품 찾기
+            <h2 className="font-black text-[#111827] mb-6 text-[56px]">
+              필요한 물건 보기
             </h2>
-            <p className="text-gray-500 text-center leading-tight text-[28px]">
-              여기를 눌러서<br />도움을 받아보세요
+            <p className="text-gray-600 text-center leading-tight text-[28px] font-bold">
+              사진을 보고 받을 물건을 고르세요
             </p>
           </button>
         </div>

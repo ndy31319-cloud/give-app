@@ -16,6 +16,7 @@ function PostDetail() {
   const [item, setItem] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [receiveConfirmOpen, setReceiveConfirmOpen] = useState(false);
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -42,7 +43,7 @@ function PostDetail() {
         }
       } catch (error) {
         if (!ignore) {
-          alert(`물품 정보를 불러오지 못했습니다: ${error.message}`);
+          alert(`물품 정보를 불러오지 못했습니다. ${error.message}`);
           navigate(listPath);
         }
       } finally {
@@ -82,12 +83,18 @@ function PostDetail() {
   return (
     <div
       className="post-detail-screen bg-[#F4F6F8] h-screen overflow-hidden p-12"
-      style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
+      style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <div className="post-detail-card h-full bg-white rounded-[36px] shadow-sm border border-gray-100 overflow-hidden flex">
-        <div className="post-detail-image bg-gray-100">
+        <button
+          type="button"
+          className="post-detail-image bg-gray-100"
+          onClick={() => setImagePreviewOpen(true)}
+          aria-label="사진 크게 보기"
+        >
           <PostImage item={item} alt={item.title} className="w-full h-full object-cover" />
-        </div>
+          <span>사진 크게 보기</span>
+        </button>
 
         <div className="post-detail-info flex-1 p-14 flex flex-col">
           <button
@@ -124,6 +131,23 @@ function PostDetail() {
           </button>
         </div>
       </div>
+
+      {imagePreviewOpen && (
+        <div className="post-image-preview fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-8">
+          <div className="post-image-preview-card bg-white rounded-[32px] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="post-image-preview-image bg-gray-100 rounded-[24px] overflow-hidden">
+              <PostImage item={item} alt={item.title} className="w-full h-full object-contain" />
+            </div>
+            <button
+              type="button"
+              onClick={() => setImagePreviewOpen(false)}
+              className="mt-6 w-full rounded-[24px] bg-[#0057D8] py-5 text-[30px] font-bold text-white active:scale-[0.98]"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
 
       <ReceiveConfirmModal
         open={receiveConfirmOpen}
