@@ -12,7 +12,13 @@ function CodeLogin() {
   const postId = searchParams.get('postId');
   const postType = searchParams.get('type') || 'donate';
   const isEasyMode = searchParams.get('easy') === '1';
-  const detailPath = postId ? `/posts/${postId}?type=${postType}${isEasyMode ? '&easy=1' : ''}` : '/buyer-main';
+  const mode = searchParams.get('mode');
+  const isLockerPickup = mode === 'locker-pickup';
+  const detailPath = isLockerPickup
+    ? '/locker'
+    : postId
+      ? `/posts/${postId}?type=${postType}${isEasyMode ? '&easy=1' : ''}`
+      : '/buyer-main';
   const [codeYear, setCodeYear] = useState('');
   const [codeNumber, setCodeNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +60,14 @@ function CodeLogin() {
 
   const buildCertificateCode = () => `WF-${codeYear}-${codeNumber}`;
 
+  const getNextPath = () => (
+    isLockerPickup
+      ? '/locker/pickup'
+      : postId
+        ? `/appointment-request?postId=${postId}&type=${postType}${isEasyMode ? '&easy=1' : ''}`
+        : '/appointment-request'
+  );
+
   const continueWithKioskCertificate = (certificateCode) => {
     const member = {
       email: `kiosk-${certificateCode.toLowerCase()}@local`,
@@ -64,7 +78,7 @@ function CodeLogin() {
     };
 
     login('buyer', member.email, null, member);
-    navigate('/receive-success', { replace: true });
+    navigate(getNextPath(), { replace: true });
   };
 
   const handleSubmit = async (event) => {
@@ -83,7 +97,7 @@ function CodeLogin() {
       const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
       const member = result.member || result.user || result.data?.user || result.data || {};
       login('buyer', member.email || member.nickname || 'buyer', token, member);
-      navigate('/receive-success', { replace: true });
+      navigate(getNextPath(), { replace: true });
     } catch (error) {
       if (/^WF-\d{4}-\d{4}$/.test(certificateCode)) {
         continueWithKioskCertificate(certificateCode);
@@ -114,9 +128,11 @@ function CodeLogin() {
         </button>
 
         <div className="code-login-title text-center mb-14">
-          <h1 className="text-[48px] font-bold text-[#333] mb-5">회원코드 인증</h1>
+          <h1 className="text-[48px] font-bold text-[#333] mb-5">
+            {isLockerPickup ? '물품 찾기' : '회원코드 인증'}
+          </h1>
           <p className="text-[24px] text-gray-500 leading-snug">
-            인증번호 숫자 8자리를 입력해주세요
+            {isLockerPickup ? '회원코드를 입력하면 내 물품을 확인할 수 있어요' : '인증번호 숫자 8자리를 입력해주세요'}
           </p>
         </div>
 
@@ -162,7 +178,6 @@ function CodeLogin() {
         >
           {isLoading ? '인증 중...' : '인증하기'}
         </button>
-
       </form>
     </div>
   );

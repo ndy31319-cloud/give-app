@@ -289,7 +289,7 @@ function LockerScreen() {
       <header className="sticky top-0 bg-white/95 backdrop-blur border-b border-[#E2E8DE] px-16 py-8 flex items-center gap-8 z-10">
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/locker')}
           className="w-24 h-24 rounded-full bg-[#EEF3EC] flex items-center justify-center text-[54px] font-bold active:scale-95"
           aria-label="뒤로가기"
         >

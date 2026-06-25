@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 
 import CodeLogin from './auth/code_login';
-import ReceiveSuccess from './auth/ReceiveSuccess';
+import AppointmentRequest from './buyer/AppointmentRequest';
 import BuyerSelect from './buyer/BuyerSelect';
 import BuyerEdit from './buyer/buyer_edit';
 import EasyMainScreen from './buyer/EasyMainScreen';
@@ -15,6 +15,8 @@ import SettingsBuyer from './buyer/settings_buyer';
 import WantedList from './buyer/wanted_list';
 import Wishlist from './buyer/wishlist';
 import WriteWanted from './buyer/write_wanted';
+import LockerMenu from './locker/LockerMenu';
+import LockerPickup from './locker/LockerPickup';
 import LockerScreen from './locker/LockerScreen';
 import MainScreen from './Mainscreen';
 import SellerInput from './seller/input';
@@ -103,7 +105,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/locker" element={<LockerScreen />} />
+        <Route path="/locker" element={<LockerMenu />} />
+        <Route path="/locker/store" element={<LockerScreen />} />
+        <Route path="/locker/pickup" element={<LockerPickup />} />
 
         <Route path="/seller-home" element={<SellerHome />} />
         <Route path="/mypage-seller" element={<MypageSeller />} />
@@ -113,7 +117,7 @@ function App() {
         <Route path="/buyer-main" element={<MainScreen />} />
         <Route path="/posts/:postId" element={<PostDetail />} />
         <Route path="/code-login" element={<CodeLogin />} />
-        <Route path="/receive-success" element={<ReceiveSuccess />} />
+        <Route path="/appointment-request" element={<AppointmentRequest />} />
         <Route path="/easy-main" element={<EasyMainScreen />} />
         <Route path="/easy-wanted" element={<EasyWantedList />} />
         <Route path="/easy-write-wanted" element={<EasyWriteWanted />} />
