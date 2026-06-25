@@ -50,10 +50,36 @@ export async function loginMember({ email, password }) {
 }
 
 export async function loginWithMemberCode({ code, postId }) {
+  const certificateNumber = normalizeCertificateCode(code);
+
   return request('/api/auth/code-login', {
     method: 'POST',
-    body: JSON.stringify({ code, certificate_number: code, postId }),
+    body: JSON.stringify({
+      code: certificateNumber,
+      certificate_number: certificateNumber,
+      certificateNo: certificateNumber,
+      postId,
+    }),
   });
+}
+
+export function normalizeCertificateCode(value) {
+  const input = String(value || '').trim().toUpperCase();
+  const digits = input.replace(/\D/g, '');
+
+  if (/^WF-\d{4}-\d{4}$/.test(input)) {
+    return input;
+  }
+
+  if (/^\d{4}$/.test(digits)) {
+    return `WF-2026-${digits}`;
+  }
+
+  if (/^\d{8}$/.test(digits)) {
+    return `WF-${digits.slice(0, 4)}-${digits.slice(4)}`;
+  }
+
+  return input;
 }
 
 export async function signupMember({ name, id, password, phone, region }) {

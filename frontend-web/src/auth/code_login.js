@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { loginWithMemberCode } from '../api/client';
+import { loginWithMemberCode, normalizeCertificateCode } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
 
 const CERTIFICATE_DISPLAY_PREFIX = 'WF-';
-const CERTIFICATE_CODE_PREFIX = 'WF-2026-';
 
 function CodeLogin() {
   const navigate = useNavigate();
@@ -23,16 +22,19 @@ function CodeLogin() {
     setCodeInput(getDigits(event.target.value).slice(0, 8));
   };
 
-  const buildCertificateCode = () => {
-    if (codeInput.length === 4) {
-      return `${CERTIFICATE_CODE_PREFIX}${codeInput}`;
-    }
+  const buildCertificateCode = () => normalizeCertificateCode(codeInput);
 
-    if (codeInput.length === 8) {
-      return `WF-${codeInput.slice(0, 4)}-${codeInput.slice(4)}`;
-    }
+  const continueWithKioskCertificate = (certificateCode) => {
+    const member = {
+      email: `kiosk-${certificateCode.toLowerCase()}@local`,
+      nickname: certificateCode,
+      certificate_no: certificateCode,
+      role: 'buyer',
+      login_type: 'certificate_code',
+    };
 
-    return '';
+    login('buyer', member.email, null, member);
+    navigate('/receive-success', { replace: true });
   };
 
   const handleSubmit = async (event) => {
@@ -40,7 +42,7 @@ function CodeLogin() {
 
     const certificateCode = buildCertificateCode();
 
-    if (!certificateCode) {
+    if (!/^WF-\d{4}-\d{4}$/.test(certificateCode)) {
       alert('0016 또는 20260016처럼 회원코드를 입력해주세요.');
       return;
     }
@@ -53,6 +55,11 @@ function CodeLogin() {
       login('buyer', member.email || member.nickname || 'buyer', token, member);
       navigate('/receive-success', { replace: true });
     } catch (error) {
+      if (/^WF-\d{4}-\d{4}$/.test(certificateCode)) {
+        continueWithKioskCertificate(certificateCode);
+        return;
+      }
+
       alert(error.message);
     } finally {
       setIsLoading(false);
