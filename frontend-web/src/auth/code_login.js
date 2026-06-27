@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { loginWithMemberCode } from '../api/client';
+import { getAuthTokenFromLoginResult, loginWithMemberCode } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
 
 function CodeLogin() {
@@ -94,12 +94,18 @@ function CodeLogin() {
     try {
       setIsLoading(true);
       const result = await loginWithMemberCode({ code: certificateCode, postId });
-      const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
+      const token = getAuthTokenFromLoginResult(result);
       const member = result.member || result.user || result.data?.user || result.data || {};
+
+      if (!token && !isLockerPickup) {
+        alert('회원코드 인증은 되었지만 로그인 토큰을 받지 못했습니다. 다시 시도해주세요.');
+        return;
+      }
+
       login('buyer', member.email || member.nickname || 'buyer', token, member);
       navigate(getNextPath(), { replace: true });
     } catch (error) {
-      if (/^WF-\d{4}-\d{4}$/.test(certificateCode)) {
+      if (isLockerPickup && /^WF-\d{4}-\d{4}$/.test(certificateCode)) {
         continueWithKioskCertificate(certificateCode);
         return;
       }

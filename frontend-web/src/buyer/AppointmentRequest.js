@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { fetchPost, getPostImageUrl } from '../api/client';
+import { createPickupRequest, fetchPost, getPostImageUrl, hasAuthToken } from '../api/client';
 import PostImage from './PostImage';
 
 function getDefaultDate() {
@@ -78,16 +78,37 @@ function AppointmentRequest() {
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (!postId) {
+      alert('요청할 나눔글을 찾을 수 없습니다.');
+      return;
+    }
 
     if (!appointment.date || !appointment.time) {
       alert('희망 날짜와 시간을 선택해주세요.');
       return;
     }
 
-    alert('비대면 수령 요청을 보냈습니다.');
-    navigate(listPath, { replace: true });
+    if (!hasAuthToken()) {
+      alert('회원코드 인증 후 다시 수령 요청해주세요.');
+      navigate(`/code-login?postId=${postId}&type=${postType}${isEasyMode ? '&easy=1' : ''}`, { replace: true });
+      return;
+    }
+
+    try {
+      await createPickupRequest(postId, {
+        date: appointment.date,
+        time: appointment.time,
+        memo: appointment.memo,
+      });
+
+      alert('비대면 수령 요청을 보냈습니다.');
+      navigate(listPath, { replace: true });
+    } catch (error) {
+      alert(error.message);
+    }
   };
 
   if (isLoading) {

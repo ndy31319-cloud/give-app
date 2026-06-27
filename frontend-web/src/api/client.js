@@ -13,6 +13,30 @@ function getToken() {
   return localStorage.getItem('givegive_access_token');
 }
 
+export function getAuthTokenFromLoginResult(result = {}) {
+  return (
+    result.accessToken ||
+    result.access_token ||
+    result.token ||
+    result.jwt ||
+    result.bearerToken ||
+    result.data?.accessToken ||
+    result.data?.access_token ||
+    result.data?.token ||
+    result.data?.jwt ||
+    result.data?.bearerToken ||
+    result.member?.accessToken ||
+    result.member?.access_token ||
+    result.user?.accessToken ||
+    result.user?.access_token ||
+    null
+  );
+}
+
+export function hasAuthToken() {
+  return Boolean(getToken());
+}
+
 async function request(path, options = {}) {
   const token = getToken();
   const headers = {
@@ -51,16 +75,42 @@ export async function loginMember({ email, password }) {
 
 export async function loginWithMemberCode({ code, postId }) {
   const certificateNumber = normalizeCertificateCode(code);
+  const digits = certificateNumber.replace(/\D/g, '');
+  const yearCode = digits.length >= 8 ? `${digits.slice(0, 4)}-${digits.slice(4, 8)}` : '';
+  const shortCode = digits.slice(-4);
+  const postIdNumber = postId ? Number(postId) : undefined;
+  const postValue = Number.isNaN(postIdNumber) ? postId : postIdNumber;
+  const codeCandidates = [
+    certificateNumber,
+    yearCode,
+    digits,
+    shortCode,
+  ].filter(Boolean);
+  const uniqueCodeCandidates = [...new Set(codeCandidates)];
+  let firstError = null;
 
-  return request('/api/auth/code-login', {
-    method: 'POST',
-    body: JSON.stringify({
-      code: certificateNumber,
-      certificate_number: certificateNumber,
-      certificateNo: certificateNumber,
-      postId,
-    }),
-  });
+  for (const codeCandidate of uniqueCodeCandidates) {
+    try {
+      return await request('/api/auth/code-login', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: codeCandidate,
+          certificate_number: codeCandidate,
+          certificateNo: codeCandidate,
+          postId: postValue,
+          post_id: postValue,
+        }),
+      });
+    } catch (error) {
+      firstError = firstError || error;
+
+      if (!isInvalidMemberCodeError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw firstError;
 }
 
 export function normalizeCertificateCode(value) {
@@ -80,6 +130,10 @@ export function normalizeCertificateCode(value) {
   }
 
   return input;
+}
+
+function isInvalidMemberCodeError(error) {
+  return /인증|인증번호|certificate|code/i.test(error.message || '');
 }
 
 export async function signupMember({ name, id, password, phone, region }) {
@@ -128,6 +182,13 @@ export function getSavedUserDongName() {
 export async function fetchPost(postId, type) {
   const query = type ? `?type=${encodeURIComponent(type)}` : '';
   return request(`/api/posts/${postId}${query}`);
+}
+
+export async function createPickupRequest(postId, payload) {
+  return request(`/api/posts/${postId}/pickup-request`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function fetchCurrentMember() {

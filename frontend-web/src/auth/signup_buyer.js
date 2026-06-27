@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginWithMemberCode } from '../api/client';
+import { getAuthTokenFromLoginResult, loginWithMemberCode } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
 
 function SignupBuyer() {
@@ -20,8 +20,14 @@ function SignupBuyer() {
     try {
       setIsLoading(true);
       const result = await loginWithMemberCode({ code: code.trim() });
-      const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
+      const token = getAuthTokenFromLoginResult(result);
       const member = result.member || result.user || result.data?.member || result.data?.user || result.data || {};
+
+      if (!token) {
+        alert('회원코드 인증은 되었지만 로그인 토큰을 받지 못했습니다. 다시 시도해주세요.');
+        return;
+      }
+
       login('buyer', member.email || member.nickname || 'buyer', token, member);
       alert('인증번호 확인이 완료되었습니다.');
       navigate('/buyer-main');

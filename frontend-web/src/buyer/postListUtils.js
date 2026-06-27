@@ -1,5 +1,15 @@
 const DONATE_TYPES = new Set(['donate', 'share', 'give', 'donation']);
 const REQUEST_TYPES = new Set(['request', 'need', 'wanted']);
+const UNAVAILABLE_DONATE_STATUSES = new Set([
+  'reserved',
+  'completed',
+  'complete',
+  'closed',
+  'done',
+  'received',
+  'picked up',
+  'pickup completed',
+]);
 
 const CATEGORY_ALIASES = {
   clothing: [
@@ -105,6 +115,11 @@ export function getPostType(item) {
 
 export function isDonatePost(item) {
   const postType = getPostType(item);
+  const status = simplify(item?.status || item?.postStatus || item?.post_status);
+
+  if (UNAVAILABLE_DONATE_STATUSES.has(status)) {
+    return false;
+  }
 
   if (!postType) {
     return true;
