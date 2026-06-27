@@ -594,3 +594,18 @@
 - `.env`, Firebase service account JSON, `ca.pem` ??濡쒖뺄 誘쇨컧 ?뚯씪??Git?먯꽌 ?쒖쇅?섎뒗 諛⑺뼢?쇰줈 ?뺣━?덈떎.
 - ??먯씠 `git pull`, `git clone`, ZIP ?ㅼ슫濡쒕뱶 以??대뼡 諛⑹떇?쇰줈 理쒖떊 肄붾뱶瑜?諛쏆븘???섎뒗吏 ?덈궡?덈떎.
 - Git 誘몄꽕移? ZIP ?대뜑??`.git`???녿뒗 寃쎌슦, `ca.pem` ?꾨씫?쇰줈 諛깆뿏?쒓? ?ㅽ뻾?섏? ?딅뒗 寃쎌슦瑜?媛곴컖 ?뺣━?덈떎.
+
+### 2026-06-27
+
+- 비대면 수령 요청 백엔드 API를 추가했다.
+  - `POST /api/posts/:id/pickup-request` 라우트를 추가하고 로그인 토큰 인증을 적용했다.
+  - 나눔글 상태가 `open`일 때만 수령 요청을 생성하도록 제한했다.
+  - 요청자 본인이 작성한 나눔글에는 수령 요청을 보낼 수 없도록 막았다.
+  - `PICKUP_REQUEST`에 요청자, 나눔글, 요청 상태, 희망 날짜, 희망 시간, 요청 메모, 요청 시각을 저장하도록 했다.
+  - 수령 요청 생성 후 `ITEM_DONATE.status`를 `reserved`로 변경하도록 했다.
+  - 나눔글 작성자에게 `pickup_request` 인앱 알림을 생성하도록 했다.
+- 앱의 나눔글 상태값을 DB 기준에 맞춰 정리했다.
+  - `DonateStatus`의 보관 요청 상태를 `storage_request`에서 `storage_requested`로 변경했다.
+  - 백엔드 응답 상태 매핑에서 `storage_requested`를 앱 내부 상태로 인식하도록 했다.
+  - 기존 `storage_request` 응답도 `storage_requested`로 변환되도록 호환 처리를 남겼다.
+  - 상태 라벨 분기와 목데이터의 보관 요청 상태값을 `storage_requested`로 맞췄다.

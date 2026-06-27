@@ -19,6 +19,8 @@ const ROLE_VULNERABLE = 3;
 const DEFAULT_PRODUCT_ID = 51;
 const AI_REQUEST_TIMEOUT_MS = 30000;
 const AI_RETRY_DELAY_MS = 1000;
+const DONATION_REQUESTABLE_STATUS = "open";
+const DONATION_RESERVED_STATUS = "reserved";
 const CATEGORY_PRODUCT_ID_MAP = {
   clothing: 1,
   clothes: 1,
@@ -893,6 +895,113 @@ const getPostDetail = async (req, res) => {
   }
 };
 
+const createPickupRequest = async (req, res) => {
+  const donateId = req.params.id;
+  const requesterId = req.user.member_id || req.user.id;
+  const { date, time, memo } = req.body;
+  const connection = await db.getConnection();
+
+  if (!date || !time) {
+    connection.release();
+    return res.status(400).json({
+      success: false,
+      message: "Pickup date and time are required.",
+    });
+  }
+
+  try {
+    await connection.beginTransaction();
+
+    const [donationRows] = await connection.query(
+      `SELECT donate_id, member_id, title, status
+       FROM ITEM_DONATE
+       WHERE donate_id = ?
+       FOR UPDATE`,
+      [donateId],
+    );
+    const donation = donationRows[0];
+
+    if (!donation) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Donation post was not found.",
+      });
+    }
+
+    if (Number(donation.member_id) === Number(requesterId)) {
+      await connection.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "You cannot request pickup for your own donation post.",
+      });
+    }
+
+    if (donation.status !== DONATION_REQUESTABLE_STATUS) {
+      await connection.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "This donation post is not open for pickup requests.",
+        data: {
+          donateId: donation.donate_id,
+          donate_id: donation.donate_id,
+          status: donation.status,
+        },
+      });
+    }
+
+    const [pickupResult] = await connection.query(
+      `INSERT INTO PICKUP_REQUEST
+        (requester_id, donate_id, request_status, requested_date, requested_time, memo, requested_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [requesterId, donation.donate_id, "pending", date, time, memo || null],
+    );
+
+    await connection.query(
+      `UPDATE ITEM_DONATE
+       SET status = ?, updated_at = NOW()
+       WHERE donate_id = ?`,
+      [DONATION_RESERVED_STATUS, donation.donate_id],
+    );
+
+    await connection.query(
+      `INSERT INTO NOTIFICATION
+        (member_id, related_type, related_id, notification_type, message, is_read, created_at)
+       VALUES (?, ?, ?, ?, ?, FALSE, NOW())`,
+      [
+        donation.member_id,
+        "donate",
+        donation.donate_id,
+        "pickup_request",
+        "비대면 수령 요청이 도착했습니다.",
+      ],
+    );
+
+    await connection.commit();
+
+    return res.status(201).json({
+      success: true,
+      message: "Pickup request was created.",
+      data: {
+        pickupRequestId: pickupResult.insertId,
+        pickup_request_id: pickupResult.insertId,
+        donateId: donation.donate_id,
+        donate_id: donation.donate_id,
+        status: DONATION_RESERVED_STATUS,
+      },
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Pickup request creation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create pickup request.",
+    });
+  } finally {
+    connection.release();
+  }
+};
+
 const updatePost = async (req, res) => {
   const postId = req.params.id;
   const {
@@ -1087,6 +1196,7 @@ module.exports = {
   analyzeImage,
   createPost,
   getPostDetail,
+  createPickupRequest,
   updatePost,
   deletePost,
 };

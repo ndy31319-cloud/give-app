@@ -25,6 +25,11 @@ router.post(
   postController.createPost,
 );
 router.get("/:id", postController.getPostDetail);
+router.post(
+  "/:id/pickup-request",
+  authenticateToken,
+  postController.createPickupRequest,
+);
 router.patch("/:id", authenticateToken, postController.updatePost);
 router.patch("/:id/status", authenticateToken, postController.updatePost);
 router.delete("/:id", authenticateToken, postController.deletePost);

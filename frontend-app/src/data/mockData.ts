@@ -309,7 +309,7 @@ export const mockDonatePosts: DonatePostRecord[] = [
   { donateId: 'donate_1', memberId: 'member_2', title: '겨울 외투 나눔', content: '겨울 옷 정리하다가 새 외투가 나와서 나눔합니다. 사이즈는 100(L)이고 상태 좋습니다.', status: 'open', createdAt: isoHoursAgo(2), updatedAt: isoHoursAgo(2) },
   { donateId: 'donate_2', memberId: 'member_4', title: '생활용품 나눔', content: '이사하면서 정리한 생활용품 세트예요. 컵, 접시, 수저 등이 들어 있습니다.', status: 'reserved', createdAt: isoHoursAgo(6), updatedAt: isoHoursAgo(4) },
   { donateId: 'donate_3', memberId: 'member_5', title: '도서 나눔합니다', content: '소설, 에세이, 자기계발서를 정리해서 필요한 분께 드립니다.', status: 'completed', createdAt: isoDaysAgo(1), updatedAt: isoHoursAgo(12) },
-  { donateId: 'donate_4', memberId: 'member_9', title: '공부용 노트북 나눔', content: '문서 작업과 인터넷 사용이 가능한 노트북입니다. 충전기 포함입니다.', status: 'storage_request', createdAt: isoDaysAgo(2), updatedAt: isoDaysAgo(1) },
+  { donateId: 'donate_4', memberId: 'member_9', title: '공부용 노트북 나눔', content: '문서 작업과 인터넷 사용이 가능한 노트북입니다. 충전기 포함입니다.', status: 'storage_requested', createdAt: isoDaysAgo(2), updatedAt: isoDaysAgo(1) },
   { donateId: 'donate_5', memberId: 'member_14', title: '접이식 책상 나눔', content: '좁은 공간에서도 쓰기 좋은 접이식 책상입니다.', status: 'stored', createdAt: isoDaysAgo(3), updatedAt: isoDaysAgo(2) },
 ];
 

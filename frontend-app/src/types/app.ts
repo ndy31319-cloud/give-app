@@ -2,7 +2,7 @@ export type PostType = 'share' | 'need';
 export type DonateStatus =
   | 'open'
   | 'reserved'
-  | 'storage_request'
+  | 'storage_requested'
   | 'stored'
   | 'completed'
   | 'canceled';

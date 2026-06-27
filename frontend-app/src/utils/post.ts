@@ -6,7 +6,7 @@ export function getPostStatusLabel(status: PostStatus) {
       return '나눔 가능';
     case 'reserved':
       return '예약중';
-    case 'storage_request':
+    case 'storage_requested':
       return '';
     case 'stored':
       return '';

@@ -247,7 +247,7 @@ function mapBackendPostStatus(status?: string) {
   if (status === 'reserved') return 'reserved';
   if (status === 'completed') return 'completed';
   if (status === 'pickup_pending') return 'pickup_pending';
-  if (status === 'storage_request') return 'storage_request';
+  if (status === 'storage_requested' || status === 'storage_request') return 'storage_requested';
   if (status === 'stored') return 'stored';
   if (status === 'canceled') return 'canceled';
   return 'open';
