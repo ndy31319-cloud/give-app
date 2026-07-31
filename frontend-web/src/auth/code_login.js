@@ -16,8 +16,8 @@ function CodeLogin() {
   const isLockerPickup = mode === 'locker-pickup';
   const detailPath = isLockerPickup
     ? '/locker'
-    : postId
-      ? `/posts/${postId}?type=${postType}${isEasyMode ? '&easy=1' : ''}`
+    : isEasyMode
+      ? '/easy-main'
       : '/buyer-main';
   const [codeYear, setCodeYear] = useState('');
   const [codeNumber, setCodeNumber] = useState('');

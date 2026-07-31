@@ -112,11 +112,11 @@ function PostDetail() {
             <h1 className="text-[58px] font-bold text-[#222] leading-tight mb-8">
               {item.title}
             </h1>
-            <p className="text-[28px] text-gray-600 leading-relaxed mb-10">
+            <p className="post-detail-description text-[28px] text-gray-600 leading-relaxed mb-10">
               {item.description || item.content}
             </p>
 
-            <div className="bg-[#F8F9FA] rounded-[28px] p-8">
+            <div className="post-detail-category bg-[#F8F9FA] rounded-[28px] p-8">
               <p className="text-[24px] text-gray-500 mb-3">카테고리</p>
               <p className="text-[32px] font-bold text-[#333]">{item.category}</p>
             </div>

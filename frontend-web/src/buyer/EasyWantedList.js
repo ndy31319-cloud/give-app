@@ -56,6 +56,12 @@ function EasyWantedList() {
     setPage((current) => (current - 1 + pageCount) % pageCount);
   };
 
+  const handleDonateClick = () => {
+    if (window.confirm('이 요청에 나눔을 시작하시겠습니까?')) {
+      alert('나눔 의사를 전달했습니다.');
+    }
+  };
+
   return (
     <div
       className="easy-screen bg-[#F8F9FA] h-screen flex flex-col overflow-hidden"
@@ -87,6 +93,22 @@ function EasyWantedList() {
           <div className="h-full flex items-center justify-center text-[42px] font-bold text-gray-500">
             요청 글을 불러오는 중입니다
           </div>
+        ) : items.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center px-10">
+            <div className="bg-white rounded-[40px] border-4 border-gray-200 shadow-sm px-12 py-14 max-w-[980px]">
+              <p className="text-[46px] font-bold text-gray-900 mb-5">아직 등록된 요청이 없어요</p>
+              <p className="text-[32px] font-bold text-gray-600 leading-relaxed mb-9">
+                필요한 물품, 급한 정도, 필요한 이유를 적어 요청을 등록해 주세요.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/easy-write-wanted')}
+                className="bg-[#22C55E] text-white px-12 py-6 rounded-[28px] text-[38px] font-bold border-4 border-[#22C55E] active:bg-green-700"
+              >
+                요청 글쓰기
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="easy-card-grid grid grid-cols-2 grid-rows-2 gap-7 h-full">
             {visibleSlots.map((item, index) => (
@@ -109,7 +131,7 @@ function EasyWantedList() {
 
                   <button
                     className="w-full bg-[#0047FF] text-white rounded-[24px] text-[36px] font-bold active:scale-[0.98] transition-all py-5"
-                    onClick={() => alert('나눔해주기를 선택했습니다.')}
+                    onClick={handleDonateClick}
                   >
                     나눔해주기
                   </button>

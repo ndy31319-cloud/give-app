@@ -145,10 +145,10 @@ function AppointmentRequest() {
             <h1 className="mb-4 text-[38px] font-black leading-tight text-[#111827] word-keep">
               {displayItem.title}
             </h1>
-            <p className="mb-6 text-[22px] font-bold leading-snug text-gray-500 word-keep">
+            <p className="appointment-description mb-6 text-[22px] font-bold leading-snug text-gray-500 word-keep">
               {displayItem.description || displayItem.content || '후원자가 확인하면 보관함 수령 일정이 정해집니다.'}
             </p>
-            <div className="rounded-[22px] bg-white p-5">
+            <div className="appointment-category rounded-[22px] bg-white p-5">
               <p className="text-[18px] font-bold text-gray-500">카테고리</p>
               <p className="mt-2 text-[26px] font-black text-[#222]">{displayItem.category || '나눔 물품'}</p>
             </div>
@@ -156,7 +156,7 @@ function AppointmentRequest() {
         </aside>
 
         <form onSubmit={handleSubmit} className="appointment-form flex min-w-0 flex-col">
-          <div className="mb-8">
+          <div className="appointment-heading mb-8">
             <p className="mb-3 text-[24px] font-black text-[#0047FF]">비대면 수령 요청</p>
             <h2 className="text-[52px] font-black leading-tight text-[#111827] word-keep">
               보관함에 넣어둘 시간을 요청해요
