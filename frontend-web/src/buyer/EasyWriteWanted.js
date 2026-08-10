@@ -71,15 +71,15 @@ function EasyWriteWanted() {
 
   return (
     <div
-      className="bg-[#F8F9FA] h-screen flex flex-col overflow-hidden"
+      className="bg-[#f7f7f4] h-screen flex flex-col overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
-      <header className="bg-[#0047FF] text-white px-12 py-7 flex items-center justify-between shadow-md shrink-0">
+      <header className="bg-[#2f7d4f] text-white px-12 py-7 flex items-center justify-between shadow-md shrink-0">
         <h1 className="text-[56px] font-bold">요청해요 글쓰기</h1>
         <button
           type="button"
           onClick={() => navigate('/easy-wanted')}
-          className="bg-white text-[#0047FF] px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-white active:bg-gray-200"
+          className="bg-white text-[#2f7d4f] px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-white active:bg-gray-200"
         >
           나가기
         </button>
@@ -95,15 +95,11 @@ function EasyWriteWanted() {
                 type="button"
                 onClick={() => {
                   setSelectedCategory(item.id);
-                  if (item.id !== 'custom') {
-                    setTitle(item.name);
-                  } else {
-                    setTitle('');
-                  }
+                  setTitle('');
                 }}
                 className={`h-[104px] rounded-[26px] text-[28px] font-bold border-4 active:scale-[0.98] ${
                   selectedCategory === item.id
-                    ? 'border-[#0047FF] bg-[#E8EEFF] text-[#0047FF]'
+                    ? 'border-[#2f7d4f] bg-[#e9f5ee] text-[#2f7d4f]'
                     : 'border-gray-100 bg-white text-gray-500'
                 }`}
               >
@@ -116,7 +112,7 @@ function EasyWriteWanted() {
               type="text"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="mt-5 w-full border-4 border-gray-100 rounded-[26px] px-7 py-5 text-[34px] font-bold outline-none focus:border-[#0047FF]"
+              className="mt-5 w-full border-4 border-gray-100 rounded-[26px] px-7 py-5 text-[34px] font-bold outline-none focus:border-[#2f7d4f]"
               placeholder="필요한 물품 이름을 직접 입력"
               required
             />
@@ -133,7 +129,7 @@ function EasyWriteWanted() {
                 onClick={() => setUrgency(option.value)}
                 className={`h-[96px] rounded-[26px] text-[28px] font-bold border-4 active:scale-[0.98] ${
                   urgency === option.value
-                    ? 'border-[#0047FF] bg-[#E8EEFF] text-[#0047FF]'
+                    ? 'border-[#2f7d4f] bg-[#e9f5ee] text-[#2f7d4f]'
                     : 'border-gray-100 bg-white text-gray-500'
                 }`}
               >
@@ -150,7 +146,7 @@ function EasyWriteWanted() {
               type="text"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="w-full border-4 border-gray-100 rounded-[26px] px-7 py-5 text-[34px] font-bold outline-none focus:border-[#0047FF]"
+              className="w-full border-4 border-gray-100 rounded-[26px] px-7 py-5 text-[34px] font-bold outline-none focus:border-[#2f7d4f]"
               placeholder="필요한 물품 이름"
               required
             />
@@ -162,7 +158,7 @@ function EasyWriteWanted() {
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            className="w-full h-[190px] border-4 border-gray-100 rounded-[26px] px-7 py-5 text-[30px] outline-none resize-none focus:border-[#0047FF]"
+            className="w-full h-[190px] border-4 border-gray-100 rounded-[26px] px-7 py-5 text-[30px] outline-none resize-none focus:border-[#2f7d4f]"
             placeholder="필요하면 간단히 적어주세요"
           />
         </section>
@@ -170,7 +166,7 @@ function EasyWriteWanted() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-[#22C55E] text-white py-6 rounded-[30px] text-[42px] font-bold border-4 border-[#22C55E] shadow-lg active:scale-[0.98] disabled:opacity-60 shrink-0"
+          className="w-full bg-[#2f7d4f] text-white py-6 rounded-[30px] text-[42px] font-bold border-4 border-[#2f7d4f] shadow-lg active:scale-[0.98] disabled:opacity-60 shrink-0"
         >
           {isSubmitting ? '등록 중...' : '요청 등록하기'}
         </button>

@@ -16,7 +16,7 @@ function SettingsBuyer() {
   };
 
   return (
-    <div className="p-8 bg-[#F8F9FA] min-h-screen" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
+    <div className="p-8 bg-[#f7f7f4] min-h-screen" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
       
       {/* 상단 헤더 */}
       <div className="flex items-center gap-4 mb-10">
@@ -45,7 +45,7 @@ function SettingsBuyer() {
           <div 
             onClick={() => setIsPushActive(!isPushActive)}
             className={`w-[60px] h-[32px] rounded-full relative cursor-pointer transition-all duration-300 
-              ${isPushActive ? 'bg-[#0047FF]' : 'bg-gray-200'}`}
+              ${isPushActive ? 'bg-[#2f7d4f]' : 'bg-gray-200'}`}
           >
             <div className={`w-[24px] h-[24px] bg-white rounded-full absolute top-[4px] transition-all duration-300 
               ${isPushActive ? 'left-[32px]' : 'left-[4px]'}`} 
@@ -73,7 +73,7 @@ function SettingsBuyer() {
           className="w-full text-left p-8 flex justify-between items-center active:bg-gray-50 transition-all"
         >
           <div>
-            <h2 className="text-[22px] font-bold text-[#FF4D4D]">회원 탈퇴</h2>
+            <h2 className="text-[22px] font-bold text-[#d64545]">회원 탈퇴</h2>
             <p className="text-gray-400 text-[18px]">계정과 모든 활동 기록이 삭제됩니다</p>
           </div>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#CCC" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

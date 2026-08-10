@@ -14,8 +14,11 @@ function CodeLogin() {
   const isEasyMode = searchParams.get('easy') === '1';
   const mode = searchParams.get('mode');
   const isLockerPickup = mode === 'locker-pickup';
+  const isDonationIntent = mode === 'donation-intent';
   const detailPath = isLockerPickup
     ? '/locker'
+    : isDonationIntent
+      ? (isEasyMode ? '/easy-wanted' : '/wanted')
     : isEasyMode
       ? '/easy-main'
       : '/buyer-main';
@@ -63,6 +66,8 @@ function CodeLogin() {
   const getNextPath = () => (
     isLockerPickup
       ? '/locker/pickup'
+      : isDonationIntent
+        ? (isEasyMode ? '/easy-wanted' : '/wanted')
       : postId
         ? `/appointment-request?postId=${postId}&type=${postType}${isEasyMode ? '&easy=1' : ''}`
         : '/appointment-request'
@@ -118,7 +123,7 @@ function CodeLogin() {
 
   return (
     <div
-      className="code-login-screen bg-[#F9FAFB] h-screen flex items-center justify-center p-10 overflow-hidden"
+      className="code-login-screen bg-[#f7f7f4] h-screen flex items-center justify-center p-10 overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <form
@@ -144,7 +149,7 @@ function CodeLogin() {
 
         <label className="code-login-label text-[22px] font-bold text-[#333] block mb-4">회원코드</label>
         <div className="code-login-input-row mb-10 flex items-center gap-5">
-          <div className="code-login-prefix h-[82px] px-6 rounded-[22px] bg-[#E9F0FF] text-[#0047FF] flex items-center justify-center text-[30px] font-black shrink-0">
+          <div className="code-login-prefix h-[82px] px-6 rounded-[22px] bg-[#e9f5ee] text-[#2f7d4f] flex items-center justify-center text-[30px] font-black shrink-0">
             WF
           </div>
           <span className="code-login-separator" aria-hidden="true">-</span>
@@ -157,7 +162,7 @@ function CodeLogin() {
             onChange={handleFirstCodeChange}
             placeholder=""
             maxLength={4}
-            className="code-login-input code-login-code-part min-w-0 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#0047FF] text-center font-bold"
+            className="code-login-input code-login-code-part min-w-0 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#2f7d4f] text-center font-bold"
             autoFocus
             aria-label="회원코드 앞 숫자 4자리"
           />
@@ -172,7 +177,7 @@ function CodeLogin() {
             onKeyDown={handleSecondCodeKeyDown}
             placeholder=""
             maxLength={4}
-            className="code-login-input code-login-code-part min-w-0 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#0047FF] text-center font-bold"
+            className="code-login-input code-login-code-part min-w-0 border-2 border-gray-100 rounded-[22px] px-5 py-6 text-[30px] outline-none focus:border-[#2f7d4f] text-center font-bold"
             aria-label="회원코드 뒤 숫자 4자리"
           />
         </div>
@@ -180,7 +185,7 @@ function CodeLogin() {
         <button
           type="submit"
           disabled={isLoading}
-          className="code-login-submit w-full bg-[#0047FF] text-white py-6 rounded-[24px] text-[30px] font-bold transition-all active:scale-[0.98] disabled:opacity-60"
+          className="code-login-submit w-full bg-[#2f7d4f] text-white py-6 rounded-[24px] text-[30px] font-bold transition-all active:scale-[0.98] disabled:opacity-60"
         >
           {isLoading ? '인증 중...' : '인증하기'}
         </button>

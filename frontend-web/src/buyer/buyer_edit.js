@@ -30,7 +30,7 @@ function BuyerEdit() {
   };
 
   return (
-    <div className="p-6 flex justify-center bg-[#F8F9FA] min-h-screen" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
+    <div className="p-6 flex justify-center bg-[#f7f7f4] min-h-screen" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
       <div className="w-full max-w-lg bg-white shadow-sm p-8 rounded-[40px] border border-gray-100">
         
         {/* 헤더 */}
@@ -54,7 +54,7 @@ function BuyerEdit() {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#0047FF] transition-all" 
+              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#2f7d4f] transition-all"
               placeholder="실명을 입력하세요"
             />
           </div>
@@ -66,7 +66,7 @@ function BuyerEdit() {
               name="birth"
               value={formData.birth}
               onChange={handleChange}
-              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#0047FF] transition-all" 
+              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#2f7d4f] transition-all"
             />
           </div>
 
@@ -78,7 +78,7 @@ function BuyerEdit() {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className="flex-1 bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#0047FF] transition-all" 
+                className="flex-1 bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#2f7d4f] transition-all"
               />
               <button type="button" className="bg-gray-100 px-4 rounded-xl text-sm font-bold text-gray-500 shrink-0">재인증</button>
             </div>
@@ -91,7 +91,7 @@ function BuyerEdit() {
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#0047FF] transition-all" 
+              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#2f7d4f] transition-all"
             />
           </div>
 
@@ -102,7 +102,7 @@ function BuyerEdit() {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#0047FF] transition-all" 
+              className="w-full bg-white border-2 border-gray-100 rounded-[16px] p-4 text-[18px] outline-none focus:border-[#2f7d4f] transition-all"
               placeholder="••••••••"
             />
           </div>
@@ -110,7 +110,7 @@ function BuyerEdit() {
           <div className="pt-6">
             <button 
               type="submit"
-              className="w-full bg-[#0047FF] text-white py-5 rounded-2xl text-xl font-bold shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform"
+              className="w-full bg-[#2f7d4f] text-white py-5 rounded-2xl text-xl font-bold shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform"
             >
               변경사항 저장하기
             </button>

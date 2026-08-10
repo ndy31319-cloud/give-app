@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPosts } from '../api/client';
 import PostImage from './PostImage';
 import ReceiveConfirmModal from './ReceiveConfirmModal';
-import { isDonatePost as isVisibleDonatePost, normalizeCategory as normalizeVisibleCategory } from './postListUtils';
+import { getItemCategory, isDonatePost as isVisibleDonatePost } from './postListUtils';
 
 const PAGE_SIZE = 4;
 const MAIN_CATEGORY_IDS = ['clothing', 'electronics', 'household'];
@@ -56,33 +56,6 @@ function EasyMainScreen() {
     };
   }, []);
 
-  const normalizeCategory = (category) => {
-    const categoryMap = {
-      fashion: 'clothing',
-      clothes: 'clothing',
-      clothing: 'clothing',
-      book: 'other',
-      books: 'other',
-      daily: 'household',
-      household: 'household',
-      kitchen: 'household',
-      baby: 'household',
-      furniture: 'household',
-      digital: 'electronics',
-      electronics: 'electronics',
-      '패션/의류': 'clothing',
-      '전자제품': 'electronics',
-      '가전': 'electronics',
-      '가구/인테리어': 'household',
-      '생활용품': 'household',
-      '육아용품': 'household',
-      '주방용품': 'household',
-      '디지털기기': 'electronics',
-    };
-
-    return normalizeVisibleCategory(categoryMap[category] || category);
-  };
-
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
   const getItemTitle = (item) => item.title || item.name || '이름 없는 물품';
@@ -102,7 +75,7 @@ function EasyMainScreen() {
   const filteredItems = selectedCategory === 'all'
     ? donateItems
     : donateItems.filter((item) => {
-      const category = normalizeCategory(item.category);
+      const category = getItemCategory(item);
       return selectedCategory === 'other'
         ? !MAIN_CATEGORY_IDS.includes(category)
         : category === selectedCategory;
@@ -142,10 +115,10 @@ function EasyMainScreen() {
 
   return (
     <div
-      className="easy-screen easy-main-screen bg-[#F6F8FB] h-screen flex flex-col overflow-hidden"
+      className="easy-screen easy-main-screen bg-[#f7f7f4] h-screen flex flex-col overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
-      <div className="easy-header easy-main-header bg-[#0057D8] text-white px-12 py-7 flex justify-between items-center shadow-md shrink-0">
+      <div className="easy-header easy-main-header bg-[#2f7d4f] text-white px-12 py-7 flex justify-between items-center shadow-md shrink-0">
         <div className="easy-main-heading">
           <h1 className="text-[60px] font-bold leading-tight">쉬운 나눔</h1>
           <p>사진을 보고 필요한 물건을 고르세요</p>
@@ -157,21 +130,21 @@ function EasyMainScreen() {
           <button
             type="button"
             onClick={() => navigate('/easy-wanted')}
-            className="bg-[#19A85B] text-white px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-[#19A85B] active:bg-green-700"
+            className="easy-header-secondary-button bg-[#f3fbf6] text-[#177245] px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-white active:bg-white"
           >
             요청하기
           </button>
           <button
             type="button"
             onClick={() => navigate('/buyer-main')}
-            className="bg-white text-[#0047FF] px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-white active:bg-gray-200"
+            className="bg-white text-[#2f7d4f] px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-white active:bg-gray-200"
           >
             일반화면
           </button>
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="bg-[#D92D20] text-white px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-[#D92D20] active:bg-red-700"
+            className="bg-[#d64545] text-white px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-[#d64545] active:bg-red-700"
           >
             처음으로
           </button>
@@ -186,7 +159,7 @@ function EasyMainScreen() {
             onClick={() => setSelectedCategory(category.id)}
             className={`h-[78px] rounded-[26px] text-[25px] font-bold border-4 transition-all break-keep ${
               selectedCategory === category.id
-                ? 'bg-[#0057D8] text-white border-[#0057D8] shadow-md'
+                ? 'bg-[#2f7d4f] text-white border-[#2f7d4f] shadow-md'
                 : 'bg-gray-50 text-gray-800 border-gray-300 hover:bg-gray-100'
             }`}
           >
@@ -231,7 +204,7 @@ function EasyMainScreen() {
                     <h3 className="text-[48px] font-bold text-black leading-tight break-keep">
                       {getItemTitle(item)}
                     </h3>
-                    <div className="easy-main-card-note bg-[#F4F6F8] p-5 rounded-[24px]">
+                    <div className="easy-main-card-note bg-[#f7f7f4] p-5 rounded-[24px]">
                       <p className="text-[34px] text-gray-700 font-bold">
                         {getItemDescription(item)}
                       </p>
@@ -240,7 +213,7 @@ function EasyMainScreen() {
                   <button
                     type="button"
                     onClick={() => handleReceive(item)}
-                    className="easy-receive-button w-full bg-[#19A85B] text-white rounded-[24px] text-[38px] font-bold hover:bg-green-600 active:scale-[0.98] transition-all shadow-sm border-b-8 border-green-700 py-4"
+                    className="easy-receive-button w-full bg-[#2f7d4f] text-white rounded-[24px] text-[38px] font-bold hover:bg-green-600 active:scale-[0.98] transition-all shadow-sm border-b-8 border-green-700 py-4"
                   >
                     이 물건 받기
                   </button>
@@ -271,7 +244,7 @@ function EasyMainScreen() {
         <button
           type="button"
           onClick={goToNextPage}
-          className="bg-[#0057D8] text-white px-14 py-5 rounded-[28px] text-[38px] font-bold border-4 border-[#0057D8] shadow-lg active:scale-95"
+          className="bg-[#2f7d4f] text-white px-14 py-5 rounded-[28px] text-[38px] font-bold border-4 border-[#2f7d4f] shadow-lg active:scale-95"
         >
           다음
         </button>

@@ -40,7 +40,7 @@ function SellerInput() {
   };
 
   return (
-    <div className="bg-[#F8F9FA] min-h-screen p-8" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
+    <div className="bg-[#f7f7f4] min-h-screen p-8" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
       
       {/* 헤더 영역 */}
       <div className="flex items-center gap-6 mb-10">
@@ -59,7 +59,7 @@ function SellerInput() {
           <label className="text-[22px] font-bold text-[#333] ml-2">물품 사진 (최대 1장)</label>
           <div 
             onClick={handleImageClick} 
-            className="w-full aspect-square rounded-[32px] flex flex-col items-center justify-center overflow-hidden relative bg-white shadow-sm border-[3px] border-dashed border-[#D1D5DB] hover:border-[#22C55E] hover:bg-[#F0FDF4] transition-all cursor-pointer"
+            className="w-full aspect-square rounded-[32px] flex flex-col items-center justify-center overflow-hidden relative bg-white shadow-sm border-[3px] border-dashed border-[#c9cec4] hover:border-[#2f7d4f] hover:bg-[#F0FDF4] transition-all cursor-pointer"
           >
             {/* 이미지가 있으면 이미지 표시, 없으면 아이콘 표시 */}
             {imagePreview ? (
@@ -91,14 +91,14 @@ function SellerInput() {
         <div className="space-y-6">
           <div className="space-y-3">
             <label className="text-[22px] font-bold text-[#333] ml-2">제목</label>
-            <div className="border-2 border-[#E5E7EB] rounded-[20px] transition-all bg-white focus-within:border-[#22C55E] px-6 py-5">
+            <div className="border-2 border-[#e5e7df] rounded-[20px] transition-all bg-white focus-within:border-[#2f7d4f] px-6 py-5">
               <input type="text" placeholder="나눔 물품 제목을 입력하세요" required className="w-full text-[20px] outline-none placeholder:text-gray-300" />
             </div>
           </div>
 
           <div className="space-y-3">
             <label className="text-[22px] font-bold text-[#333] ml-2">카테고리</label>
-            <div className="border-2 border-[#E5E7EB] rounded-[20px] transition-all bg-white focus-within:border-[#22C55E] px-6 py-5">
+            <div className="border-2 border-[#e5e7df] rounded-[20px] transition-all bg-white focus-within:border-[#2f7d4f] px-6 py-5">
               <select defaultValue="" required style={selectStyle} className="w-full text-[20px] outline-none bg-transparent text-gray-500">
                 <option value="" disabled>카테고리를 선택하세요</option>
                 <option value="clothing">의류</option>
@@ -115,7 +115,7 @@ function SellerInput() {
 
           <div className="space-y-3">
             <label className="text-[22px] font-bold text-[#333] ml-2">물품 상태</label>
-            <div className="border-2 border-[#E5E7EB] rounded-[20px] transition-all bg-white focus-within:border-[#22C55E] px-6 py-5">
+            <div className="border-2 border-[#e5e7df] rounded-[20px] transition-all bg-white focus-within:border-[#2f7d4f] px-6 py-5">
               <select defaultValue="" required style={selectStyle} className="w-full text-[20px] outline-none bg-transparent text-gray-500">
                 <option value="" disabled>상태를 선택하세요</option>
                 <option value="new">미개봉 새상품</option>
@@ -127,20 +127,20 @@ function SellerInput() {
 
           <div className="space-y-3">
             <label className="text-[22px] font-bold text-[#333] ml-2">나눔 지역</label>
-            <div className="border-2 border-[#E5E7EB] rounded-[20px] transition-all bg-white focus-within:border-[#22C55E] px-6 py-5">
+            <div className="border-2 border-[#e5e7df] rounded-[20px] transition-all bg-white focus-within:border-[#2f7d4f] px-6 py-5">
               <input type="text" placeholder="나눔 지역을 입력하세요" required className="w-full text-[20px] outline-none placeholder:text-gray-300" />
             </div>
           </div>
 
           <div className="space-y-3">
             <label className="text-[22px] font-bold text-[#333] ml-2">물품 설명</label>
-            <div className="border-2 border-[#E5E7EB] rounded-[20px] transition-all bg-white focus-within:border-[#22C55E] px-6 py-5">
+            <div className="border-2 border-[#e5e7df] rounded-[20px] transition-all bg-white focus-within:border-[#2f7d4f] px-6 py-5">
               <textarea placeholder="나눔 물품에 대한 설명을 입력하세요" rows="4" required className="w-full text-[20px] outline-none placeholder:text-gray-300 resize-none"></textarea>
             </div>
           </div>
 
           <div className="pt-4">
-            <button type="submit" className="w-full bg-[#22C55E] text-white py-6 rounded-[28px] text-[24px] font-bold shadow-lg active:scale-[0.98] transition-all hover:bg-[#1ea951]">
+            <button type="submit" className="w-full bg-[#2f7d4f] text-white py-6 rounded-[28px] text-[24px] font-bold shadow-lg active:scale-[0.98] transition-all hover:bg-[#25673f]">
               등록 완료
             </button>
           </div>

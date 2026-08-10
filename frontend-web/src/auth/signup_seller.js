@@ -42,7 +42,7 @@ function SignupSeller() {
   };
 
   return (
-    <div className="bg-[#F9FAFB] min-h-screen flex items-center justify-center p-6" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
+    <div className="bg-[#f7f7f4] min-h-screen flex items-center justify-center p-6" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
       <div className="bg-white w-full max-w-[600px] rounded-[40px] shadow-sm p-12 flex flex-col">
         
         {/* 뒤로가기 버튼 */}
@@ -56,8 +56,8 @@ function SignupSeller() {
         </button>
 
         <div className="text-center mb-10">
-          {/* 💡 기부자 테마인 초록색(#22C55E) 유지 */}
-          <h1 className="text-[42px] font-bold text-[#22C55E] mb-2">기부자 회원가입</h1>
+          {/* 💡 기부자 테마인 초록색(#2f7d4f) 유지 */}
+          <h1 className="text-[42px] font-bold text-[#2f7d4f] mb-2">기부자 회원가입</h1>
           <p className="text-[18px] text-gray-400">나눔을 위해 정보를 입력해주세요</p>
         </div>
 
@@ -73,7 +73,7 @@ function SignupSeller() {
               value={formData.name}       // 
               onChange={handleChange}
               placeholder="이름을 입력하세요" 
-              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#22C55E] transition-colors"
+              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#2f7d4f] transition-colors"
             />
           </div>
 
@@ -86,7 +86,7 @@ function SignupSeller() {
               value={formData.id}
               onChange={handleChange}
               placeholder="아이디를 입력하세요" 
-              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#22C55E] transition-colors"
+              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#2f7d4f] transition-colors"
             />
           </div>
 
@@ -99,7 +99,7 @@ function SignupSeller() {
               value={formData.password}
               onChange={handleChange}
               placeholder="비밀번호를 입력하세요" 
-              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#22C55E] transition-colors"
+              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#2f7d4f] transition-colors"
             />
           </div>
 
@@ -112,7 +112,7 @@ function SignupSeller() {
               value={formData.passwordConfirm}
               onChange={handleChange}
               placeholder="비밀번호를 다시 입력하세요" 
-              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#22C55E] transition-colors"
+              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#2f7d4f] transition-colors"
             />
           </div>
 
@@ -125,7 +125,7 @@ function SignupSeller() {
               value={formData.phone}
               onChange={handleChange}
               placeholder="전화번호를 입력하세요" 
-              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#22C55E] transition-colors"
+              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#2f7d4f] transition-colors"
             />
           </div>
 
@@ -138,7 +138,7 @@ function SignupSeller() {
               value={formData.region}
               onChange={handleChange}
               placeholder="거주하시는 지역을 입력하세요 (예: 서울 강남구)" 
-              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#22C55E] transition-colors"
+              className="w-full border-2 border-gray-100 rounded-[15px] px-5 py-4 outline-none focus:border-[#2f7d4f] transition-colors"
             />
           </div>
         </div>
@@ -146,7 +146,7 @@ function SignupSeller() {
         {/*  form 제출 대신 버튼 onClick 방식으로 통일 */}
         <button 
           onClick={handleSubmit}
-          className="w-full bg-[#22C55E] text-white py-5 rounded-[18px] text-[22px] font-bold mt-10 transition-all hover:bg-green-600 active:scale-[0.98]"
+          className="w-full bg-[#2f7d4f] text-white py-5 rounded-[18px] text-[22px] font-bold mt-10 transition-all hover:bg-green-600 active:scale-[0.98]"
         >
           가입 완료
         </button>

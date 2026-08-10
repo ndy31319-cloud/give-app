@@ -121,11 +121,11 @@ function AppointmentRequest() {
 
   return (
     <main
-      className="appointment-screen bg-[#F4F6F8] h-screen overflow-hidden p-8"
+      className="appointment-screen bg-[#f7f7f4] h-screen overflow-hidden p-8"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <section className="appointment-card mx-auto grid h-full w-full max-w-[1360px] grid-cols-[0.95fr_1.2fr] gap-8 rounded-[36px] bg-white p-8 shadow-sm border border-gray-100">
-        <aside className="appointment-summary flex min-w-0 flex-col rounded-[28px] bg-[#F8FAFC] p-7">
+        <aside className="appointment-summary flex min-w-0 flex-col rounded-[28px] bg-[#f7f7f4] p-7">
           <button
             type="button"
             onClick={() => navigate(listPath)}
@@ -139,7 +139,7 @@ function AppointmentRequest() {
           </div>
 
           <div className="min-w-0">
-            <span className="mb-4 inline-flex rounded-[18px] bg-[#E9F0FF] px-5 py-2 text-[20px] font-bold text-[#0047FF]">
+            <span className="mb-4 inline-flex rounded-[18px] bg-[#e9f5ee] px-5 py-2 text-[20px] font-bold text-[#2f7d4f]">
               비대면 수령
             </span>
             <h1 className="mb-4 text-[38px] font-black leading-tight text-[#111827] word-keep">
@@ -157,7 +157,7 @@ function AppointmentRequest() {
 
         <form onSubmit={handleSubmit} className="appointment-form flex min-w-0 flex-col">
           <div className="appointment-heading mb-8">
-            <p className="mb-3 text-[24px] font-black text-[#0047FF]">비대면 수령 요청</p>
+            <p className="mb-3 text-[24px] font-black text-[#2f7d4f]">비대면 수령 요청</p>
             <h2 className="text-[52px] font-black leading-tight text-[#111827] word-keep">
               보관함에 넣어둘 시간을 요청해요
             </h2>
@@ -166,7 +166,7 @@ function AppointmentRequest() {
             </p>
           </div>
 
-          <div className="mb-6 rounded-[24px] bg-[#E9F0FF] px-6 py-5 text-[22px] font-bold leading-snug text-[#0047FF] word-keep">
+          <div className="mb-6 rounded-[24px] bg-[#e9f5ee] px-6 py-5 text-[22px] font-bold leading-snug text-[#2f7d4f] word-keep">
             요청한 날짜에 다시 방문해주세요. 보관함 준비 상태는 앱에서도 확인할 수 있습니다.
           </div>
 
@@ -177,7 +177,7 @@ function AppointmentRequest() {
                 type="date"
                 value={appointment.date}
                 onChange={handleChange('date')}
-                className="rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[26px] font-bold outline-none focus:border-[#0047FF]"
+                className="rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[26px] font-bold outline-none focus:border-[#2f7d4f]"
               />
             </label>
             <label className="flex min-w-0 flex-col gap-3 text-[22px] font-black text-[#222]">
@@ -186,7 +186,7 @@ function AppointmentRequest() {
                 type="time"
                 value={appointment.time}
                 onChange={handleChange('time')}
-                className="rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[26px] font-bold outline-none focus:border-[#0047FF]"
+                className="rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[26px] font-bold outline-none focus:border-[#2f7d4f]"
               />
             </label>
             <label className="col-span-2 flex min-w-0 flex-col gap-3 text-[22px] font-black text-[#222]">
@@ -195,14 +195,14 @@ function AppointmentRequest() {
                 value={appointment.memo}
                 onChange={handleChange('memo')}
                 placeholder="예: 가능하면 오후 3시 이후에 보관함에 넣어주세요"
-                className="min-h-[150px] resize-none rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[24px] font-bold outline-none focus:border-[#0047FF]"
+                className="min-h-[150px] resize-none rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[24px] font-bold outline-none focus:border-[#2f7d4f]"
               />
             </label>
           </div>
 
           <button
             type="submit"
-            className="mt-7 w-full rounded-[28px] bg-[#22C55E] py-6 text-[34px] font-black text-white shadow-lg active:scale-[0.98]"
+            className="mt-7 w-full rounded-[28px] bg-[#2f7d4f] py-6 text-[34px] font-black text-white shadow-lg active:scale-[0.98]"
           >
             비대면 수령 요청하기
           </button>

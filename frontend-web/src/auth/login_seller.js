@@ -24,7 +24,7 @@ function LoginSeller() {
   };
 
   return (
-    <div className="bg-[#F9FAFB] min-h-screen flex items-center justify-center p-6" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
+    <div className="bg-[#f7f7f4] min-h-screen flex items-center justify-center p-6" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
       <div className="bg-white w-full max-w-[600px] min-h-[800px] rounded-[40px] shadow-sm p-12 flex flex-col">
         
         <button onClick={() => navigate('/')} className="mb-12 self-start hover:bg-gray-100 p-2 rounded-full transition-all">
@@ -42,7 +42,7 @@ function LoginSeller() {
           <div className="space-y-8 flex-1">
             <div>
               <label className="text-[18px] font-bold text-[#333] block mb-3 ml-1">아이디</label>
-              <div className="focus-within:border-[#22C55E] flex items-center border-2 border-gray-100 rounded-[18px] px-5 py-4 bg-white transition-all">
+              <div className="focus-within:border-[#2f7d4f] flex items-center border-2 border-gray-100 rounded-[18px] px-5 py-4 bg-white transition-all">
                 <svg className="mr-3" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                   <circle cx="12" cy="7" r="4"/>
@@ -59,7 +59,7 @@ function LoginSeller() {
 
             <div>
               <label className="text-[18px] font-bold text-[#333] block mb-3 ml-1">비밀번호</label>
-              <div className="focus-within:border-[#22C55E] flex items-center border-2 border-gray-100 rounded-[18px] px-5 py-4 bg-white transition-all">
+              <div className="focus-within:border-[#2f7d4f] flex items-center border-2 border-gray-100 rounded-[18px] px-5 py-4 bg-white transition-all">
                 <svg className="mr-3" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -76,10 +76,10 @@ function LoginSeller() {
           </div>
 
           <div className="mt-16 space-y-4">
-            <button type="submit" className="w-full bg-[#22C55E] text-white py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98] shadow-lg">
+            <button type="submit" className="w-full bg-[#2f7d4f] text-white py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98] shadow-lg">
               로그인
             </button> 
-            <button type="button" onClick={() => navigate('/signup-seller')} className="w-full bg-white text-[#22C55E] border-2 border-[#22C55E] py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98]">
+            <button type="button" onClick={() => navigate('/signup-seller')} className="w-full bg-white text-[#2f7d4f] border-2 border-[#2f7d4f] py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98]">
               회원가입
             </button>
           </div>

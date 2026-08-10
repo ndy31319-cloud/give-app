@@ -10,6 +10,7 @@ const UNAVAILABLE_DONATE_STATUSES = new Set([
   'picked up',
   'pickup completed',
 ]);
+const DONATION_INTEREST_STORAGE_PREFIX = 'givegive_donation_interest_request_ids';
 
 const CATEGORY_ALIASES = {
   clothing: [
@@ -97,6 +98,14 @@ const CATEGORY_ALIASES = {
   ],
 };
 
+const CATEGORY_ID_ALIASES = {
+  1: 'clothing',
+  2: 'electronics',
+  51: 'household',
+  91: 'furniture',
+  106: 'books',
+};
+
 function simplify(value) {
   return String(value || '')
     .trim()
@@ -132,6 +141,43 @@ export function isDonatePost(item) {
   return DONATE_TYPES.has(postType) || postType.includes('donate') || postType.includes('share');
 }
 
+export function isRequestOpen(item) {
+  const status = simplify(item?.status || item?.postStatus || item?.post_status);
+  return status === 'open';
+}
+
+function getDonationInterestStorageKey() {
+  try {
+    const user = JSON.parse(localStorage.getItem('givegive_user') || 'null');
+    const userId = user?.memberId || user?.member_id || user?.id || user?.email || 'unknown';
+    return `${DONATION_INTEREST_STORAGE_PREFIX}:${userId}`;
+  } catch {
+    return `${DONATION_INTEREST_STORAGE_PREFIX}:unknown`;
+  }
+}
+
+export function getSentDonationRequestIds() {
+  try {
+    const savedIds = JSON.parse(localStorage.getItem(getDonationInterestStorageKey()) || '[]');
+    return new Set(Array.isArray(savedIds) ? savedIds.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveDonationInterest(item) {
+  const requestId = getPostId(item);
+
+  if (requestId === undefined || requestId === null) {
+    return null;
+  }
+
+  const sentIds = getSentDonationRequestIds();
+  sentIds.add(String(requestId));
+  localStorage.setItem(getDonationInterestStorageKey(), JSON.stringify([...sentIds]));
+  return String(requestId);
+}
+
 export function normalizeCategory(category) {
   const normalized = simplify(category);
 
@@ -157,6 +203,31 @@ export function normalizeCategory(category) {
   return partialMatch ? partialMatch[0] : normalized;
 }
 
+export function getItemCategory(item) {
+  const directCategory =
+    item?.category ||
+    item?.categoryName ||
+    item?.category_name ||
+    item?.productCategory ||
+    item?.product_category ||
+    item?.product?.category;
+  const normalizedDirectCategory = normalizeCategory(directCategory);
+
+  if (normalizedDirectCategory) {
+    return normalizedDirectCategory;
+  }
+
+  const categoryId =
+    item?.category_id ||
+    item?.categoryId ||
+    item?.product_id ||
+    item?.productId ||
+    item?.product?.product_id ||
+    item?.product?.productId;
+
+  return CATEGORY_ID_ALIASES[Number(categoryId)] || '';
+}
+
 export function matchesCategory(item, selectedCategory) {
-  return selectedCategory === 'all' || normalizeCategory(item?.category) === selectedCategory;
+  return selectedCategory === 'all' || getItemCategory(item) === selectedCategory;
 }

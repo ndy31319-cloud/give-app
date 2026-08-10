@@ -553,6 +553,14 @@ body {
   border-radius: clamp(20px, 2vw, 28px) !important;
 }
 
+.easy-header-secondary-button {
+  box-shadow: 0 8px 18px rgba(23, 114, 69, 0.22), inset 0 0 0 1px rgba(23, 114, 69, 0.08);
+}
+
+.locker-back-button {
+  color: #191f1b;
+}
+
 .easy-header-actions > div {
   padding: clamp(10px, 1.4vw, 16px) clamp(16px, 2vw, 32px) !important;
   font-size: clamp(22px, 2.2vw, 34px) !important;
@@ -689,15 +697,15 @@ body {
   word-break: keep-all;
 }
 
-.easy-post-card .bg-\[\#F4F6F8\] {
+.easy-post-card .bg-\[\#f7f7f4\] {
   padding: clamp(10px, 1.2vw, 16px) !important;
 }
 
-.easy-post-card .bg-\[\#F4F6F8\] p:first-child {
+.easy-post-card .bg-\[\#f7f7f4\] p:first-child {
   font-size: clamp(22px, 2vw, 32px) !important;
 }
 
-.easy-post-card .bg-\[\#F4F6F8\] p:last-child {
+.easy-post-card .bg-\[\#f7f7f4\] p:last-child {
   font-size: clamp(18px, 1.55vw, 24px) !important;
   margin-top: clamp(2px, 0.5vw, 8px) !important;
 }
@@ -1130,7 +1138,7 @@ body {
   padding-block: clamp(18px, 3vmin, 28px) !important;
 }
 
-.post-detail-info .bg-\[\#F8F9FA\] {
+.post-detail-info .bg-\[\#f7f7f4\] {
   margin-bottom: 0;
 }
 
@@ -1302,7 +1310,7 @@ body {
   margin-top: clamp(8px, 1.2vmin, 14px) !important;
 }
 
-.appointment-form > .bg-\[\#E9F0FF\] {
+.appointment-form > .bg-\[\#e9f5ee\] {
   margin-bottom: clamp(14px, 1.8vmin, 20px) !important;
   padding: clamp(14px, 1.8vmin, 20px) clamp(18px, 2.2vmin, 24px) !important;
 }

@@ -72,7 +72,7 @@ function WriteWanted() {
 
   return (
     <div
-      className="wanted-write-screen p-8 flex justify-center bg-[#F8F9FA] min-h-screen"
+      className="wanted-write-screen p-8 flex justify-center bg-[#f7f7f4] min-h-screen"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
     >
       <div className="wanted-write-card w-full max-w-2xl bg-white shadow-xl p-10 rounded-[40px] border border-gray-100">
@@ -99,15 +99,11 @@ function WriteWanted() {
                   type="button"
                   onClick={() => {
                     setCategory(cat.id);
-                    if (cat.id !== 'custom') {
-                      setTitle(cat.name);
-                    } else {
-                      setTitle('');
-                    }
+                    setTitle('');
                   }}
                   className={`px-5 py-5 rounded-2xl text-[22px] font-bold transition-all border-2 ${
                     category === cat.id
-                      ? 'border-[#0047FF] bg-[#E8EEFF] text-[#0047FF]'
+                      ? 'border-[#2f7d4f] bg-[#e9f5ee] text-[#2f7d4f]'
                       : 'border-gray-100 bg-white text-gray-400'
                   }`}
                 >
@@ -120,7 +116,7 @@ function WriteWanted() {
                 type="text"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="mt-4 w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] outline-none focus:border-[#0047FF] transition-all"
+                className="mt-4 w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] outline-none focus:border-[#2f7d4f] transition-all"
                 placeholder="필요한 물품 이름을 직접 입력하세요"
                 required
               />
@@ -137,7 +133,7 @@ function WriteWanted() {
                   onClick={() => setUrgency(option.value)}
                   className={`px-4 py-4 rounded-2xl font-bold transition-all border-2 ${
                     urgency === option.value
-                      ? 'border-[#0047FF] bg-[#E8EEFF] text-[#0047FF]'
+                      ? 'border-[#2f7d4f] bg-[#e9f5ee] text-[#2f7d4f]'
                       : 'border-gray-100 bg-white text-gray-400'
                   }`}
                 >
@@ -154,7 +150,7 @@ function WriteWanted() {
                 type="text"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] outline-none focus:border-[#0047FF] transition-all"
+                className="w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] outline-none focus:border-[#2f7d4f] transition-all"
                 placeholder="필요한 물품 이름을 입력하세요"
                 required
               />
@@ -166,7 +162,7 @@ function WriteWanted() {
             <textarea
               value={content}
               onChange={(event) => setContent(event.target.value)}
-              className="w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] h-40 resize-none outline-none focus:border-[#0047FF] transition-all"
+              className="w-full bg-white border-2 border-gray-100 rounded-[20px] p-[18px] text-[18px] h-40 resize-none outline-none focus:border-[#2f7d4f] transition-all"
               placeholder="필요한 이유나 원하는 상태를 적어주세요"
             />
           </section>
@@ -174,7 +170,7 @@ function WriteWanted() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-[#0047FF] text-white py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98] disabled:opacity-60"
+            className="w-full bg-[#2f7d4f] text-white py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98] disabled:opacity-60"
           >
             {isSubmitting ? '등록 중...' : '요청 등록'}
           </button>

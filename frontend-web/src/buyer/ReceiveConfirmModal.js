@@ -30,7 +30,7 @@ function ReceiveConfirmModal({ open, onCancel, onConfirm }) {
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-[22px] bg-[#19A85B] px-8 py-5 text-[24px] font-bold text-white shadow-lg active:scale-95"
+            className="rounded-[22px] bg-[#2f7d4f] px-8 py-5 text-[24px] font-bold text-white shadow-lg active:scale-95"
           >
             확인
           </button>

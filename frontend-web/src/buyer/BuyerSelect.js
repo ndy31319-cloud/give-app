@@ -6,7 +6,7 @@ function BuyerSelect() {
 
   return (
     <div
-      className="bg-[#F8F9FA] h-screen flex flex-col items-center justify-center overflow-hidden px-16 relative"
+      className="bg-[#f7f7f4] h-screen flex flex-col items-center justify-center overflow-hidden px-16 relative"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
       <button
@@ -32,8 +32,8 @@ function BuyerSelect() {
           onClick={() => navigate('/buyer-main')}
           className="h-[560px] w-full bg-white rounded-[48px] shadow-[0_24px_80px_rgba(0,0,0,0.08)] flex flex-col items-center justify-center active:scale-[0.98] transition-all border border-gray-100"
         >
-          <div className="w-48 h-48 rounded-full bg-[#E9F0FF] flex items-center justify-center mb-16">
-            <svg width="104" height="104" viewBox="0 0 24 24" fill="none" stroke="#0047FF" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-48 h-48 rounded-full bg-[#e9f5ee] flex items-center justify-center mb-16">
+            <svg width="104" height="104" viewBox="0 0 24 24" fill="none" stroke="#2f7d4f" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
               <path d="M3 6h18" />
               <path d="M16 10a4 4 0 0 1-8 0" />

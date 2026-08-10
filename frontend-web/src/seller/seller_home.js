@@ -17,7 +17,7 @@ function SellerHome() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-[#F8F9FA]" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
+    <div className="min-h-screen flex flex-col items-center justify-center p-10 bg-[#f7f7f4]" style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: "-0.05em" }}>
       
       {/* 상단 환영 메시지 */}
       <div className="text-center mb-20">
@@ -34,10 +34,10 @@ function SellerHome() {
         {/* 1. 물품 등록 버튼 */}
         <button 
           onClick={() => navigate('/seller-input')} 
-          className="bg-white w-[500px] py-24 rounded-[48px] shadow-[0px_20px_50px_rgba(0,0,0,0.05)] hover:scale-[1.02] transition-all flex flex-col items-center border-2 border-transparent hover:border-[#22C55E]"
+          className="bg-white w-[500px] py-24 rounded-[48px] shadow-[0px_20px_50px_rgba(0,0,0,0.05)] hover:scale-[1.02] transition-all flex flex-col items-center border-2 border-transparent hover:border-[#2f7d4f]"
         >
-          <div className="w-40 h-40 bg-[#E8F9F1] rounded-full flex items-center justify-center mb-10">
-            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-40 h-40 bg-[#e9f7ef] rounded-full flex items-center justify-center mb-10">
+            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#2f7d4f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
@@ -49,7 +49,7 @@ function SellerHome() {
         {/* 2. 마이페이지 버튼 */}
         <button 
           onClick={() => navigate('/mypage-seller')} 
-          className="bg-white w-[500px] py-24 rounded-[48px] shadow-[0px_20px_50px_rgba(0,0,0,0.05)] hover:scale-[1.02] transition-all flex flex-col items-center border-2 border-transparent hover:border-[#22C55E]"
+          className="bg-white w-[500px] py-24 rounded-[48px] shadow-[0px_20px_50px_rgba(0,0,0,0.05)] hover:scale-[1.02] transition-all flex flex-col items-center border-2 border-transparent hover:border-[#2f7d4f]"
         >
           <div className="w-40 h-40 bg-[#F3F4F6] rounded-full flex items-center justify-center mb-10">
             <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

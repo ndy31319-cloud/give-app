@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPosts } from './api/client';
 import PostImage from './buyer/PostImage';
-import { isDonatePost as isVisibleDonatePost, normalizeCategory as normalizeVisibleCategory } from './buyer/postListUtils';
+import { getItemCategory, isDonatePost as isVisibleDonatePost } from './buyer/postListUtils';
 
 function MainScreen() {
   const navigate = useNavigate();
@@ -52,21 +52,6 @@ function MainScreen() {
     };
   }, []);
 
-  const normalizeCategory = (category) => {
-    const categoryMap = {
-      fashion: 'clothing',
-      clothes: 'clothing',
-      book: 'books',
-      daily: 'household',
-      '패션/의류': 'clothing',
-      '디지털/가전': 'electronics',
-      '가전': 'electronics',
-      '가구/인테리어': 'furniture',
-    };
-
-    return normalizeVisibleCategory(categoryMap[category] || category);
-  };
-
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
   const isDonatePost = (item) => {
@@ -77,16 +62,16 @@ function MainScreen() {
   const donateItems = items.filter(isDonatePost);
   const filteredItems = selectedCategory === 'all'
     ? donateItems
-    : donateItems.filter((item) => normalizeCategory(item.category) === selectedCategory);
+    : donateItems.filter((item) => getItemCategory(item) === selectedCategory);
 
   const currentCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
 
   return (
     <div
-      className="buyer-screen bg-[#F4F6F8] h-screen flex overflow-hidden"
+      className="buyer-screen bg-[#f7f7f4] h-screen flex overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
-      <div className="buyer-sidebar w-[260px] bg-[#0047FF] flex flex-col shadow-2xl z-10 shrink-0">
+      <div className="buyer-sidebar w-[260px] bg-[#2f7d4f] flex flex-col shadow-2xl z-10 shrink-0">
         <div className="p-8 border-b border-white/20">
           <h1 className="text-[28px] font-bold text-white leading-tight">나눔<br />플랫폼</h1>
         </div>
@@ -98,7 +83,7 @@ function MainScreen() {
               onClick={() => setSelectedCategory(category.id)}
               className={`w-full text-left pl-7 py-3.5 text-[20px] font-bold transition-all relative ${
                 selectedCategory === category.id
-                  ? 'bg-[#F4F6F8] text-[#0047FF] rounded-l-[30px] ml-4 w-[calc(100%-16px)] shadow-[-5px_0_15px_rgba(0,0,0,0.1)]'
+                  ? 'bg-[#f7f7f4] text-[#2f7d4f] rounded-l-[30px] ml-4 w-[calc(100%-16px)] shadow-[-5px_0_15px_rgba(0,0,0,0.1)]'
                   : 'text-white/70 hover:text-white'
               }`}
             >
@@ -119,7 +104,7 @@ function MainScreen() {
 
       <div className="flex-1 flex flex-col h-full relative min-w-0">
         <div className="buyer-topbar px-10 py-8 flex justify-between items-end border-b border-gray-200 bg-white shadow-sm shrink-0">
-          <h2 className="text-[36px] font-bold text-[#333] border-b-4 border-[#0047FF] pb-2 inline-block">
+          <h2 className="text-[36px] font-bold text-[#333] border-b-4 border-[#2f7d4f] pb-2 inline-block">
             {currentCategoryName}
           </h2>
 
@@ -130,14 +115,14 @@ function MainScreen() {
             <button
               type="button"
               onClick={() => navigate('/easy-main')}
-              className="bg-[#0047FF] text-white px-8 py-4 rounded-[24px] text-[24px] font-bold shadow-lg active:scale-95"
+              className="bg-[#2f7d4f] text-white px-8 py-4 rounded-[24px] text-[24px] font-bold shadow-lg active:scale-95"
             >
               쉬운화면
             </button>
           </div>
         </div>
 
-        <div className="main-content flex-1 overflow-hidden p-10 bg-[#F4F6F8]">
+        <div className="main-content flex-1 overflow-hidden p-10 bg-[#f7f7f4]">
           {isLoading ? (
             <div className="h-full flex items-center justify-center text-[28px] font-bold text-gray-500">
               물품을 불러오는 중입니다...
@@ -166,14 +151,14 @@ function MainScreen() {
         <div className="buyer-bottom-actions absolute bottom-0 right-0 w-full bg-white border-t border-gray-200 p-6 flex justify-end gap-4 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
           <button
             onClick={() => navigate('/wanted')}
-            className="bg-[#E9F0FF] text-[#0047FF] px-8 py-4 rounded-2xl flex items-center gap-2 text-[20px] font-bold active:scale-95 transition-all"
+            className="bg-[#e9f5ee] text-[#2f7d4f] px-8 py-4 rounded-2xl flex items-center gap-2 text-[20px] font-bold active:scale-95 transition-all"
           >
             나눔 요청
           </button>
 
           <button
             onClick={() => navigate('/mypage-buyer')}
-            className="hidden bg-[#0047FF] text-white px-8 py-4 rounded-2xl items-center gap-2 text-[20px] font-bold active:scale-95 transition-all shadow-lg"
+            className="hidden bg-[#2f7d4f] text-white px-8 py-4 rounded-2xl items-center gap-2 text-[20px] font-bold active:scale-95 transition-all shadow-lg"
           >
             마이페이지
           </button>

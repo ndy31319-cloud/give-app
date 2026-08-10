@@ -42,7 +42,7 @@ function Wishlist() {
 
   return (
     <div
-      className="p-8 bg-[#F8F9FA] min-h-screen"
+      className="p-8 bg-[#f7f7f4] min-h-screen"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
     >
       <div className="flex justify-between items-center mb-10">
@@ -57,7 +57,7 @@ function Wishlist() {
           </button>
           <h1 className="text-[36px] font-bold text-[#333]">관심 목록</h1>
         </div>
-        <span className="text-[20px] text-[#0047FF] font-bold">전체 {items.length}개</span>
+        <span className="text-[20px] text-[#2f7d4f] font-bold">전체 {items.length}개</span>
       </div>
 
       {isLoading ? (
@@ -81,7 +81,7 @@ function Wishlist() {
                 <p className="text-[24px] font-bold text-[#333]">{item.title}</p>
                 <p className="text-[18px] text-gray-400 mt-2">{item.status || '상태 없음'}</p>
               </div>
-              <span className="text-[22px] font-bold text-[#0047FF]">보기</span>
+              <span className="text-[22px] font-bold text-[#2f7d4f]">보기</span>
             </button>
           ))}
         </div>

@@ -82,7 +82,7 @@ function PostDetail() {
 
   return (
     <div
-      className="post-detail-screen bg-[#F4F6F8] h-screen overflow-hidden p-12"
+      className="post-detail-screen bg-[#f7f7f4] h-screen overflow-hidden p-12"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <div className="post-detail-card h-full bg-white rounded-[36px] shadow-sm border border-gray-100 overflow-hidden flex">
@@ -106,7 +106,7 @@ function PostDetail() {
           </button>
 
           <div className="flex-1">
-            <div className="inline-flex bg-[#E9F0FF] text-[#0047FF] px-6 py-3 rounded-[20px] text-[24px] font-bold mb-8">
+            <div className="inline-flex bg-[#e9f5ee] text-[#2f7d4f] px-6 py-3 rounded-[20px] text-[24px] font-bold mb-8">
               신청가능
             </div>
             <h1 className="text-[58px] font-bold text-[#222] leading-tight mb-8">
@@ -116,7 +116,7 @@ function PostDetail() {
               {item.description || item.content}
             </p>
 
-            <div className="post-detail-category bg-[#F8F9FA] rounded-[28px] p-8">
+            <div className="post-detail-category bg-[#f7f7f4] rounded-[28px] p-8">
               <p className="text-[24px] text-gray-500 mb-3">카테고리</p>
               <p className="text-[32px] font-bold text-[#333]">{item.category}</p>
             </div>
@@ -125,7 +125,7 @@ function PostDetail() {
           <button
             type="button"
             onClick={handleReceive}
-            className="w-full bg-[#22C55E] text-white rounded-[28px] py-7 text-[36px] font-bold shadow-lg active:scale-[0.98] transition-all"
+            className="w-full bg-[#2f7d4f] text-white rounded-[28px] py-7 text-[36px] font-bold shadow-lg active:scale-[0.98] transition-all"
           >
             물품 받기
           </button>
@@ -141,7 +141,7 @@ function PostDetail() {
             <button
               type="button"
               onClick={() => setImagePreviewOpen(false)}
-              className="mt-6 w-full rounded-[24px] bg-[#0057D8] py-5 text-[30px] font-bold text-white active:scale-[0.98]"
+              className="mt-6 w-full rounded-[24px] bg-[#2f7d4f] py-5 text-[30px] font-bold text-white active:scale-[0.98]"
             >
               닫기
             </button>

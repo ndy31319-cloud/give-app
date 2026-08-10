@@ -42,7 +42,7 @@ function History() {
 
   return (
     <div
-      className="p-8 bg-[#F8F9FA] min-h-screen"
+      className="p-8 bg-[#f7f7f4] min-h-screen"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
     >
       <div className="flex items-center justify-between mb-10">
@@ -54,7 +54,7 @@ function History() {
           </button>
           <h1 className="text-[36px] font-bold text-[#333]">나눔 이용 내역</h1>
         </div>
-        <span className="text-[20px] text-[#0047FF] font-bold">전체 {items.length}개</span>
+        <span className="text-[20px] text-[#2f7d4f] font-bold">전체 {items.length}개</span>
       </div>
 
       {isLoading ? (
@@ -80,7 +80,7 @@ function History() {
                   {(item.post_type || item.postType) === 'request' ? '요청 글' : '나눔 글'} · {item.status || '상태 없음'}
                 </p>
               </div>
-              <span className="text-[22px] font-bold text-[#0047FF]">보기</span>
+              <span className="text-[22px] font-bold text-[#2f7d4f]">보기</span>
             </button>
           ))}
         </div>

@@ -40,7 +40,7 @@ function SignupBuyer() {
 
   return (
     <div
-      className="bg-[#F9FAFB] h-screen flex items-center justify-center p-10 overflow-hidden"
+      className="bg-[#f7f7f4] h-screen flex items-center justify-center p-10 overflow-hidden"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
       <div className="bg-white w-full max-w-[720px] rounded-[40px] shadow-sm p-14 border border-gray-100">
@@ -66,14 +66,14 @@ function SignupBuyer() {
             value={code}
             onChange={(event) => setCode(event.target.value)}
             placeholder="예: 1111"
-            className="w-full border-2 border-gray-100 rounded-[22px] px-6 py-6 text-[30px] outline-none focus:border-[#0047FF] mb-10 text-center font-bold"
+            className="w-full border-2 border-gray-100 rounded-[22px] px-6 py-6 text-[30px] outline-none focus:border-[#2f7d4f] mb-10 text-center font-bold"
             autoFocus
           />
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#0047FF] text-white py-6 rounded-[24px] text-[30px] font-bold mt-6 transition-all active:scale-[0.98] disabled:opacity-60"
+            className="w-full bg-[#2f7d4f] text-white py-6 rounded-[24px] text-[30px] font-bold mt-6 transition-all active:scale-[0.98] disabled:opacity-60"
           >
             {isLoading ? '인증 중...' : '가입 완료'}
           </button>

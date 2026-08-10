@@ -35,7 +35,7 @@ function LoginBuyer() {
 
   return (
     <div
-      className="bg-[#F9FAFB] min-h-screen flex items-center justify-center p-6"
+      className="bg-[#f7f7f4] min-h-screen flex items-center justify-center p-6"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
     >
       <div className="bg-white w-full max-w-[600px] min-h-[760px] rounded-[40px] shadow-sm p-12 flex flex-col">
@@ -63,7 +63,7 @@ function LoginBuyer() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="이메일을 입력하세요"
-                className="w-full border-2 border-gray-100 rounded-[18px] px-5 py-5 text-[20px] outline-none focus:border-[#0047FF]"
+                className="w-full border-2 border-gray-100 rounded-[18px] px-5 py-5 text-[20px] outline-none focus:border-[#2f7d4f]"
               />
             </div>
 
@@ -74,7 +74,7 @@ function LoginBuyer() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="비밀번호를 입력하세요"
-                className="w-full border-2 border-gray-100 rounded-[18px] px-5 py-5 text-[20px] outline-none focus:border-[#0047FF]"
+                className="w-full border-2 border-gray-100 rounded-[18px] px-5 py-5 text-[20px] outline-none focus:border-[#2f7d4f]"
               />
             </div>
           </div>
@@ -83,7 +83,7 @@ function LoginBuyer() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-[#0047FF] text-white py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98] shadow-lg disabled:opacity-60"
+              className="w-full bg-[#2f7d4f] text-white py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98] shadow-lg disabled:opacity-60"
             >
               {isLoading ? '로그인 중...' : '로그인'}
             </button>
@@ -91,7 +91,7 @@ function LoginBuyer() {
             <button
               type="button"
               onClick={() => navigate('/signup-buyer')}
-              className="w-full bg-white text-[#0047FF] border-2 border-[#0047FF] py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98]"
+              className="w-full bg-white text-[#2f7d4f] border-2 border-[#2f7d4f] py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98]"
             >
               회원가입
             </button>

@@ -38,7 +38,7 @@ function Home() {
 
   return (
     <div
-      className="home-screen bg-gradient-to-b from-[#E9F0FF] to-white min-h-screen flex flex-col w-full p-10 overflow-hidden relative"
+      className="home-screen bg-gradient-to-b from-[#e9f5ee] to-white min-h-screen flex flex-col w-full p-10 overflow-hidden relative"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <button
@@ -52,7 +52,7 @@ function Home() {
       <button
         type="button"
         onClick={() => navigate('/easy-main')}
-        className="home-support-button home-easy-button absolute top-10 right-10 bg-white text-[#0047FF] border-4 border-[#0047FF] px-12 py-7 rounded-[36px] text-[34px] font-bold shadow-lg active:scale-95"
+        className="home-support-button home-easy-button absolute top-10 right-10 bg-white text-[#2f7d4f] border-4 border-[#2f7d4f] px-12 py-7 rounded-[36px] text-[34px] font-bold shadow-lg active:scale-95"
       >
         쉬운화면
       </button>
@@ -65,7 +65,7 @@ function Home() {
         >
           무료 나눔 플랫폼
         </button>
-        <p className="home-lead text-[#4B5563] font-bold text-center">
+        <p className="home-lead text-[#2f7d4f] font-bold text-center">
           아래 큰 버튼을 눌러 시작하세요
         </p>
 
@@ -73,10 +73,10 @@ function Home() {
           <button
             type="button"
             onClick={() => navigate('/buyer-main')}
-            className="home-primary-action w-full bg-white rounded-[48px] shadow-[0_20px_60px_rgba(0,71,255,0.08)] hover:scale-[1.02] hover:shadow-[0_24px_70px_rgba(0,71,255,0.15)] transition-all flex flex-col items-center border border-[#E9F0FF] group py-20"
+            className="home-primary-action w-full bg-white rounded-[48px] shadow-[0_20px_60px_rgba(25, 31, 27, 0.08)] hover:scale-[1.02] hover:shadow-[0_24px_70px_rgba(25, 31, 27, 0.12)] transition-all flex flex-col items-center border border-[#e9f5ee] group py-20"
           >
-            <div className="home-primary-icon bg-[#E9F0FF] rounded-full flex items-center justify-center group-hover:bg-[#D4E4FF] transition-colors w-56 h-56 mb-12">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#0047FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <div className="home-primary-icon bg-[#e9f5ee] rounded-full flex items-center justify-center group-hover:bg-[#e9f5ee] transition-colors w-56 h-56 mb-12">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#2f7d4f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M20 12v8H4v-8" />
                 <path d="M22 7H2v5h20V7Z" />
                 <path d="M12 22V7" />

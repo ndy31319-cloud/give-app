@@ -46,10 +46,10 @@ function LockerScreen() {
   const activeIndex = stepIndex(status.step);
   const canDetectItem = status.step === 'awaiting_item' && status.token;
   const statusTone = status.step === 'completed'
-    ? 'text-[#15803D]'
+    ? 'text-[#25673f]'
     : status.step === 'error'
-      ? 'text-[#DC2626]'
-      : 'text-[#2E8B57]';
+      ? 'text-[#d64545]'
+      : 'text-[#2f7d4f]';
 
   const donationTitle = useMemo(() => {
     return status.donation?.title || status.session?.displayCode || '보관함 입고 QR';
@@ -283,33 +283,45 @@ function LockerScreen() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAF7] text-[#17211B] overflow-y-auto"
+      className="min-h-screen bg-[#f7f7f4] text-[#191f1b] overflow-y-auto"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.02em' }}
     >
-      <header className="sticky top-0 bg-white/95 backdrop-blur border-b border-[#E2E8DE] px-16 py-8 flex items-center gap-8 z-10">
+      <header className="sticky top-0 bg-white/95 backdrop-blur border-b border-[#e5e7df] px-16 py-8 flex items-center gap-8 z-10">
         <button
           type="button"
           onClick={() => navigate('/locker')}
-          className="w-24 h-24 rounded-full bg-[#EEF3EC] flex items-center justify-center text-[54px] font-bold active:scale-95"
+          className="locker-back-button w-24 h-24 rounded-full bg-[#f1f3ee] flex items-center justify-center active:scale-95"
           aria-label="뒤로가기"
         >
-          ‹
+          <svg
+            width="42"
+            height="42"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M15 18L9 12L15 6" />
+          </svg>
         </button>
         <div>
           <h1 className="text-[56px] font-black leading-tight">물품보관함</h1>
-          <p className="text-[26px] text-[#69756D] mt-2">앱에서 발급한 나눔 게시글 보관 QR을 인증합니다</p>
+          <p className="text-[26px] text-[#66706a] mt-2">앱에서 발급한 나눔 게시글 보관 QR을 인증합니다</p>
         </div>
       </header>
 
       <main className="max-w-[980px] mx-auto px-10 py-12 space-y-10">
         {!showDeviceStatus ? (
-        <section className="bg-white border border-[#E2E8DE] rounded-[36px] p-10 shadow-sm">
+        <section className="bg-white border border-[#e5e7df] rounded-[36px] p-10 shadow-sm">
           <div className="flex items-start justify-between gap-8 mb-8">
             <div>
-              <p className="text-[22px] font-bold text-[#2E8B57] mb-3">1회용 동적 QR</p>
+              <p className="text-[22px] font-bold text-[#2f7d4f] mb-3">1회용 동적 QR</p>
               <h2 className="text-[40px] font-black leading-tight">{donationTitle}</h2>
               {status.donor ? (
-                <p className="text-[24px] text-[#69756D] mt-3">
+                <p className="text-[24px] text-[#66706a] mt-3">
                   기부자 {status.donor.nickname || status.donor.name || '회원'}
                 </p>
               ) : null}
@@ -317,17 +329,17 @@ function LockerScreen() {
             <div className={`text-[30px] font-black ${statusTone}`}>{statusLabel(status.step)}</div>
           </div>
 
-          <div className="rounded-[32px] border-2 border-[#E2E8DE] bg-[#F5F8F3] p-6">
+          <div className="rounded-[32px] border-2 border-[#e5e7df] bg-[#F5F8F3] p-6">
             <div
               id="locker-qr-reader"
-              className="w-full min-h-[420px] rounded-[26px] overflow-hidden bg-[#17211B] flex items-center justify-center text-white text-[30px] font-black"
+              className="w-full min-h-[420px] rounded-[26px] overflow-hidden bg-[#191f1b] flex items-center justify-center text-white text-[30px] font-black"
             >
               {scanning ? null : 'QR 스캔 대기'}
             </div>
           </div>
 
-          <div className="rounded-[26px] bg-[#F3F6F1] px-8 py-7 flex gap-5 items-start mt-8">
-            <span className="w-12 h-12 rounded-full bg-[#2E8B57] text-white flex items-center justify-center text-[30px] font-black">i</span>
+          <div className="rounded-[26px] bg-[#f1f3ee] px-8 py-7 flex gap-5 items-start mt-8">
+            <span className="w-12 h-12 rounded-full bg-[#2f7d4f] text-white flex items-center justify-center text-[30px] font-black">i</span>
             <p className="text-[30px] leading-snug">{status.message}</p>
           </div>
 
@@ -336,14 +348,14 @@ function LockerScreen() {
               type="button"
               onClick={handleStartScan}
               disabled={working || scanning}
-              className="h-[104px] rounded-[28px] bg-[#2E8B57] text-white text-[34px] font-black shadow-[0_12px_30px_rgba(46,139,87,0.24)] disabled:bg-[#9BC5AE] disabled:opacity-60 active:scale-[0.98]"
+              className="h-[104px] rounded-[28px] bg-[#2f7d4f] text-white text-[34px] font-black shadow-[0_12px_30px_rgba(46,139,87,0.24)] disabled:bg-[#c9cec4] disabled:opacity-60 active:scale-[0.98]"
             >
               {working ? '인증 중' : scanning ? '스캔 중' : 'QR 스캔 시작'}
             </button>
             <button
               type="button"
               onClick={handleSkipScanForTest}
-              className="h-[104px] rounded-[28px] bg-[#EEF3EC] text-[#17211B] text-[34px] font-black border border-[#E2E8DE] disabled:opacity-50 active:scale-[0.98]"
+              className="h-[104px] rounded-[28px] bg-[#f1f3ee] text-[#191f1b] text-[34px] font-black border border-[#e5e7df] disabled:opacity-50 active:scale-[0.98]"
             >
               스캔 중지
             </button>
@@ -352,7 +364,7 @@ function LockerScreen() {
         ) : null}
 
         {showDeviceStatus ? (
-        <section className="bg-white border border-[#E2E8DE] rounded-[36px] p-10 shadow-sm">
+        <section className="bg-white border border-[#e5e7df] rounded-[36px] p-10 shadow-sm">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-[40px] font-black">디바이스 진행 상태</h2>
             <span className={`text-[30px] font-black ${statusTone}`}>{statusLabel(status.step)}</span>
@@ -366,11 +378,11 @@ function LockerScreen() {
                 <div
                   key={item.id}
                   className={`rounded-[24px] border-2 px-7 py-6 flex items-center gap-5 ${
-                    active || done ? 'border-[#9BC5AE] bg-[#F3FAF5]' : 'border-[#E2E8DE] bg-white'
+                    active || done ? 'border-[#c9cec4] bg-[#F3FAF5]' : 'border-[#e5e7df] bg-white'
                   }`}
                 >
-                  <span className={`w-7 h-7 rounded-full ${active || done ? 'bg-[#2E8B57]' : 'bg-[#CFD8CF]'}`} />
-                  <span className={`text-[28px] font-black ${active || done ? 'text-[#2E8B57]' : 'text-[#6B756E]'}`}>
+                  <span className={`w-7 h-7 rounded-full ${active || done ? 'bg-[#2f7d4f]' : 'bg-[#c9cec4]'}`} />
+                  <span className={`text-[28px] font-black ${active || done ? 'text-[#2f7d4f]' : 'text-[#66706a]'}`}>
                     {item.label}
                   </span>
                 </div>
@@ -378,8 +390,8 @@ function LockerScreen() {
             })}
           </div>
 
-          <div className="rounded-[26px] bg-[#F3F6F1] px-8 py-7 flex gap-5 items-start mb-8">
-            <span className="w-12 h-12 rounded-full bg-[#2E8B57] text-white flex items-center justify-center text-[30px] font-black">i</span>
+          <div className="rounded-[26px] bg-[#f1f3ee] px-8 py-7 flex gap-5 items-start mb-8">
+            <span className="w-12 h-12 rounded-full bg-[#2f7d4f] text-white flex items-center justify-center text-[30px] font-black">i</span>
             <p className="text-[30px] leading-snug">{status.message}</p>
           </div>
 
@@ -387,7 +399,7 @@ function LockerScreen() {
             type="button"
             onClick={handleItemDetected}
             disabled={!canDetectItem || working}
-            className="w-full h-[112px] rounded-[28px] bg-[#2E8B57] text-white text-[36px] font-black shadow-[0_12px_30px_rgba(46,139,87,0.24)] disabled:bg-[#9BC5AE] disabled:opacity-60 active:scale-[0.98] mb-8"
+            className="w-full h-[112px] rounded-[28px] bg-[#2f7d4f] text-white text-[36px] font-black shadow-[0_12px_30px_rgba(46,139,87,0.24)] disabled:bg-[#c9cec4] disabled:opacity-60 active:scale-[0.98] mb-8"
           >
             물품 투입 감지
           </button>
@@ -395,7 +407,7 @@ function LockerScreen() {
           <button
             type="button"
             onClick={handleReset}
-            className="w-full h-[112px] rounded-[28px] bg-white border-2 border-[#E2E8DE] text-[#17211B] text-[36px] font-black active:scale-[0.98]"
+            className="w-full h-[112px] rounded-[28px] bg-white border-2 border-[#e5e7df] text-[#191f1b] text-[36px] font-black active:scale-[0.98]"
           >
             시뮬레이터 초기화
           </button>

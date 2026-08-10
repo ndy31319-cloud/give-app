@@ -92,7 +92,7 @@ function MypageBuyer() {
 
   return (
     <div
-      className="p-8 bg-[#F8F9FA] min-h-screen"
+      className="p-8 bg-[#f7f7f4] min-h-screen"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '-0.03em' }}
     >
       <div className="flex justify-between items-center mb-10">
@@ -105,14 +105,14 @@ function MypageBuyer() {
           <h1 className="text-[36px] font-bold text-[#333]">마이페이지</h1>
         </div>
 
-        <button onClick={handleLogout} className="bg-[#6C757D] text-white px-6 py-3 rounded-xl text-[18px] font-bold active:scale-95 transition-all shadow-sm">
+        <button onClick={handleLogout} className="bg-[#66706a] text-white px-6 py-3 rounded-xl text-[18px] font-bold active:scale-95 transition-all shadow-sm">
           로그아웃
         </button>
       </div>
 
       <div className="bg-white rounded-[40px] p-10 shadow-sm border border-gray-100 mb-10 flex items-center gap-8">
-        <div className="w-32 h-32 bg-[#E9F0FF] rounded-full flex items-center justify-center shrink-0">
-          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#0047FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="w-32 h-32 bg-[#e9f5ee] rounded-full flex items-center justify-center shrink-0">
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#2f7d4f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
@@ -120,7 +120,7 @@ function MypageBuyer() {
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-2 flex-wrap">
             <span className="text-[32px] font-bold text-[#333]">{displayName}님</span>
-            <span className="bg-[#E9F0FF] text-[#0047FF] text-[16px] px-4 py-1 rounded-full font-bold">수요자</span>
+            <span className="bg-[#e9f5ee] text-[#2f7d4f] text-[16px] px-4 py-1 rounded-full font-bold">수요자</span>
           </div>
           <div className="text-[20px] text-gray-500 leading-relaxed">
             {email && <p>이메일: {email}</p>}
@@ -140,11 +140,11 @@ function MypageBuyer() {
       <div className="grid grid-cols-2 gap-8 mb-10">
         <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2">
           <span className="text-gray-400 text-[20px] font-medium">나의 글</span>
-          <span className="text-[40px] font-bold text-[#FF4D4D]">{postCount}개</span>
+          <span className="text-[40px] font-bold text-[#d64545]">{postCount}개</span>
         </div>
         <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2">
           <span className="text-gray-400 text-[20px] font-medium">관심 목록</span>
-          <span className="text-[40px] font-bold text-[#0047FF]">{likeCount}개</span>
+          <span className="text-[40px] font-bold text-[#2f7d4f]">{likeCount}개</span>
         </div>
       </div>
 
