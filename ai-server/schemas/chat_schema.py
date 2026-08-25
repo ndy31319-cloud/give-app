@@ -16,7 +16,7 @@ class PolicyItem(BaseModel):
 
 class ChatRequest(BaseModel):
     user_message: str
-    member_id:    Optional[int] = None
+    member_id:    Optional[int] = None  
 
 
 class ChatResponse(BaseModel):
@@ -24,3 +24,12 @@ class ChatResponse(BaseModel):
     ai_confidence:        str
     ai_response:          str
     recommended_policies: List[PolicyItem]
+
+class ChatHistoryItem(BaseModel):
+    role: str
+    content: str
+    created_at: str
+
+class ChatHistoryResponse(BaseModel):
+    member_id: int
+    history: List[ChatHistoryItem]    

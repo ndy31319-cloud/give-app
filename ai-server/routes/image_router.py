@@ -1,3 +1,4 @@
+# 이미지 1개 ~ 5개짜리 
 import io
 import re
 import logging
@@ -76,15 +77,15 @@ async def check_images_safety(
             image_bytes = await file.read()
             if not image_bytes:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=400, 
                     detail=f"{idx}번째 파일({file.filename}): 비어있는 파일입니다."
                 )
             if len(image_bytes) > MAX_FILE_SIZE_BYTES:
                 raise HTTPException(
-                    status_code=413,
+                    status_code=413, 
                     detail=f"{idx}번째 파일({file.filename}): 용량이 너무 큽니다. (최대 5MB)"
                 )
-
+            
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except HTTPException:
             raise  # 위에서 발생한 HTTP 에러는 그대로 던짐
@@ -119,7 +120,7 @@ async def check_images_safety(
             is_safe=False,
             message=f"⛔ {idx}번째 사진에서 기부 불가 물품(위험물, 흉기류 등)이 감지되어 등록할 수 없습니다.",
             dangerous_file=file.filename,
-            dangerous_label=top_prediction,
+            dangerous_label=top_prediction, 
     )
 
     logger.info(f"전체 {len(files)}장 안전 확인 완료.")
@@ -148,7 +149,7 @@ async def predict_image(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="비어있는 파일입니다.")
         if len(image_bytes) > MAX_FILE_SIZE_BYTES:
             raise HTTPException(status_code=413, detail="용량이 너무 큽니다. (최대 5MB)")
-
+            
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     except HTTPException:
         raise

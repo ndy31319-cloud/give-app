@@ -1,3 +1,4 @@
+# ai 글쓰기
 import os
 import io
 import json
@@ -19,8 +20,11 @@ router = APIRouter()
 
 # 1. 환경변수 및 기본 세팅
 # -------------------------------------------------------------------
-load_dotenv(override=True)  # 🔥 괄호 안에 override=True 를 꼭 넣어주세요!
+load_dotenv(override=True)  # 🔥 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# 서버가 켜질 때 새 키를 잘 물고 왔는지 터미널에서 눈으로 확인하기 위한 코드
+print(f"👀 현재 적용된 API 키 앞자리: {GEMINI_API_KEY[:10]}...") 
 
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
@@ -118,20 +122,20 @@ async def generate_market_post(
     for idx, file in enumerate(files, start=1):
         if file.content_type not in ALLOWED_CONTENT_TYPES:
             raise HTTPException(status_code=400, detail=f"{idx}번째 파일({file.filename}): JPG, PNG, WEBP만 가능합니다.")
-
+        
         try:
             file_bytes = await file.read()
             if not file_bytes:
                 raise HTTPException(status_code=400, detail=f"{idx}번째 파일({file.filename}): 비어있는 파일입니다.")
             if len(file_bytes) > MAX_FILE_SIZE_BYTES:
                 raise HTTPException(status_code=413, detail=f"{idx}번째 파일({file.filename}): 용량이 너무 큽니다. (최대 5MB)")
-
+            
             # 🔥 이미지 압축 및 리사이징 로직 추가
             img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
-
+            
             # 해상도를 최대 1024x1024로 줄임 (비율 유지)
-            img.thumbnail((300, 300))
-
+            img.thumbnail((300, 300)) 
+            
             # 화질을 85%로 낮춰서 메모리에 저장
             output = io.BytesIO()
             img.save(output, format="JPEG", quality=50)
@@ -167,37 +171,35 @@ async def generate_market_post(
         if not result.get("is_safe", True):
             reason = result.get("rejection_reason", "유해물품이 포함되어 있습니다.")
             logger.warning(f"기부글 작성 차단 (유해물품): {reason}")
-            return result
+            raise HTTPException(status_code=400, detail=f"⛔ 작성 불가: {reason}")
 
         # 🔥 비즈니스 로직 2: 다중물품 차단
         if not result.get("is_same_item", True):
             reason = result.get("rejection_reason", "여러 종류의 물품이 섞여 있습니다.")
             logger.warning(f"기부글 작성 차단 (다중물품): {reason}")
-            return result
+            raise HTTPException(status_code=400, detail=f"⛔ 작성 불가: {reason}")
 
         logger.info(f"Gemini 응답 성공 (안전 검증 통과): category='{result.get('category')}'")
         return result
 
-    except HTTPException:
-        raise
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Gemini API 호출 실패: {error_msg}")
-
+        
         # 🔥 구글 서버 일시적 과부하 (503) 방어
         if "503" in error_msg or "UNAVAILABLE" in error_msg:
             raise HTTPException(
-                status_code=503,
+                status_code=503, 
                 detail="현재 AI 서버에 접속자가 몰려 처리가 지연되고 있습니다. 1~2분 뒤에 다시 시도해 주세요."
             )
         # 🔥 구글 무료 API 한도 초과 (429) 방어
         elif "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
             raise HTTPException(
-                status_code=429,
+                status_code=429, 
                 detail="현재 접속자가 많아 AI 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
             )
         else:
             raise HTTPException(
-                status_code=500,
+                status_code=500, 
                 detail=f"AI 글쓰기 중 오류가 발생했습니다: {error_msg}"
             )
