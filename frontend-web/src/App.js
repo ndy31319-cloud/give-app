@@ -63,7 +63,7 @@ function Home() {
           onClick={toggleFullScreen}
           className="home-title-button"
         >
-          무료 나눔 플랫폼
+          나눔 플랫폼
         </button>
         <p className="home-lead text-[#2f7d4f] font-bold text-center">
           아래 큰 버튼을 눌러 시작하세요

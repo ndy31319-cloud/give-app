@@ -1229,8 +1229,28 @@ body {
   margin-bottom: clamp(14px, 2vmin, 28px) !important;
 }
 
+.post-detail-list-button {
+  min-width: clamp(145px, 13vw, 190px);
+  border: 0;
+  border-radius: clamp(14px, 1.7vmin, 20px);
+  background: #66706a;
+  box-shadow: 0 8px 18px rgba(25, 31, 27, 0.16);
+  color: #fff;
+  padding: clamp(10px, 1.2vmin, 13px) clamp(16px, 1.9vmin, 22px);
+  font-size: clamp(18px, 2vmin, 23px);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
 .post-detail-info > .flex-1 {
   overflow: hidden;
+}
+
+@media (min-width: 901px) {
+  .post-detail-info > .flex-1 {
+    /* 목록 버튼 아래의 정보 박스를 사진 윗선에 맞춘다. */
+    padding-top: clamp(48px, 9vmin, 92px);
+  }
 }
 
 .post-detail-info .inline-flex {
@@ -1238,20 +1258,85 @@ body {
   padding: clamp(8px, 1vmin, 12px) clamp(16px, 1.8vmin, 22px) !important;
 }
 
-.post-detail-info h1 {
-  margin-bottom: clamp(12px, 1.8vmin, 22px) !important;
+.post-detail-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px !important;
+  background: #2f7d4f;
+  box-shadow: 0 4px 10px rgba(47, 125, 79, 0.2);
+  color: #fff !important;
+  padding: clamp(11px, 1.35vmin, 15px) clamp(18px, 2vmin, 26px) !important;
+  font-size: clamp(24px, 2.65vmin, 32px) !important;
+  font-weight: 800 !important;
+  line-height: 1.1;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.post-detail-content-card {
+  border: 1px solid #d9ddd7;
+  border-radius: clamp(22px, 2.6vmin, 30px);
+  background: #f7f8f5;
+  padding: clamp(20px, 2.5vmin, 30px);
+}
+
+.post-detail-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: clamp(12px, 1.8vmin, 20px);
+  padding-bottom: clamp(14px, 1.8vmin, 20px);
+  border-bottom: 1px solid #d5d9d3;
+}
+
+.post-detail-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  margin: 0 !important;
+  color: #222 !important;
+  letter-spacing: 0.015em;
+  line-height: 1.18;
+  word-break: keep-all;
 }
 
 .post-detail-description {
   display: -webkit-box;
-  margin-bottom: clamp(14px, 2vmin, 24px) !important;
+  margin: clamp(14px, 1.8vmin, 20px) 0 !important;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
+  letter-spacing: 0.025em;
+  line-height: 1.72 !important;
 }
 
 .post-detail-category {
-  padding: clamp(18px, 2.2vmin, 26px) !important;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: clamp(8px, 1vmin, 12px);
+  border-radius: clamp(12px, 1.5vmin, 16px);
+  background: #eaf4ed;
+  color: #356f4d;
+  padding: clamp(10px, 1.2vmin, 13px) clamp(14px, 1.6vmin, 18px);
+  font-size: clamp(20px, 2.2vmin, 25px);
+  line-height: 1.2;
+}
+
+.post-detail-category span {
+  color: #66706a;
+  font-weight: 700;
+}
+
+.post-detail-category strong::before {
+  content: ':';
+  margin-right: clamp(8px, 1vmin, 12px);
+  color: #8a958d;
+}
+
+.post-detail-category strong {
+  font-weight: 800;
 }
 
 .post-detail-info button:last-child {

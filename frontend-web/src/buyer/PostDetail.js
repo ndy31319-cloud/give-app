@@ -100,26 +100,27 @@ function PostDetail() {
           <button
             type="button"
             onClick={() => navigate(listPath)}
-            className="self-start mb-14 text-[24px] font-bold text-gray-500 active:scale-95"
+            className="post-detail-list-button self-end mb-14 active:scale-[0.98] transition-all"
           >
             ← 목록으로
           </button>
 
           <div className="flex-1">
-            <div className="inline-flex bg-[#e9f5ee] text-[#2f7d4f] px-6 py-3 rounded-[20px] text-[24px] font-bold mb-8">
-              신청가능
-            </div>
-            <h1 className="text-[58px] font-bold text-[#222] leading-tight mb-8">
-              {item.title}
-            </h1>
-            <p className="post-detail-description text-[28px] text-gray-600 leading-relaxed mb-10">
-              {item.description || item.content}
-            </p>
-
-            <div className="post-detail-category bg-[#f7f7f4] rounded-[28px] p-8">
-              <p className="text-[24px] text-gray-500 mb-3">카테고리</p>
-              <p className="text-[32px] font-bold text-[#333]">{item.category}</p>
-            </div>
+            <section className="post-detail-content-card">
+              <div className="post-detail-heading-row">
+                <h1 className="post-detail-title text-[58px] font-bold text-[#222] leading-tight">
+                  {item.title}
+                </h1>
+                <span className="post-detail-status">신청가능</span>
+              </div>
+              <p className="post-detail-description text-[28px] text-gray-600 leading-relaxed">
+                {item.description || item.content}
+              </p>
+              <div className="post-detail-category">
+                <span>카테고리</span>
+                <strong>{item.category}</strong>
+              </div>
+            </section>
           </div>
 
           <button
