@@ -10,9 +10,14 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as Location from 'expo-location';
+import { captureImage, pickImageFromLibrary } from '@/src/utils/imagePicker';
+import { ChatAttachment, TradeRequest } from '@/src/types/app';
+import { tradeAPI } from '@/src/services/tradeApi';
 import { router, useLocalSearchParams } from "expo-router";
 
 import { AppButton } from "@/src/components/common/AppButton";
+import { TradeRequestCard } from "@/src/components/common/TradeRequestCard";
 import { AppHeader } from "@/src/components/common/AppHeader";
 import { KakaoMapPreview } from "@/src/components/common/KakaoMapPreview";
 import { AppModal } from "@/src/components/common/AppModal";
@@ -20,6 +25,8 @@ import { AppScreen } from "@/src/components/common/AppScreen";
 import { AppTextField } from "@/src/components/common/AppTextField";
 import { useAppContext } from "@/src/context/AppContext";
 import { reviewAPI } from "@/src/services/api";
+import { loadReviewStatus, ReviewStatus } from '@/src/services/reviewApi';
+import { MemberReputation } from '@/src/components/common/MemberReputation';
 import { colors, radius, spacing } from "@/src/theme/colors";
 import { NeighborhoodLocation } from "@/src/types/app";
 import { formatLocationLabel } from "@/src/utils/location";
@@ -152,12 +159,15 @@ export function ChatListScreen() {
 
 export function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { authToken, chatRooms, messagesByChat, posts, sendMessage, user } =
+  const { authToken, chatRooms, messagesByChat, posts, sendMessage, sendAttachment, user, applyTrade, openChatRoom } =
     useAppContext();
   const [message, setMessage] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [meetingPlaceOpen, setMeetingPlaceOpen] = useState(false);
+  const [editingTrade, setEditingTrade] = useState<TradeRequest | null>(null);
+  const [meetingLabel, setMeetingLabel] = useState('');
+  const meetingLock = useRef(false);
   const [meetingPlace, setMeetingPlace] = useState<NeighborhoodLocation | null>(null);
   const [viewingMeetingPlace, setViewingMeetingPlace] = useState<ReturnType<
     typeof parseMeetingPlaceMessage
@@ -176,7 +186,46 @@ export function ChatRoomScreen() {
   const [isSendingMeetingPlace, setIsSendingMeetingPlace] = useState(false);
   const sendingRef = useRef(false);
   const [isReviewing, setIsReviewing] = useState(false);
+  const reviewLock = useRef(false);
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const reviewStatusVersion = useRef(0);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const attachmentLock = useRef(false);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+
+  const newMessageId = () => `attachment_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  async function selectPhoto(camera: boolean) {
+    if (attachmentLock.current) return;
+    attachmentLock.current = true;
+    setAttachmentBusy(true);
+    setPlusOpen(false);
+    try {
+      const image = await (camera ? captureImage() : pickImageFromLibrary());
+      if (!image) return;
+      if (image.size && image.size > 5 * 1024 * 1024) {
+        Alert.alert('사진 크기 초과', '5MB 이하의 사진을 선택해주세요.');
+        return;
+      }
+      setAttachment({ type: 'IMAGE', image, clientMessageId: newMessageId() });
+    } catch {
+      Alert.alert(camera ? '카메라를 열 수 없습니다' : '사진을 불러올 수 없습니다', '기기 권한을 확인한 뒤 다시 시도해주세요.');
+    } finally { attachmentLock.current = false; setAttachmentBusy(false); }
+  }
+
+  async function sendSelectedAttachment() {
+    if (!attachment || !chatRoom || attachmentLock.current) return;
+    attachmentLock.current = true;
+    setAttachmentBusy(true);
+    try {
+      const result = await sendAttachment(chatRoom.id, attachment);
+      if (result.error) Alert.alert('전송 실패', result.error);
+      else setAttachment(null);
+    } finally { attachmentLock.current = false; setAttachmentBusy(false); }
+  }
 
   const chatRoom = useMemo(
     () => chatRooms.find((item) => item.id === id) ?? null,
@@ -190,57 +239,86 @@ export function ChatRoomScreen() {
     [chatRoom?.postId, posts],
   );
   const messages = chatRoom ? (messagesByChat[chatRoom.id] ?? []) : [];
+  const roomTrade = messages.find(item => item.tradeRequest)?.tradeRequest;
+  async function openReview() {
+    setMenuOpen(false); setRatingOpen(true); setReviewStatus(null); setReviewError(null);
+    setRatingType(null); setRatingComment('');
+    const version = ++reviewStatusVersion.current;
+    const result = await loadReviewStatus(String(id), authToken ?? undefined);
+    if (version === reviewStatusVersion.current) { setReviewStatus(result.data); setReviewError(result.error); }
+  }
   const calendarDays = useMemo(
     () => buildCalendarDays(calendarMonth),
     [calendarMonth],
   );
-  const handleShareLocation = () => {
+  const handleShareLocation = async () => {
+    if (attachmentLock.current) return;
+    attachmentLock.current = true;
+    setAttachmentBusy(true);
     setPlusOpen(false);
-    Alert.alert(
-      "위치 공유 준비 중",
-      "실시간 위치 공유는 아직 연결 전이라 약속장소 정하기를 사용해주세요.",
-    );
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('위치 권한이 필요합니다', '기기 설정에서 위치 접근을 허용해주세요.');
+        return;
+      }
+      const current = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('timeout')), 15000); }),
+      ]);
+      setAttachment({ type: 'LOCATION', clientMessageId: newMessageId(), location: {
+        latitude: current.coords.latitude, longitude: current.coords.longitude, label: '공유한 현재 위치',
+      } });
+    } catch {
+      Alert.alert('위치를 확인하지 못했습니다', '기기의 위치 기능을 켜고 다시 시도해주세요.');
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      attachmentLock.current = false;
+      setAttachmentBusy(false);
+    }
   };
 
-  const handleSchedulePlace = async () => {
-    if (!user?.location) {
-      Alert.alert(
-        "내 위치가 필요합니다",
-        "마이페이지에서 내 동네를 먼저 설정해주세요.",
-      );
-      return;
-    }
-
+  const handleSchedulePlace = async (knownTrade?: TradeRequest) => {
     setPlusOpen(false);
-    setMeetingPlace(user.location);
+    const tradeId = knownTrade?.id || roomTrade?.id;
+    if (!tradeId) { Alert.alert('약속 관리', '나눔 요청이 수락된 거래에서 약속을 정할 수 있어요.'); return; }
+    const result = await tradeAPI.get(tradeId, authToken ?? undefined);
+    if (!result.data || result.data.status !== 'approved') { Alert.alert('약속 관리', result.error || '상대방이 나눔 요청을 수락한 뒤 약속을 정해주세요.'); return; }
+    setEditingTrade(result.data);
+    const previous = result.data.appointment?.pending || result.data.appointment?.confirmed;
+    const date = previous && new Date(previous.at).getTime() > Date.now() ? new Date(previous.at) : new Date(Date.now() + 86400000);
+    setMeetingDate(startOfDay(date)); setCalendarMonth(startOfDay(date));
+    setMeetingHour(date.getHours()); setMeetingMinute(Math.floor(date.getMinutes() / 10) * 10);
+    setMeetingLabel(previous?.place || '');
+    setMeetingPlace(previous?.latitude != null && previous.longitude != null ? { id: 'appointment', city: '', district: '', neighborhood: '', dongName: '', fullAddress: previous.place, radiusKm: 1, latitude: previous.latitude, longitude: previous.longitude } : null);
     setMeetingPlaceOpen(true);
   };
 
   const sendMeetingPlace = async () => {
-    if (!meetingPlace) {
-      Alert.alert("약속장소를 선택해주세요");
+    if (!editingTrade || meetingLock.current) return;
+    if (!meetingLabel.trim() && !meetingPlace) {
+      Alert.alert("약속장소를 입력하거나 지도에서 선택해주세요");
       return;
     }
-
+    const at = new Date(meetingDate); at.setHours(meetingHour, meetingMinute, 0, 0);
+    if (at.getTime() <= Date.now()) { Alert.alert('시간 확인', '현재보다 이후 시간을 선택해주세요.'); return; }
+    meetingLock.current = true;
     setIsSendingMeetingPlace(true);
-    const locationLabel = formatLocationLabel(meetingPlace);
-    const result = await sendMessage(
-      chatRoom?.id ?? "",
-      [
-        `약속장소 제안: ${locationLabel}`,
-        `날짜: ${formatMeetingDate(meetingDate)}`,
-        `시간: ${formatMeetingTime(meetingHour, meetingMinute)}`,
-        `좌표: ${meetingPlace.latitude.toFixed(6)}, ${meetingPlace.longitude.toFixed(6)}`,
-      ].join("\n"),
-    );
+    const result = await tradeAPI.proposeAppointment(editingTrade.id, { revision: editingTrade.appointment?.revision || 0, at: at.toISOString(), place: meetingLabel.trim() || formatLocationLabel(meetingPlace!), latitude: meetingPlace?.latitude ?? null, longitude: meetingPlace?.longitude ?? null }, authToken ?? undefined);
+    meetingLock.current = false;
     setIsSendingMeetingPlace(false);
 
     if (result.error) {
-      Alert.alert("약속장소 전송 실패", result.error);
+      Alert.alert("약속 제안 실패", result.error);
+      setMeetingPlaceOpen(false);
+      const latest = await tradeAPI.get(editingTrade.id, authToken ?? undefined);
+      if (latest.data) applyTrade(latest.data);
       return;
     }
 
     setMeetingPlaceOpen(false);
+    if (result.data) applyTrade(result.data);
   };
 
   if (!chatRoom) {
@@ -267,7 +345,7 @@ export function ChatRoomScreen() {
     <AppScreen>
       <AppHeader
         title={chatRoom.userName}
-        subtitle={`${chatRoom.userLocation} · 매너온도 ${chatRoom.mannerTemperature}°C`}
+        subtitle={`${chatRoom.userLocation} · 마음 점수 ${chatRoom.mannerTemperature.toFixed(1)}점`}
         onTitlePress={() => setProfileOpen(true)}
         right={
           <Pressable
@@ -319,18 +397,47 @@ export function ChatRoomScreen() {
         </View>
       ) : null}
 
+      {roomTrade && <ScrollView style={{ maxHeight: 280, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16 }}>
+        <TradeRequestCard request={roomTrade} onSchedule={trade => void handleSchedulePlace(trade)} onReview={() => void openReview()} />
+      </ScrollView>}
       <ScrollView
         contentContainerStyle={styles.messageList}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {messages.map((item, index) => {
+          if (item.tradeRequest) {
+            return null;
+          }
+          if (item.image?.url) {
+            return <View key={item.id} style={[styles.meetingMessageWrap, item.sender === 'me' ? styles.meetingMessageMine : styles.meetingMessageOther]}>
+              <Pressable accessibilityLabel="사진 크게 보기" onPress={() => setViewingImage(item.image!.url)}>
+                <Image source={{ uri: item.image.url }} style={{ width: 230, height: 230, borderRadius: radius.md }} contentFit="cover" />
+              </Pressable>
+              <Text style={styles.messageTime}>{item.timeLabel}</Text>
+            </View>;
+          }
+          if (item.location) {
+            const location = item.location;
+            return <View key={item.id} style={[styles.meetingMessageWrap, item.sender === 'me' ? styles.meetingMessageMine : styles.meetingMessageOther]}>
+              <Pressable style={styles.meetingMessageCard} onPress={() => setViewingMeetingPlace({
+                place: location.label, latitude: location.latitude, longitude: location.longitude, date: '', time: '',
+              })}>
+                <Ionicons name="location" size={24} color={colors.brand} />
+                <View style={styles.meetingMessageBody}>
+                  <Text style={styles.meetingMessageTitle}>현재 위치 공유</Text>
+                  <Text style={styles.meetingMessageMeta}>눌러서 지도 보기</Text>
+                </View>
+              </Pressable>
+              <Text style={styles.messageTime}>{item.timeLabel}</Text>
+            </View>;
+          }
           const meeting = parseMeetingPlaceMessage(item.text);
 
           if (meeting) {
             return (
               <View
-                key={`${item.id ?? item.messageId ?? "message"}-${index}`}
+                key={`${item.id}-${index}`}
                 style={[
                   styles.meetingMessageWrap,
                   item.sender === "me"
@@ -377,7 +484,7 @@ export function ChatRoomScreen() {
 
           return (
             <View
-              key={`${item.id ?? item.messageId ?? "message"}-${index}`}
+              key={`${item.id}-${index}`}
               style={[
                 styles.messageBubble,
                 item.sender === "me" ? styles.messageMine : styles.messageOther,
@@ -404,9 +511,11 @@ export function ChatRoomScreen() {
         })}
       </ScrollView>
 
+      {attachmentBusy && !attachment && <Text style={styles.meetingMessageHint}>첨부 내용을 준비하고 있어요…</Text>}
       <View style={styles.chatComposer}>
         <Pressable
           style={styles.composerIcon}
+          disabled={attachmentBusy}
           onPress={() => setPlusOpen(true)}
         >
           <Ionicons name="add" size={24} color={colors.text} />
@@ -467,10 +576,7 @@ export function ChatRoomScreen() {
         <Pressable
           disabled={isLeaving}
           style={[styles.menuAction, isLeaving && { opacity: 0.5 }]}
-          onPress={() => {
-            setMenuOpen(false);
-            setRatingOpen(true);
-          }}
+          onPress={() => void openReview()}
         >
           <Ionicons name="thumbs-up-outline" size={20} color={colors.brand} />
           <Text style={styles.menuActionText}>매너 평가하기</Text>
@@ -518,7 +624,7 @@ export function ChatRoomScreen() {
                     setIsLeaving(true);
 
                     try {
-                      await fetch(
+                      const response = await fetch(
                         `${process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "")}/api/chats/rooms/${chatRoom.id}`,
                         {
                           method: "DELETE",
@@ -532,8 +638,14 @@ export function ChatRoomScreen() {
                               },
                         },
                       );
+                      if (!response.ok) {
+                        const body = await response.json().catch(() => null);
+                        Alert.alert('나가기 실패', body?.message || '잠시 후 다시 시도해주세요.');
+                        return;
+                      }
                     } catch {
-                      // 네트워크 오류가 발생해도 화면은 채팅 목록으로 이동
+                      Alert.alert('나가기 실패', '서버에 연결할 수 없습니다.');
+                      return;
                     } finally {
                       setIsLeaving(false);
                     }
@@ -560,7 +672,8 @@ export function ChatRoomScreen() {
         <View style={styles.plusGrid}>
           <Pressable
             style={styles.plusAction}
-            onPress={() => Alert.alert("안내", "사진 기능은 추후 연동됩니다.")}
+            disabled={attachmentBusy}
+            onPress={() => void selectPhoto(false)}
           >
             <Ionicons name="image-outline" size={24} color={colors.brand} />
             <Text style={styles.plusActionText}>사진</Text>
@@ -568,9 +681,8 @@ export function ChatRoomScreen() {
 
           <Pressable
             style={styles.plusAction}
-            onPress={() =>
-              Alert.alert("안내", "카메라 기능은 추후 연동됩니다.")
-            }
+            disabled={attachmentBusy}
+            onPress={() => void selectPhoto(true)}
           >
             <Ionicons name="camera-outline" size={24} color={colors.brand} />
             <Text style={styles.plusActionText}>카메라</Text>
@@ -581,7 +693,7 @@ export function ChatRoomScreen() {
             <Text style={styles.plusActionText}>위치 공유</Text>
           </Pressable>
 
-          <Pressable style={styles.plusAction} onPress={handleSchedulePlace}>
+          <Pressable style={styles.plusAction} onPress={() => void handleSchedulePlace()}>
             <Ionicons name="calendar-outline" size={24} color={colors.brand} />
             <Text style={styles.plusActionText}>약속장소</Text>
           </Pressable>
@@ -590,24 +702,48 @@ export function ChatRoomScreen() {
         <AppButton label="닫기" onPress={() => setPlusOpen(false)} />
       </AppModal>
 
+      <AppModal visible={attachment !== null} onClose={() => { if (!attachmentBusy) setAttachment(null); }}>
+        <Text style={styles.modalTitle}>{attachment?.type === 'IMAGE' ? '사진 보내기' : '현재 위치 보내기'}</Text>
+        {attachment?.type === 'IMAGE' && <Image source={{ uri: attachment.image.uri }} style={{ width: '100%', height: 300 }} contentFit="contain" />}
+        {attachment?.type === 'LOCATION' && <>
+          <Text style={styles.sectionText}>이 위치를 채팅 상대에게 한 번 공유합니다.</Text>
+          <Text style={styles.meetingPlaceCoords}>{attachment.location.latitude.toFixed(6)}, {attachment.location.longitude.toFixed(6)}</Text>
+          <KakaoMapPreview location={{ ...attachment.location, id: 'current_share', city: '', district: '', neighborhood: '', dongName: '', fullAddress: '현재 위치', radiusKm: 1 }}
+            onLocationChange={() => undefined} moveMarkerOnMapInteraction={false} moveMarkerOnMapDragEnd={false} />
+        </>}
+        <View style={styles.modalButtonRow}>
+          <AppButton label="취소" variant="secondary" disabled={attachmentBusy} onPress={() => setAttachment(null)} style={{ flex: 1 }} />
+          <AppButton label="보내기" loading={attachmentBusy} onPress={() => void sendSelectedAttachment()} style={{ flex: 1 }} />
+        </View>
+      </AppModal>
+
+      <AppModal visible={viewingImage !== null} onClose={() => setViewingImage(null)}>
+        <Text style={styles.modalTitle}>사진</Text>
+        {viewingImage && <Image source={{ uri: viewingImage }} style={{ width: '100%', height: 400 }} contentFit="contain" />}
+        <AppButton label="닫기" onPress={() => setViewingImage(null)} />
+      </AppModal>
+
       <AppModal
         visible={meetingPlaceOpen}
-        onClose={() => setMeetingPlaceOpen(false)}
+        onClose={() => { if (!meetingLock.current) setMeetingPlaceOpen(false); }}
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.meetingModalContent}
         >
-          <Text style={styles.modalTitle}>약속장소 정하기</Text>
+          <Text style={styles.modalTitle}>{editingTrade?.appointment?.confirmed ? '약속 변경 제안' : '만날 약속 정하기'}</Text>
+          <Text style={styles.sectionText}>상대방이 확인하면 확정돼요. 시간은 기기에 설정된 시간대 기준입니다.</Text>
+          <AppTextField label="만날 장소" placeholder="예: 학교 정문 앞 벤치" value={meetingLabel} maxLength={200} onChangeText={value => { setMeetingLabel(value); setMeetingPlace(null); }} />
           <Text style={styles.sectionText}>
-            지도를 누르거나 마커를 움직여 만날 위치를 정해주세요.
+            파란 점은 내 위치예요. 지도를 누르거나 핀을 움직여 만날 위치를 정해주세요.
           </Text>
-        <KakaoMapPreview
+        {meetingPlaceOpen && <KakaoMapPreview
           location={meetingPlace}
-          onLocationChange={setMeetingPlace}
+          onLocationChange={place => { setMeetingPlace(place); setMeetingLabel(formatLocationLabel(place)); }}
+          showCurrentLocation
           moveMarkerOnMapInteraction
           moveMarkerOnMapDragEnd={false}
-        />
+        />}
           {meetingPlace ? (
             <View style={styles.meetingPlaceSummary}>
               <Ionicons name="location" size={18} color={colors.brand} />
@@ -740,11 +876,12 @@ export function ChatRoomScreen() {
             <AppButton
               label="취소"
               variant="secondary"
+              disabled={isSendingMeetingPlace}
               onPress={() => setMeetingPlaceOpen(false)}
               style={{ flex: 1 }}
             />
             <AppButton
-              label="약속장소 보내기"
+              label="약속 제안 보내기"
               onPress={sendMeetingPlace}
               loading={isSendingMeetingPlace}
               style={{ flex: 1 }}
@@ -823,27 +960,18 @@ export function ChatRoomScreen() {
           <Text style={styles.profileName}>{chatRoom.userName}</Text>
           <Text style={styles.chatTime}>{chatRoom.userLocation}</Text>
         </View>
-        <View style={styles.profileStats}>
-          <Text style={styles.profileStatLine}>
-            매너온도: {chatRoom.mannerTemperature}°C
-          </Text>
-          <Text style={styles.profileStatLine}>나눔 횟수: 23회</Text>
-          <Text style={styles.profileStatLine}>응답률: 95%</Text>
-        </View>
-        <View style={styles.reviewCard}>
-          <Text style={styles.reviewTitle}>받은 후기</Text>
-          <Text style={styles.sectionText}>
-            {'"친절하시고 시간 약속도 잘 지켜주셨어요."'}
-          </Text>
-        </View>
+        {profileOpen && <ScrollView style={{ flexShrink: 1 }}><MemberReputation memberId={chatRoom.userId} /></ScrollView>}
         <AppButton label="닫기" onPress={() => setProfileOpen(false)} />
       </AppModal>
 
-      <AppModal visible={ratingOpen} onClose={() => setRatingOpen(false)}>
+      <AppModal visible={ratingOpen} onClose={() => { if (!reviewLock.current) { reviewStatusVersion.current++; setRatingOpen(false); } }}>
         <Text style={styles.modalTitle}>매너 평가하기</Text>
         <Text style={styles.sectionText}>
           거래 경험을 남겨주시면 상대방의 신뢰도에 도움이 됩니다.
         </Text>
+        <Text style={styles.sectionText}>매너있어요 +0.5점 · 아쉬워요 −0.5점 · 거래당 한 번 평가할 수 있어요.</Text>
+        {reviewError ? <AppButton label={`${reviewError} · 다시 확인`} variant="secondary" onPress={() => void openReview()} /> : !reviewStatus ? <Text style={styles.sectionText}>작성 가능 여부를 확인하고 있어요…</Text> : !reviewStatus.canReview ? <Text style={styles.sectionText}>{reviewStatus.reason}</Text> : null}
+        {reviewStatus?.canReview && <>
         <View style={styles.ratingRow}>
           <Pressable
             style={[
@@ -883,23 +1011,28 @@ export function ChatRoomScreen() {
           value={ratingComment}
           onChangeText={setRatingComment}
           placeholder="거래 경험을 알려주세요"
+          maxLength={500}
+          editable={!isReviewing}
         />
         <View style={styles.modalButtonRow}>
           <AppButton
             label="취소"
             variant="secondary"
+            disabled={isReviewing}
             onPress={() => setRatingOpen(false)}
             style={{ flex: 1 }}
           />
           <AppButton
             label="평가하기"
-            disabled={!ratingType || isReviewing}
+            disabled={!ratingType || isReviewing || !reviewStatus?.canReview}
             onPress={async () => {
               if (!user) {
                 Alert.alert("로그인이 필요합니다");
                 return;
               }
 
+              if (reviewLock.current || !reviewStatus?.canReview) return;
+              reviewLock.current = true;
               setIsReviewing(true);
               const result = await reviewAPI.create({
                 roomId: chatRoom.id,
@@ -915,9 +1048,12 @@ export function ChatRoomScreen() {
                 authToken: authToken ?? undefined,
               });
               setIsReviewing(false);
+              reviewLock.current = false;
 
               if (result.error) {
                 Alert.alert("평가 실패", result.error);
+                const latest = await loadReviewStatus(chatRoom.id, authToken ?? undefined);
+                setReviewStatus(latest.data); setReviewError(latest.error);
                 return;
               }
 
@@ -925,10 +1061,13 @@ export function ChatRoomScreen() {
               setRatingOpen(false);
               setRatingType(null);
               setRatingComment("");
+              await openChatRoom(chatRoom.id);
             }}
             style={{ flex: 1 }}
           />
         </View>
+        </>}
+        {!reviewStatus?.canReview && <AppButton label="닫기" variant="secondary" onPress={() => { reviewStatusVersion.current++; setRatingOpen(false); }} />}
       </AppModal>
     </AppScreen>
   );

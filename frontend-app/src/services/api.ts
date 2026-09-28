@@ -16,7 +16,6 @@ import {
   mockRequestImages,
   mockRequestLikes,
   mockRequestPosts,
-  mockReviews,
   mockRoles,
   mockSearchHistory,
 } from "@/src/data/mockData";
@@ -39,6 +38,7 @@ import {
   MemberRecord,
   NeighborhoodLocation,
   NotificationItem,
+  NotificationFeed,
   NotificationRecord,
   PickupRequestRecord,
   Policy,
@@ -63,6 +63,7 @@ import {
   mapBackendChatMessage,
   mapBackendChatRoom,
   mapBackendDynamicQrSession,
+  mapBackendNotification,
   mapBackendPolicy,
   mapBackendPost,
   mapBackendUser,
@@ -460,7 +461,7 @@ function createPostViewFromPayload(payload: CreatePostInput, user: User): Post {
       id: user.id,
       name: user.name,
       nickname: user.nickname,
-      temperature: 36.8,
+      temperature: 36.5,
       profileImage: user.profileImage,
     },
     createdAt: new Date().toISOString(),
@@ -1766,32 +1767,20 @@ export const pickupRequestAPI = {
 };
 
 export const notificationAPI = {
+  async feed(authToken?: string, before?: string, unread = false): ApiResult<NotificationFeed> {
+    const query = new URLSearchParams();
+    if (before) query.set('before', before);
+    if (unread) query.set('unread', '1');
+    const response = await requestEnvelope<NotificationFeed>(`/api/notifications/feed?${query}`, { headers: buildAuthHeaders(authToken) });
+    return { data: response.data ? { ...response.data, items: response.data.items.map(mapBackendNotification) } : { items: [], unreadCount: 0, nextCursor: null },
+      error: response.error || (!response.data ? '알림 서버에 연결할 수 없습니다.' : null) };
+  },
   async list(
     memberId: string,
     authToken?: string,
   ): ApiResult<NotificationItem[]> {
-    const backendResult = await requestEnvelope<NotificationItem[]>(
-      `/notifications?memberId=${memberId}`,
-      {
-        headers: buildAuthHeaders(authToken),
-      },
-    );
-
-    if (backendResult.error) {
-      return { data: [], error: backendResult.error };
-    }
-
-    if (backendResult.data) {
-      return { data: backendResult.data, error: null };
-    }
-
-    const response = await safeFetch<{ data?: NotificationItem[] }>(
-      `/notifications?memberId=${memberId}`,
-    );
-    if (response?.data) {
-      return { data: response.data, error: null };
-    }
-    return { data: [], error: null };
+    const result = await notificationAPI.feed(authToken);
+    return { data: result.data.items, error: result.error };
   },
 
   async listRaw(memberId: string): ApiResult<NotificationRecord[]> {
@@ -1803,15 +1792,17 @@ export const notificationAPI = {
     };
   },
 
-  async markRead(notificationId: string): ApiResult<{ success: boolean }> {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/notifications/${notificationId}/read`,
-      { method: "PATCH" },
+  async markRead(notificationId: string, authToken?: string): ApiResult<{ success: boolean }> {
+    const response = await requestEnvelope<{ success: boolean }>(
+      `/api/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: "PATCH", headers: buildAuthHeaders(authToken) },
     );
-    if (response?.data) {
-      return { data: response.data, error: null };
-    }
-    return { data: { success: true }, error: null };
+    return { data: response.data || { success: false }, error: response.error || (!response.data ? '읽음 처리에 실패했습니다.' : null) };
+  },
+  async markAllRead(throughId: string, authToken?: string) {
+    return requestEnvelope<{ success: boolean }>('/api/notifications/read-all', {
+      method: 'PATCH', headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }), body: JSON.stringify({ throughId }),
+    });
   },
 };
 
@@ -1969,18 +1960,11 @@ export const mypageAPI = {
       return { data: { success: false }, error: response.error };
     }
 
-    return { data: { success: true }, error: null };
+    return { data: { success: Boolean(response.data) }, error: response.data ? null : '문의 접수에 실패했습니다. 서버 연결을 확인해주세요.' };
   },
 };
 
 export const reviewAPI = {
-  async listByDonate(donateId: string): ApiResult<ReviewRecord[]> {
-    return {
-      data: mockReviews.filter((review) => review.donateId === donateId),
-      error: null,
-    };
-  },
-
   async create(
     payload: Omit<ReviewRecord, "reviewId" | "createdAt"> & {
       roomId?: string;
@@ -2041,14 +2025,7 @@ export const reviewAPI = {
       }
     }
 
-    return {
-      data: {
-        ...payload,
-        reviewId: `review_${Date.now()}`,
-        createdAt: new Date().toISOString(),
-      },
-      error: null,
-    };
+    return { data: null as never, error: '후기를 저장하지 못했습니다. 거래 채팅방과 서버 연결을 확인해주세요.' };
   },
 };
 

@@ -5,7 +5,17 @@
   "scripts": {
     "dev": "nodemon backend/server.js",
     "start": "node backend/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test backend/tests/*.test.js",
+    "test:trades:integration": "node --test backend/tests/trades.integration.js",
+    "test:chat:integration": "node --test backend/tests/chatAttachments.integration.js",
+    "test:activity:integration": "node --test backend/tests/activity.integration.js",
+    "migrate:trades": "node backend/scripts/migrateTradeRequests.js",
+    "migrate:notifications": "node backend/scripts/migrateNotifications.js",
+    "migrate:appointments": "node backend/scripts/migrateAppointments.js",
+    "migrate:inquiries": "node backend/scripts/migrateInquiries.js",
+    "test:inquiries:integration": "node --test backend/tests/inquiries.integration.js",
+    "test:reviews:integration": "node --test backend/tests/reviews.integration.js",
+    "test:notifications:integration": "node --test backend/tests/notifications.integration.js"
   },
   "keywords": [],
   "author": "",

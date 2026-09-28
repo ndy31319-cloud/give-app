@@ -1,3 +1,3 @@
-import { ContactAdminScreen } from '@/src/screens/mypage';
+import { InquiryListScreen } from '@/src/screens/inquiries';
 
-export default ContactAdminScreen;
+export default InquiryListScreen;

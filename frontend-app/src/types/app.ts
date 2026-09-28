@@ -14,6 +14,8 @@ export type DynamicQrPurpose = 'donation_access' | 'donation_storage' | 'pickup_
 export type DynamicQrStatus = 'active' | 'used' | 'expired';
 export type NotificationType = 'share' | 'chat' | 'system';
 export type NotificationRelatedType =
+  | 'inquiry'
+  | 'pickup'
   | 'donate'
   | 'request'
   | 'chat_room'
@@ -25,6 +27,14 @@ export type NotificationRelatedType =
   | 'report'
   | 'system';
 export type NotificationTypeCode =
+  | 'chat'
+  | 'request'
+  | 'admin'
+  | 'pickup_approved'
+  | 'pickup_rejected'
+  | 'pickup_canceled'
+  | 'pickup_expired'
+  | 'pickup_completed'
   | 'chat_message'
   | 'donate_reserved'
   | 'donate_completed'
@@ -33,7 +43,37 @@ export type NotificationTypeCode =
   | 'review_created'
   | 'notice'
   | 'system';
-export type ChatMessageType = 'TEXT' | 'IMAGE' | 'SYSTEM';
+export type ChatMessageType = 'TEXT' | 'IMAGE' | 'LOCATION' | 'SYSTEM' | 'TRADE_REQUEST';
+export interface SharedChatLocation { latitude: number; longitude: number; label: string; }
+export type ChatAttachment = { clientMessageId: string } & (
+  { type: 'IMAGE'; image: UploadableImage } | { type: 'LOCATION'; location: SharedChatLocation }
+);
+export interface TradeRequest {
+  appointment?: TradeAppointment;
+  id: string;
+  roomId: string;
+  donateId: string;
+  donorId: string;
+  requesterId: string;
+  requesterName: string;
+  title: string;
+  status: 'pending' | 'approved' | 'rejected' | 'canceled' | 'expired' | 'completed';
+  postStatus: DonateStatus;
+  expiresAt: string | null;
+}
+export type TradeAction = 'approve' | 'reject' | 'cancel' | 'complete';
+export interface AppointmentDetails {
+  at: string;
+  place: string;
+  latitude: number | null;
+  longitude: number | null;
+  proposedBy: string;
+}
+export interface TradeAppointment {
+  revision: number;
+  confirmed: AppointmentDetails | null;
+  pending: AppointmentDetails | null;
+}
 export type ChatRoomStatus = 'open' | 'closed';
 export type ReportTargetType = 'post' | 'comment' | 'member';
 export type ReportStatus = 'received' | 'processing' | 'resolved' | 'rejected';
@@ -405,6 +445,9 @@ export interface ChatRoom {
 }
 
 export interface ChatMessage {
+  image?: { url: string };
+  location?: SharedChatLocation;
+  tradeRequest?: TradeRequest;
   id: string;
   sender: 'me' | 'other';
   senderId?: string;
@@ -415,6 +458,8 @@ export interface ChatMessage {
 }
 
 export interface NotificationItem {
+  createdAt?: string;
+  target?: { type: 'chat'; roomId: string } | { type: 'post'; postId: string } | { type: 'inquiry'; inquiryId: string } | null;
   id: string;
   type: NotificationType;
   relatedType?: NotificationRelatedType;
@@ -424,6 +469,12 @@ export interface NotificationItem {
   message: string;
   timeLabel: string;
   isRead: boolean;
+}
+
+export interface NotificationFeed {
+  items: NotificationItem[];
+  unreadCount: number;
+  nextCursor: string | null;
 }
 
 export interface ShareHistoryItem {

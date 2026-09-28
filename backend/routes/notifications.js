@@ -46,6 +46,26 @@ const toNotification = (row) => {
 
 router.use(authenticateToken);
 
+router.get('/feed', async (req, res) => {
+  try {
+    res.json({ success: true, data: await require('../services/notificationFeed').feed(getMemberId(req), req.query) });
+  } catch (error) {
+    console.error('Notification feed:', error.message);
+    res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : '알림을 불러오지 못했습니다.' });
+  }
+});
+
+router.patch('/read-all', async (req, res) => {
+  const throughId = Number(req.body?.throughId);
+  if (!Number.isSafeInteger(throughId) || throughId <= 0) return res.status(400).json({ message: '올바른 알림 번호가 필요합니다.' });
+  try {
+    await db.query('UPDATE NOTIFICATION SET is_read = TRUE WHERE member_id = ? AND notification_id <= ?', [getMemberId(req), throughId]);
+    res.json({ success: true, data: { success: true } });
+  } catch {
+    res.status(500).json({ message: '알림 읽음 처리에 실패했습니다.' });
+  }
+});
+
 router.get("/", async (req, res) => {
   const memberId = getMemberId(req);
 
@@ -82,6 +102,8 @@ router.patch("/:id/read", async (req, res) => {
   const notificationId = req.params.id;
 
   try {
+    const [owned] = await db.query('SELECT notification_id FROM NOTIFICATION WHERE notification_id = ? AND member_id = ?', [notificationId, memberId]);
+    if (!owned.length) return res.status(404).json({ message: '알림을 찾을 수 없습니다.' });
     await db.query(
       "UPDATE NOTIFICATION SET is_read = TRUE WHERE notification_id = ? AND member_id = ?",
       [notificationId, memberId],
@@ -92,18 +114,8 @@ router.patch("/:id/read", async (req, res) => {
       data: { success: true },
     });
   } catch (error) {
-    if (error?.code !== "ER_NO_SUCH_TABLE") {
-      console.error("Notification read error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "?뚮┝ ?쎌쓬 泥섎━???ㅽ뙣?덉뒿?덈떎.",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: { success: true },
-    });
+    console.error('Notification read error:', error.message);
+    return res.status(500).json({ message: '알림 읽음 처리에 실패했습니다.' });
   }
 });
 

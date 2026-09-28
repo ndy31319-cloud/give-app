@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 
 import { AppButton } from "@/src/components/common/AppButton";
+import { NotificationBell } from "@/src/components/common/NotificationBell";
 import { AppHeader } from "@/src/components/common/AppHeader";
 import { AppModal } from "@/src/components/common/AppModal";
 import { AppScreen } from "@/src/components/common/AppScreen";
@@ -85,20 +86,40 @@ function SearchSourceModal({
   onClose: () => void;
   onSelect: (source: "camera" | "gallery") => void;
 }) {
+  const pendingSource = useRef<"camera" | "gallery" | null>(null);
+
+  const handleSelect = (source: "camera" | "gallery") => {
+    if (Platform.OS !== "ios") {
+      onSelect(source);
+      return;
+    }
+
+    if (pendingSource.current) return;
+    // iOS cannot present the picker while the source modal is dismissing.
+    pendingSource.current = source;
+    onClose();
+  };
+
+  const handleDismiss = () => {
+    const source = pendingSource.current;
+    pendingSource.current = null;
+    if (source) onSelect(source);
+  };
+
   return (
-    <AppModal visible={visible} onClose={onClose}>
+    <AppModal visible={visible} onClose={onClose} onDismiss={handleDismiss}>
       <Text style={styles.modalTitle}>사진 선택</Text>
       <Text style={styles.modalDescription}>
         카메라로 찍거나 갤러리에서 사진을 가져올 수 있습니다.
       </Text>
       <AppButton
         label="갤러리에서 가져오기"
-        onPress={() => onSelect("gallery")}
+        onPress={() => handleSelect("gallery")}
       />
       <AppButton
         label="카메라로 촬영하기"
         variant="secondary"
-        onPress={() => onSelect("camera")}
+        onPress={() => handleSelect("camera")}
       />
     </AppModal>
   );
@@ -516,16 +537,7 @@ export function HomeScreen() {
               </View>
             </Pressable>
             <View style={styles.headerActions}>
-              <Pressable
-                style={styles.headerIcon}
-                onPress={() => router.push("/notifications")}
-              >
-                <Ionicons
-                  name="notifications-outline"
-                  size={22}
-                  color={colors.text}
-                />
-              </Pressable>
+              <NotificationBell />
             </View>
           </View>
 
@@ -641,7 +653,7 @@ export function PostDetailScreen() {
     setIsStartingChat(false);
 
     if (result.error || !result.roomId) {
-      Alert.alert("채팅 연결 실패", result.error ?? "채팅방을 열 수 없습니다.");
+      Alert.alert("요청 처리 실패", result.error ?? "채팅방을 열 수 없습니다.");
       return;
     }
 
@@ -746,7 +758,7 @@ export function PostDetailScreen() {
             <Text style={styles.authorName}>{post.author.name}</Text>
             <Text style={styles.metaMuted}>
               {post.location.neighborhood} · 매너온도{" "}
-              {post.author.temperature.toFixed(1)}°C
+              마음 점수 {post.author.temperature.toFixed(1)}점
             </Text>
           </View>
         </View>
@@ -839,61 +851,14 @@ export function PostDetailScreen() {
       ) : (
         <View style={styles.bottomActions}>
           <AppButton
-            label={isStartingChat ? "연결 중" : "채팅하기"}
+            label={isStartingChat ? "연결 중" : post.type === 'share' ? (post.status === 'reserved' ? '내 요청 확인' : '나눔 요청하기') : "채팅하기"}
             variant="secondary"
-            disabled={isStartingChat}
+            disabled={isStartingChat || (post.type === 'share' && !['open', 'reserved'].includes(post.status))}
             onPress={handleStartChat}
             style={{ flex: 1 }}
           />
         </View>
       )}
-    </AppScreen>
-  );
-}
-
-export function NotificationsScreen() {
-  const { notifications, markNotificationRead } = useAppContext();
-
-  return (
-    <AppScreen>
-      <AppHeader title="알림" />
-      <ScrollView
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {notifications.map((item) => (
-          <Pressable
-            key={item.id}
-            onPress={() => markNotificationRead(item.id)}
-            style={[
-              styles.notificationCard,
-              !item.isRead && styles.notificationUnread,
-            ]}
-          >
-            <View style={styles.notificationIcon}>
-              <Ionicons
-                name={
-                  item.type === "chat"
-                    ? "chatbubble-ellipses-outline"
-                    : item.type === "share"
-                      ? "gift-outline"
-                      : "information-circle-outline"
-                }
-                size={22}
-                color={item.type === "share" ? colors.success : colors.brand}
-              />
-            </View>
-            <View style={{ flex: 1, gap: 5 }}>
-              <View style={styles.notificationTopRow}>
-                <Text style={styles.notificationTitle}>{item.title}</Text>
-                {!item.isRead ? <View style={styles.unreadDot} /> : null}
-              </View>
-              <Text style={styles.sectionDescription}>{item.message}</Text>
-              <Text style={styles.notificationTime}>{item.timeLabel}</Text>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
     </AppScreen>
   );
 }

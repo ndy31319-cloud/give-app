@@ -47,9 +47,16 @@ app.use("/api/mypage", require("./routes/mypage"));
 app.use("/api/chats", chatRoutes);
 app.use("/api/device", deviceRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use('/api/inquiries', require('./routes/inquiries'));
 app.use("/api/policies", policiesRoutes);
 app.use("/api/wanted", wantedRoutes);
 app.use("/api/products", productsRoutes);
+app.use("/api/trades", require("./routes/trades"));
+
+const trades = require("./services/trades");
+const maintainTrades = () => trades.maintain().catch(error => console.error("Trade maintenance:", error.message));
+maintainTrades();
+setInterval(maintainTrades, 30000).unref();
 
 
 // ==========================================

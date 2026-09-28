@@ -1,3 +1,3 @@
-import { MySharesScreen } from '@/src/screens/mypage';
+import { MyActivityScreen } from '@/src/screens/activity';
 
-export default MySharesScreen;
+export default MyActivityScreen;

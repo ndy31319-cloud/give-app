@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -11,7 +11,9 @@ import {
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { MemberReputation } from '@/src/components/common/MemberReputation';
+import { ActivityData, loadActivity } from '@/src/services/activityApi';
 
 import { AppButton } from '@/src/components/common/AppButton';
 import { AppHeader } from '@/src/components/common/AppHeader';
@@ -114,17 +116,19 @@ function MenuRow({
 
 export function MyPageScreen() {
   const { user, authToken } = useAppContext();
-  const [counts, setCounts] = useState({ shares: 0, requests: 0 });
+  const isBeneficiary = user?.roleCode === 'BENEFICIARY' || user?.roleId === '3' || user?.isVulnerable === true;
+  const [counts, setCounts] = useState<ActivityData['counts'] | null>(null);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let mounted = true;
+    setCounts(null);
 
     async function loadSummary() {
       if (!authToken) {
         return;
       }
 
-      const result = await mypageAPI.summary(authToken);
+      const result = await loadActivity(authToken);
       if (mounted && result.data?.counts) {
         setCounts(result.data.counts);
       }
@@ -134,7 +138,7 @@ export function MyPageScreen() {
     return () => {
       mounted = false;
     };
-  }, [authToken]);
+  }, [authToken]));
 
   return (
     <AppScreen scroll contentContainerStyle={styles.pageContent}>
@@ -160,22 +164,25 @@ export function MyPageScreen() {
       </View>
 
       <View style={styles.statsSummary}>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>{counts.shares}</Text>
-          <Text style={styles.statLabel}>나눔</Text>
-        </View>
-        <View style={styles.statBox}>
-          <Text style={[styles.statValue, { color: colors.accent }]}>{counts.requests}</Text>
-          <Text style={styles.statLabel}>신청</Text>
-        </View>
+        <Pressable style={styles.statBox} onPress={() => router.push(isBeneficiary ? '/my-shares?tab=requestedPosts' : '/my-shares?tab=donatedPosts')}>
+          <Text style={styles.statValue}>{(isBeneficiary ? counts?.wanted : counts?.shares) ?? '—'}</Text>
+          <Text style={styles.statLabel}>{isBeneficiary ? '내 요청글' : '내 나눔'}</Text>
+        </Pressable>
+        <Pressable style={styles.statBox} onPress={() => router.push(isBeneficiary ? '/my-shares?tab=sentRequests' : '/my-shares?tab=receivedRequests')}>
+          <Text style={[styles.statValue, { color: colors.accent }]}>{(isBeneficiary ? counts?.requests : counts?.received) ?? '—'}</Text>
+          <Text style={styles.statLabel}>{isBeneficiary ? '보낸 신청' : '받은 신청'}</Text>
+        </Pressable>
       </View>
+
+      {user && <MemberReputation memberId={user.id} />}
 
       <View style={styles.menuCard}>
         <MenuRow icon="location-outline" label="내 동네 설정" onPress={() => router.push('/my-location')} />
         <MenuRow icon="hardware-chip-outline" label="기부함 디바이스 시뮬레이터" onPress={() => router.push('/device')} />
-        <MenuRow icon="heart-outline" label="나의 나눔/활동" onPress={() => router.push('/my-shares')} />
+        <MenuRow icon="heart-outline" label="신청·나눔 내역" onPress={() => router.push('/my-shares')} />
         <MenuRow icon="bar-chart-outline" label="나눔통계" onPress={() => router.push('/my-stats')} />
         <MenuRow icon="chatbubble-ellipses-outline" label="관리자에게 문의하기" onPress={() => router.push('/contact-admin')} />
+        {user?.roleId === '2' && <MenuRow icon="shield-checkmark-outline" label="문의 관리" onPress={() => router.push('/contact-admin?mode=admin')} />}
       </View>
     </AppScreen>
   );
@@ -636,51 +643,6 @@ export function SettingsScreen() {
           router.replace('/login');
         }}
       />
-    </AppScreen>
-  );
-}
-
-export function ContactAdminScreen() {
-  const { authToken } = useAppContext();
-  const [formData, setFormData] = useState({
-    subject: '',
-    email: '',
-    message: '',
-  });
-
-  return (
-    <AppScreen scroll contentContainerStyle={styles.pageContent}>
-      <AppHeader title="관리자에게 문의하기" />
-      <View style={styles.formCard}>
-        <AppTextField label="제목" value={formData.subject} onChangeText={(value) => setFormData((prev) => ({ ...prev, subject: value }))} />
-        <AppTextField
-          label="연락받을 이메일"
-          value={formData.email}
-          onChangeText={(value) => setFormData((prev) => ({ ...prev, email: value }))}
-        />
-        <AppTextField
-          label="문의 내용"
-          multiline
-          value={formData.message}
-          onChangeText={(value) => setFormData((prev) => ({ ...prev, message: value }))}
-        />
-        <View style={styles.locationTip}>
-          <Ionicons name="information-circle-outline" size={18} color={colors.brand} />
-          <Text style={styles.tipText}>평일 09:00 ~ 18:00 기준 1~2일 내에 답변드립니다.</Text>
-        </View>
-        <AppButton
-          label="문의하기"
-          onPress={async () => {
-            const result = await mypageAPI.contact(formData, authToken ?? undefined);
-            if (result.error) {
-              Alert.alert('문의 실패', result.error);
-              return;
-            }
-            Alert.alert('문의 접수', '문의가 접수되었습니다.');
-            router.back();
-          }}
-        />
-      </View>
     </AppScreen>
   );
 }

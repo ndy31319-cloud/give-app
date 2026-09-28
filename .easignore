@@ -1,0 +1,33 @@
+# EAS runs from frontend-app, inside this Git repository.
+# Upload only the mobile app; backend credentials and server code stay local.
+/*
+!/frontend-app
+!/.easignore
+
+node_modules/
+.expo/
+.idea/
+.vscode/
+.kotlin/
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+credentials.json
+*.tsbuildinfo
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.orig.*
+/frontend-app/android/
+/frontend-app/ios/
+/frontend-app/dist/
+/frontend-app/web-build/
+/frontend-app/backup/
+/frontend-app/app-example/
+/frontend-app/expo-env.d.ts

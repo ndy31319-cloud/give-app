@@ -157,8 +157,8 @@ function locationFromUnknown(
       neighborhood: source.neighborhood ?? resolved?.neighborhood ?? dongName,
       dongName,
       fullAddress: fullAddress || resolved?.fullAddress || dongName,
-      latitude: Number.isFinite(latitude) ? latitude : resolved?.latitude ?? Number.NaN,
-      longitude: Number.isFinite(longitude) ? longitude : resolved?.longitude ?? Number.NaN,
+      latitude: latitude !== undefined && Number.isFinite(latitude) ? latitude : resolved?.latitude ?? Number.NaN,
+      longitude: longitude !== undefined && Number.isFinite(longitude) ? longitude : resolved?.longitude ?? Number.NaN,
       radiusKm: source.radiusKm ?? resolved?.radiusKm ?? 5,
     };
   }
@@ -340,7 +340,7 @@ export function mergeCreatedPost(
           id: currentUser.id,
           name: currentUser.name,
           nickname: currentUser.nickname,
-          temperature: 36.8,
+          temperature: 36.5,
           profileImage: currentUser.profileImage,
         },
     aiDetectedItem: mapped.aiDetectedItem ?? payload.aiAnalysis?.detectedItem,
@@ -387,6 +387,9 @@ export function mapBackendChatMessage(raw: any, viewerId: string): ChatMessage {
     senderId,
     text: raw?.text ?? raw?.content ?? '',
     messageType: raw?.type?.toUpperCase?.() ?? raw?.messageType ?? 'TEXT',
+    tradeRequest: raw?.tradeRequest,
+    image: raw?.image,
+    location: raw?.location,
     timeLabel: formatTimeAgo(raw?.timestamp ?? raw?.createdAt ?? new Date().toISOString()),
     isRead: Boolean(raw?.isRead),
   };
@@ -409,6 +412,8 @@ export function mapBackendPolicy(raw: any): Policy {
 
 export function mapBackendNotification(raw: any): NotificationItem {
   return {
+    createdAt: raw?.createdAt,
+    target: raw?.target ?? null,
     id: String(raw?.id ?? raw?.notificationId ?? `notification_${Date.now()}`),
     type: raw?.type === 'chat' ? 'chat' : raw?.type === 'share' ? 'share' : 'system',
     relatedType: raw?.relatedType,

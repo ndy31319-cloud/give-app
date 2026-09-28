@@ -7,6 +7,10 @@ const upload = require("../uploads/upload");
 const { buildUploadUrl } = require("../lib/uploadUrl");
 
 const router = express.Router();
+router.get('/:id/reputation', authenticateToken, async (req, res) => {
+  try { res.json({ success: true, data: await require('../services/reviews').profile(req.params.id) }); }
+  catch (error) { res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : '후기와 마음 점수를 불러오지 못했습니다.' }); }
+});
 const JWT_SECRET = process.env.JWT_SECRET || "give-local-development-secret";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 

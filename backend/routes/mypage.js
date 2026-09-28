@@ -4,7 +4,17 @@ const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
 const { buildUploadUrl } = require("../lib/uploadUrl");
 
-const inMemoryContacts = [];
+
+const { listActivity } = require('../services/activity');
+
+router.get('/activity', authenticateToken, async (req, res) => {
+  try {
+    res.json({ success: true, data: await listActivity(req.user.member_id || req.user.id, req) });
+  } catch (error) {
+    console.error('Activity list error:', error.message);
+    res.status(500).json({ message: '활동 내역을 불러오지 못했습니다. 다시 시도해주세요.' });
+  }
+});
 
 const getMemberId = (req) => req.user.member_id || req.user.id;
 
@@ -299,72 +309,9 @@ router.get("/stats", authenticateToken, async (req, res) => {
   }
 });
 
-router.post("/contact", authenticateToken, async (req, res) => {
-  const memberId = getMemberId(req);
-  const subject = String(req.body.subject || "").trim();
-  const email = String(req.body.email || "").trim();
-  const message = String(req.body.message || "").trim();
-
-  if (!subject || !email || !message) {
-    return res.status(400).json({
-      success: false,
-      message: "제목, 이메일, 문의 내용을 모두 입력해주세요.",
-    });
-  }
-
-  try {
-    const [result] = await db.query(
-      `INSERT INTO ADMIN_INQUIRY (member_id, subject, email, message, status, created_at)
-       VALUES (?, ?, ?, ?, ?, NOW())`,
-      [memberId, subject, email, message, "pending"],
-    );
-
-    return res.status(201).json({
-      success: true,
-      data: {
-        inquiryId: result.insertId,
-        inquiry_id: result.insertId,
-        memberId,
-        member_id: memberId,
-        subject,
-        email,
-        message,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      },
-      message: "문의가 접수되었습니다.",
-    });
-  } catch (error) {
-    if (error?.code !== "ER_NO_SUCH_TABLE") {
-      console.error("Mypage contact error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "문의 접수에 실패했습니다.",
-      });
-    }
-
-    const contact = {
-      inquiryId: inMemoryContacts.length + 1,
-      inquiry_id: inMemoryContacts.length + 1,
-      memberId,
-      member_id: memberId,
-      subject,
-      email,
-      message,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    };
-
-    inMemoryContacts.push(contact);
-
-    return res.status(201).json({
-      success: true,
-      data: contact,
-      message: "문의가 접수되었습니다.",
-    });
-  }
+router.post('/contact', authenticateToken, async (req, res) => {
+  try { res.status(201).json({ success: true, data: await require('../services/inquiries').create(getMemberId(req), req.body) }); }
+  catch (error) { res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : '문의 접수에 실패했습니다.' }); }
 });
 
 module.exports = router;

@@ -6,12 +6,13 @@ import { colors, radius } from '@/src/theme/colors';
 interface AppModalProps {
   visible: boolean;
   onClose: () => void;
+  onDismiss?: () => void;
   children: ReactNode;
 }
 
-export function AppModal({ visible, onClose, children }: AppModalProps) {
+export function AppModal({ visible, onClose, onDismiss, children }: AppModalProps) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} onDismiss={onDismiss}>
       <View style={styles.overlay}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>{children}</View>

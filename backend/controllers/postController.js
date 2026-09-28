@@ -530,6 +530,7 @@ const getAllPosts = async (req, res) => {
     `;
 
     const [rows] = await db.query(sql);
+    const reputation = await require('../services/reviews').scores(rows.map(row => row.member_id));
     const posts = rows.map((row) => {
       const imageUrl = normalizeUploadUrl(req, row.image_url);
 
@@ -548,6 +549,7 @@ const getAllPosts = async (req, res) => {
           member_id: row.member_id,
           name: row.author_name,
           nickname: row.author_nickname,
+          temperature: reputation[row.member_id]?.score ?? 36.5,
         },
         title: row.title,
         content: row.content,
@@ -1025,18 +1027,20 @@ const updatePost = async (req, res) => {
   const normalizedItemCondition = normalizeItemCondition(item_condition);
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
-    connection.release();
     return res
       .status(400)
       .json({ message: "type은 donate 또는 request여야 합니다." });
   }
 
+  const connection = await db.getConnection();
+  let committed = false;
   try {
+    await connection.beginTransaction();
     const tableName = postType === "donate" ? "ITEM_DONATE" : "ITEM_REQUEST";
     const idColumn = postType === "donate" ? "donate_id" : "request_id";
 
-    const [checkRows] = await db.query(
-      `SELECT member_id FROM ${tableName} WHERE ${idColumn} = ?`,
+    const [checkRows] = await connection.query(
+      `SELECT member_id, status FROM ${tableName} WHERE ${idColumn} = ? FOR UPDATE`,
       [postId],
     );
 
@@ -1046,6 +1050,13 @@ const updatePost = async (req, res) => {
 
     if (checkRows[0].member_id !== member_id) {
       return res.status(403).json({ message: "수정 권한이 없습니다." });
+    }
+
+    if (postType === 'donate' && status !== undefined && status !== checkRows[0].status) {
+      const [trades] = await connection.query(`SELECT pickup_id FROM PICKUP_REQUEST
+        WHERE donate_id = ? AND chat_room_id IS NOT NULL
+          AND request_status IN ('pending', 'approved', 'completed') LIMIT 1`, [postId]);
+      if (trades.length) return res.status(409).json({ message: '채팅방의 나눔 요청 카드에서 거래 상태를 변경해주세요.' });
     }
 
     const postUpdateFields = [];
@@ -1068,7 +1079,7 @@ const updatePost = async (req, res) => {
 
     if (postUpdateFields.length > 0) {
       postUpdateParams.push(postId);
-      await db.query(
+      await connection.query(
         `UPDATE ${tableName}
          SET ${postUpdateFields.join(", ")}, updated_at = NOW()
          WHERE ${idColumn} = ?`,
@@ -1081,7 +1092,7 @@ const updatePost = async (req, res) => {
 
     if (product_id !== undefined) {
       const normalizedProductId = await resolveProductId(
-        db,
+        connection,
         product_id,
         category,
       );
@@ -1101,7 +1112,7 @@ const updatePost = async (req, res) => {
 
     if (itemUpdateFields.length > 0) {
       itemUpdateParams.push(postId);
-      await db.query(
+      await connection.query(
         `UPDATE ITEM
          SET ${itemUpdateFields.join(", ")}
          WHERE ${idColumn} = ?`,
@@ -1109,10 +1120,14 @@ const updatePost = async (req, res) => {
       );
     }
 
+    await connection.commit();
+    committed = true;
     return res.status(200).json({ message: "게시글이 수정되었습니다." });
   } catch (error) {
     console.error("게시글 수정 오류:", error);
     return res.status(500).json({ message: "게시글 수정에 실패했습니다." });
+  } finally {
+    try { if (!committed) await connection.rollback(); } finally { connection.release(); }
   }
 };
 
@@ -1120,7 +1135,6 @@ const deletePost = async (req, res) => {
   const postId = req.params.id;
   const postType = req.query.type;
   const member_id = req.user.member_id || req.user.id;
-  const connection = await db.getConnection();
 
   if (!postType || (postType !== "donate" && postType !== "request")) {
     return res
@@ -1128,6 +1142,8 @@ const deletePost = async (req, res) => {
       .json({ message: "type은 donate 또는 request여야 합니다." });
   }
 
+  const connection = await db.getConnection();
+  let committed = false;
   try {
     const tableName = postType === "donate" ? "ITEM_DONATE" : "ITEM_REQUEST";
     const idColumn = postType === "donate" ? "donate_id" : "request_id";
@@ -1137,7 +1153,7 @@ const deletePost = async (req, res) => {
     await connection.beginTransaction();
 
     const [checkRows] = await connection.query(
-      `SELECT member_id FROM ${tableName} WHERE ${idColumn} = ?`,
+      `SELECT member_id FROM ${tableName} WHERE ${idColumn} = ? FOR UPDATE`,
       [postId],
     );
 
@@ -1150,6 +1166,9 @@ const deletePost = async (req, res) => {
     }
 
     if (postType === "donate") {
+      const [active] = await connection.query(`SELECT pickup_id FROM PICKUP_REQUEST
+        WHERE donate_id = ? AND request_status IN ('pending', 'approved') LIMIT 1`, [postId]);
+      if (active.length) return res.status(409).json({ message: '진행 중인 나눔 요청을 먼저 취소해주세요.' });
       await deleteIfTableExists(
         connection,
         "DELETE FROM REVIEW WHERE donate_id = ?",
@@ -1184,10 +1203,13 @@ const deletePost = async (req, res) => {
 
     await connection.commit();
 
+    committed = true;
     return res.status(200).json({ message: "게시글이 삭제되었습니다." });
   } catch (error) {
     console.error("게시글 삭제 오류:", error);
     return res.status(500).json({ message: "게시글 삭제에 실패했습니다." });
+  } finally {
+    try { if (!committed) await connection.rollback(); } finally { connection.release(); }
   }
 };
 

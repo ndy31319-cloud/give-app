@@ -1,5 +1,5 @@
-import { createElement, useEffect, useRef, useState } from 'react';
-import { Platform, Text, View, StyleSheet } from 'react-native';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, Text, View, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -82,6 +82,10 @@ function buildMapLocation(
   };
 }
 
+type CurrentPosition = { latitude: number; longitude: number };
+
+const currentDotContent = '<div aria-label="현재 위치" style="width:16px;height:16px;border:3px solid white;border-radius:50%;background:#2585f5;box-shadow:0 0 0 7px rgba(37,133,245,.18);pointer-events:none"></div>';
+
 function WebKakaoMap({
   location,
   markerLabel,
@@ -89,6 +93,7 @@ function WebKakaoMap({
   moveMarkerOnMapDragEnd,
   onLocationChange,
   onMapError,
+  currentPosition,
 }: {
   location: NeighborhoodLocation;
   markerLabel: string;
@@ -96,8 +101,16 @@ function WebKakaoMap({
   moveMarkerOnMapDragEnd: boolean;
   onLocationChange: (location: NeighborhoodLocation) => void;
   onMapError: (message: string) => void;
+  currentPosition: CurrentPosition | null;
 }) {
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const currentPositionRef = useRef(currentPosition);
+  currentPositionRef.current = currentPosition;
+  const updateCurrentPosition = useRef<((position: CurrentPosition, recenter: boolean) => void) | null>(null);
+
+  useEffect(() => {
+    if (currentPosition) updateCurrentPosition.current?.(currentPosition, true);
+  }, [currentPosition]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || !mapRef.current) {
@@ -130,6 +143,14 @@ function WebKakaoMap({
         });
         const marker = new kakao.maps.Marker({ position, draggable: true });
         marker.setMap(map);
+        const currentDot = new kakao.maps.CustomOverlay({ content: currentDotContent, zIndex: 2 });
+        updateCurrentPosition.current = (coords, recenter) => {
+          const point = new kakao.maps.LatLng(coords.latitude, coords.longitude);
+          currentDot.setPosition(point);
+          currentDot.setMap(map);
+          if (recenter) map.panTo(point);
+        };
+        if (currentPositionRef.current) updateCurrentPosition.current(currentPositionRef.current, false);
 
         const infowindow = new kakao.maps.InfoWindow({
           content: `<div style="padding:8px 10px;font-size:13px;white-space:nowrap;">${markerLabel}</div>`,
@@ -218,13 +239,73 @@ export function KakaoMapPreview({
   onLocationChange,
   moveMarkerOnMapInteraction = true,
   moveMarkerOnMapDragEnd = moveMarkerOnMapInteraction,
+  showCurrentLocation = false,
 }: {
   location: NeighborhoodLocation | null;
   onLocationChange: (location: NeighborhoodLocation) => void;
   moveMarkerOnMapInteraction?: boolean;
   moveMarkerOnMapDragEnd?: boolean;
+  showCurrentLocation?: boolean;
 }) {
   const [mapError, setMapError] = useState<string | null>(null);
+  const [currentPosition, setCurrentPosition] = useState<CurrentPosition | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const webViewRef = useRef<WebView>(null);
+  const mounted = useRef(false);
+  const requestId = useRef(0);
+  const selectedByUser = useRef(false);
+  const onLocationChangeRef = useRef(onLocationChange);
+  onLocationChangeRef.current = onLocationChange;
+  const handleLocationChange = useCallback((next: NeighborhoodLocation) => {
+    selectedByUser.current = true;
+    onLocationChangeRef.current(next);
+  }, []);
+
+  const locate = useCallback(async (initial = false) => {
+    const id = ++requestId.current;
+    const active = () => mounted.current && requestId.current === id;
+    setLocating(true);
+    setLocationError(null);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!active()) return;
+      if (permission.status !== 'granted') {
+        setLocationError('위치 권한을 허용하면 내 위치를 볼 수 있어요. 약속장소는 지도에서 선택할 수 있어요.');
+        return;
+      }
+      const position = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Location timeout')), 15000);
+        }),
+      ]);
+      if (!active()) return;
+      // A late initial GPS response must not override a place the user already picked.
+      if (initial && !selectedByUser.current) {
+        onLocationChangeRef.current(buildCurrentLocation(position.coords));
+      }
+      setCurrentPosition({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+    } catch {
+      if (active()) setLocationError('현재 위치를 가져오지 못했어요. 위치 설정을 확인하거나 지도에서 약속장소를 선택해주세요.');
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      if (active()) setLocating(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    if (showCurrentLocation) void locate(true);
+    return () => { mounted.current = false; requestId.current += 1; };
+  }, [showCurrentLocation, locate]);
+
+  const syncNativePosition = () => {
+    if (!currentPosition) return;
+    webViewRef.current?.injectJavaScript(`window.updateCurrentPosition && window.updateCurrentPosition(${JSON.stringify(currentPosition)}, true); true;`);
+  };
+  useEffect(syncNativePosition, [currentPosition]);
   const mapLocation = location ?? defaultMapLocation;
 
   if (!kakaoMapAppKey) {
@@ -291,6 +372,14 @@ export function KakaoMapPreview({
             });
             var marker = new kakao.maps.Marker({ position: position, draggable: true });
             marker.setMap(map);
+            var currentDot = new kakao.maps.CustomOverlay({ content: ${JSON.stringify(currentDotContent)}, zIndex: 2 });
+            window.updateCurrentPosition = function(coords, recenter) {
+              var point = new kakao.maps.LatLng(coords.latitude, coords.longitude);
+              currentDot.setPosition(point);
+              currentDot.setMap(map);
+              if (recenter) map.panTo(point);
+            };
+            postMapMessage({ type: 'mapReady' });
             var infowindow = new kakao.maps.InfoWindow({
               content: '<div style="padding:8px 10px;font-size:13px;white-space:nowrap;">${markerLabel}</div>'
             });
@@ -355,12 +444,14 @@ export function KakaoMapPreview({
             markerLabel={markerLabel}
             moveMarkerOnMapInteraction={moveMarkerOnMapInteraction}
             moveMarkerOnMapDragEnd={moveMarkerOnMapDragEnd}
-            onLocationChange={onLocationChange}
+            onLocationChange={handleLocationChange}
             onMapError={setMapError}
+            currentPosition={currentPosition}
           />
         )
         : (
       <WebView
+        ref={webViewRef}
         key={`${mapLocation.id}-${mapLocation.latitude}-${mapLocation.longitude}`}
         originWhitelist={['*']}
         source={{ html, baseUrl: 'https://localhost' }}
@@ -386,6 +477,11 @@ export function KakaoMapPreview({
               region3?: string;
             };
 
+            if (payload.type === 'mapReady') {
+              if (currentPosition) webViewRef.current?.injectJavaScript(`window.updateCurrentPosition(${JSON.stringify(currentPosition)}, false); true;`);
+              return;
+            }
+
             if (payload.type === 'mapError') {
               setMapError(payload.message ?? '카카오맵을 불러오지 못했습니다.');
               return;
@@ -396,7 +492,7 @@ export function KakaoMapPreview({
               typeof payload.latitude === 'number' &&
               typeof payload.longitude === 'number'
             ) {
-              onLocationChange(
+              handleLocationChange(
                 buildMapLocation(mapLocation, payload.latitude, payload.longitude, {
                   addressName: payload.addressName,
                   region1: payload.region1,
@@ -412,6 +508,21 @@ export function KakaoMapPreview({
         style={styles.kakaoMap}
       />
         )}
+      {showCurrentLocation && !mapError ? (
+        <>
+          {locationError ? <View pointerEvents="none" style={styles.locationNotice}><Text style={styles.locationNoticeText}>{locationError}</Text></View> : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="현재 위치로 이동"
+            accessibilityState={{ disabled: locating, busy: locating }}
+            disabled={locating}
+            onPress={() => void locate()}
+            style={styles.locateButton}
+          >
+            {locating ? <ActivityIndicator size="small" color={colors.brand} /> : <Ionicons name="locate-outline" size={25} color={currentPosition ? '#2585f5' : colors.text} />}
+          </Pressable>
+        </>
+      ) : null}
       {mapError ? (
         <View style={styles.mapErrorOverlay}>
           <Ionicons name="alert-circle-outline" size={22} color={colors.warning} />
@@ -424,6 +535,19 @@ export function KakaoMapPreview({
 }
 
 const styles = StyleSheet.create({
+  locateButton: {
+    position: 'absolute', right: 12, bottom: 32,
+    width: 46, height: 46, borderRadius: 23,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  locationNotice: {
+    position: 'absolute', top: 10, left: 10, right: 10,
+    backgroundColor: colors.surface, borderRadius: 8, padding: 10,
+  },
+  locationNoticeText: { fontSize: 12, lineHeight: 18, color: colors.textMuted },
   mapCard: {
     height: 260,
     borderRadius: radius.lg,

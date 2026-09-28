@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   ReactNode,
   useContext,
   useEffect,
@@ -33,6 +34,10 @@ import {
   isFirebaseChatConfigured,
   subscribeToChatMessages,
 } from "@/src/services/firebaseChat";
+import { tradeAPI } from "@/src/services/tradeApi";
+import { sendChatAttachment } from "@/src/services/chatAttachments";
+import { ChatAttachment } from "@/src/types/app";
+import { TradeRequest } from "@/src/types/app";
 
 const initialDeviceSimulationState: DeviceSimulationState = {
   step: "idle",
@@ -51,6 +56,8 @@ interface AppContextValue {
   signupDraft: SignupDraft;
   posts: Post[];
   notifications: NotificationItem[];
+  unreadNotificationCount: number;
+  refreshNotifications: () => Promise<{ error: string | null }>;
   chatRooms: ChatRoom[];
   messagesByChat: Record<string, ChatMessage[]>;
   activeQrSession: DynamicQrSession | null;
@@ -76,6 +83,9 @@ interface AppContextValue {
   addPost: (payload: CreatePostInput) => Promise<{ error: string | null }>;
   updatePost: (payload: UpdatePostInput) => Promise<{ error: string | null }>;
   removePost: (post: Post) => Promise<{ error: string | null }>;
+  applyTrade: (trade: TradeRequest) => void;
+  openChatRoom: (roomId: string) => Promise<{ error: string | null }>;
+  sendAttachment: (chatId: string, attachment: ChatAttachment) => Promise<{ error: string | null }>;
   startChatWithPost: (
     post: Post,
   ) => Promise<{ roomId: string | null; error: string | null }>;
@@ -83,7 +93,7 @@ interface AppContextValue {
     chatId: string,
     text: string,
   ) => Promise<{ error: string | null }>;
-  markNotificationRead: (id: string) => void;
+  markNotificationRead: (id: string) => Promise<{ error: string | null }>;
   issueDynamicQr: (
     purpose?: DynamicQrPurpose,
     ttlSeconds?: number,
@@ -104,6 +114,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [signupDraft, setSignupDraft] = useState<SignupDraft>({});
   const [posts, setPosts] = useState<Post[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const notificationVersion = useRef(0);
+  const currentAuthToken = useRef(authToken);
+  currentAuthToken.current = authToken;
+  const refreshNotifications = useCallback(async () => {
+    const version = ++notificationVersion.current;
+    if (!authToken) { setNotifications([]); setUnreadNotificationCount(0); return { error: null }; }
+    const result = await notificationAPI.feed(authToken);
+    if (version === notificationVersion.current && currentAuthToken.current === authToken && !result.error) {
+      setNotifications(result.data.items);
+      setUnreadNotificationCount(result.data.unreadCount);
+    }
+    return { error: result.error };
+  }, [authToken]);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [messagesByChat, setMessagesByChat] = useState<
     Record<string, ChatMessage[]>
@@ -192,21 +216,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setChatRooms([]);
           setMessagesByChat({});
           setNotifications([]);
+          setUnreadNotificationCount(0);
         }
         return [];
       }
 
-      const [roomsResult, notificationsResult] = await Promise.all([
+      const [roomsResult] = await Promise.all([
         chatAPI.listRooms(user.id, authToken ?? undefined),
-        notificationAPI.list(user.id, authToken ?? undefined),
+        refreshNotifications(),
       ]);
 
       if (mounted) {
         setChatRooms(roomsResult.data ?? []);
-      }
-
-      if (mounted && notificationsResult.data?.length) {
-        setNotifications(notificationsResult.data);
       }
 
       const rooms = roomsResult.data ?? [];
@@ -263,6 +284,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     hydrateAppData();
     const chatRefreshTimer = setInterval(
       async () => {
+        const latestPosts = await postAPI.listAll(authToken ?? undefined);
+        if (mounted && !latestPosts.error) setPosts(latestPosts.data ?? []);
         const useFirebaseRealtime = isFirebaseChatConfigured();
         const rooms = await hydrateChatData({
           includeMessages: !useFirebaseRealtime,
@@ -279,7 +302,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearInterval(chatRefreshTimer);
       clearMessageSubscriptions();
     };
-  }, [authToken, user]);
+  }, [authToken, user, refreshNotifications]);
 
   function clearDeviceTimers() {
     deviceTimerRefs.current.forEach((timer) => clearTimeout(timer));
@@ -583,6 +606,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    if (post.type === 'share') {
+      const result = await tradeAPI.create(post.recordId, authToken ?? undefined);
+      if (!result.data || result.error) return { roomId: null, error: result.error || '나눔 요청에 실패했습니다.' };
+      applyTrade(result.data);
+      const rooms = await chatAPI.listRooms(user.id, authToken ?? undefined);
+      if (rooms.error) return { roomId: null, error: rooms.error };
+      setChatRooms(rooms.data);
+      const messages = await chatAPI.listMessages(result.data.roomId, authToken ?? undefined, user.id);
+      if (!messages.error) setMessagesByChat(prev => ({ ...prev, [result.data!.roomId]: messages.data }));
+      return { roomId: result.data.roomId, error: null };
+    }
+
     const existingRoom = chatRooms.find(
       (room) =>
         String(room.postId) === String(post.id) &&
@@ -618,6 +653,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     return { roomId: room.id, error: null };
+  }
+
+  async function openChatRoom(roomId: string) {
+    if (!user || !authToken) return { error: '로그인이 필요합니다.' };
+    const rooms = await chatAPI.listRooms(user.id, authToken);
+    if (rooms.error) return { error: rooms.error };
+    if (!rooms.data.some(room => room.id === roomId)) {
+      return { error: '채팅방이 아직 연결 중이거나 이미 나간 채팅방입니다. 잠시 후 다시 확인해주세요.' };
+    }
+    const messages = await chatAPI.listMessages(roomId, authToken, user.id);
+    if (messages.error) return { error: messages.error };
+    setChatRooms(rooms.data);
+    setMessagesByChat(prev => ({ ...prev, [roomId]: messages.data }));
+    return { error: null };
+  }
+
+  function applyTrade(trade: TradeRequest) {
+    setMessagesByChat(prev => ({ ...prev, [trade.roomId]: (prev[trade.roomId] || []).map(message => message.tradeRequest?.id === trade.id ? { ...message, tradeRequest: trade } : message) }));
+    setPosts(prev => prev.map(post => post.type === 'share' && String(post.recordId) === trade.donateId
+      ? { ...post, status: trade.postStatus } : post));
+  }
+
+  async function sendAttachment(chatId: string, attachment: ChatAttachment) {
+    if (!user || !authToken) return { error: '로그인이 필요합니다.' };
+    const result = await sendChatAttachment(chatId, attachment, user.id, authToken);
+    if (result.error || !result.data) return { error: result.error || '전송에 실패했습니다.' };
+    const message = result.data;
+    setMessagesByChat(prev => {
+      const existing = prev[chatId] || [];
+      return { ...prev, [chatId]: existing.some(item => item.id === message.id) ? existing : [...existing, message] };
+    });
+    setChatRooms(prev => prev.map(room => room.id === chatId ? { ...room, lastMessage: message.text, timeLabel: '방금' } : room));
+    return { error: null };
   }
 
   async function sendMessage(chatId: string, text: string) {
@@ -657,7 +725,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     return { error: null };
   }
-  function markNotificationRead(id: string) {
+  async function markNotificationRead(id: string) {
+    if (!authToken) return { error: '로그인이 필요합니다.' };
+    const result = await notificationAPI.markRead(id, authToken);
+    if (result.error) return { error: result.error };
+    if (currentAuthToken.current !== authToken) return { error: '계정이 변경되었습니다.' };
     setNotifications((prev) =>
       prev.map((notification) =>
         notification.id === id
@@ -665,6 +737,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : notification,
       ),
     );
+    await refreshNotifications();
+    return { error: null };
   }
 
   async function issueDynamicQr(
@@ -872,6 +946,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         signupDraft,
         posts,
         notifications,
+        unreadNotificationCount,
+        refreshNotifications,
         chatRooms,
         messagesByChat,
         activeQrSession,
@@ -889,6 +965,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatePost,
         removePost,
         startChatWithPost,
+        applyTrade,
+        openChatRoom,
+        sendAttachment,
         sendMessage,
         markNotificationRead,
         issueDynamicQr,
