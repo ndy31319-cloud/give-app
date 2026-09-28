@@ -5,6 +5,7 @@ const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
 const upload = require("../uploads/upload");
 const { buildUploadUrl } = require("../lib/uploadUrl");
+const { verifyCertificate } = require("../services/certification");
 
 const router = express.Router();
 router.get('/:id/reputation', authenticateToken, async (req, res) => {
@@ -189,6 +190,7 @@ router.get("/nickname-check", async (req, res) => {
 });
 
 router.post("/signup", async (req, res) => {
+  let connection;
   const {
     phone,
     member_pw,
@@ -243,31 +245,12 @@ router.post("/signup", async (req, res) => {
       });
     }
 
-    let role_id = 1;
-    const allowDevelopmentVulnerableSignup =
-      process.env.NODE_ENV !== "production" && isVulnerable === true;
-
-    if (qr_code) {
-      const [certData] = await db.query(
-        "SELECT code_id FROM CERTIFICATION_CODE WHERE code_id = ? AND is_used = FALSE",
-        [qr_code],
-      );
-
-      if (certData.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid or already used certification code.",
-        });
-      }
-
-      role_id = 3;
-    }
-
-    if (!qr_code && allowDevelopmentVulnerableSignup) {
-      role_id = 3;
-    }
-
     const hashedPassword = await bcrypt.hash(member_pw, 10);
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+    const certificate = (isVulnerable === true || qr_code)
+      ? await verifyCertificate(connection, qr_code, { lock: true }) : null;
+    const role_id = certificate ? 3 : 1;
     const insertFields = ["role_id", "member_pw", "name", "email", "phone", "dong_name", "nickname"];
     const insertValues = [role_id, hashedPassword, name, email, formattedPhone, dong_name, nickname];
 
@@ -276,20 +259,20 @@ router.post("/signup", async (req, res) => {
       insertValues.push(latitude, longitude);
     }
 
-    const [result] = await db.query(
+    const [result] = await connection.query(
       `INSERT INTO MEMBER (${insertFields.join(", ")})
        VALUES (${insertFields.map(() => "?").join(", ")})`,
       insertValues,
     );
 
-    if (qr_code) {
-      await db.query(
+    if (certificate) {
+      await connection.query(
         `UPDATE CERTIFICATION_CODE
          SET is_used = TRUE,
              used_at = NOW(),
              member_id = ?
          WHERE code_id = ?`,
-        [result.insertId, qr_code],
+        [result.insertId, certificate.codeId],
       );
     }
 
@@ -302,6 +285,7 @@ router.post("/signup", async (req, res) => {
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },
     );
+    await connection.commit();
 
     return res.status(201).json({
       success: true,
@@ -329,11 +313,17 @@ router.post("/signup", async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Signup error:", error);
+    if (connection) await connection.rollback();
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, errorCode: error.errorCode, message: error.message });
+    }
+    console.error("Signup error:", error.code || error.name);
     return res.status(500).json({
       success: false,
       message: "Server error occurred during signup.",
     });
+  } finally {
+    if (connection) connection.release();
   }
 });
 

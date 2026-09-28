@@ -88,20 +88,20 @@ const currentDotContent = '<div aria-label="현재 위치" style="width:16px;hei
 
 function WebKakaoMap({
   location,
-  markerLabel,
   moveMarkerOnMapInteraction,
   moveMarkerOnMapDragEnd,
   onLocationChange,
   onMapError,
   currentPosition,
+  showSelectedMarker,
 }: {
   location: NeighborhoodLocation;
-  markerLabel: string;
   moveMarkerOnMapInteraction: boolean;
   moveMarkerOnMapDragEnd: boolean;
   onLocationChange: (location: NeighborhoodLocation) => void;
   onMapError: (message: string) => void;
   currentPosition: CurrentPosition | null;
+  showSelectedMarker: boolean;
 }) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const currentPositionRef = useRef(currentPosition);
@@ -141,8 +141,8 @@ function WebKakaoMap({
           center: position,
           level: 4,
         });
-        const marker = new kakao.maps.Marker({ position, draggable: true });
-        marker.setMap(map);
+        const marker = new kakao.maps.Marker({ position, draggable: moveMarkerOnMapInteraction });
+        if (showSelectedMarker) marker.setMap(map);
         const currentDot = new kakao.maps.CustomOverlay({ content: currentDotContent, zIndex: 2 });
         updateCurrentPosition.current = (coords, recenter) => {
           const point = new kakao.maps.LatLng(coords.latitude, coords.longitude);
@@ -152,10 +152,6 @@ function WebKakaoMap({
         };
         if (currentPositionRef.current) updateCurrentPosition.current(currentPositionRef.current, false);
 
-        const infowindow = new kakao.maps.InfoWindow({
-          content: `<div style="padding:8px 10px;font-size:13px;white-space:nowrap;">${markerLabel}</div>`,
-        });
-        infowindow.open(map, marker);
 
         const sendLocation = (latLng: any) => {
           geocoder.coord2Address(latLng.getLng(), latLng.getLat(), (result: any, status: any) => {
@@ -218,11 +214,11 @@ function WebKakaoMap({
     document.head.appendChild(script);
   }, [
     location,
-    markerLabel,
     moveMarkerOnMapDragEnd,
     moveMarkerOnMapInteraction,
     onLocationChange,
     onMapError,
+    showSelectedMarker,
   ]);
 
   return createElement('div', {
@@ -240,15 +236,21 @@ export function KakaoMapPreview({
   moveMarkerOnMapInteraction = true,
   moveMarkerOnMapDragEnd = moveMarkerOnMapInteraction,
   showCurrentLocation = false,
+  initialCurrentPosition = null,
+  showSelectedMarker = true,
+  initializeSelectionFromCurrentLocation = true,
 }: {
   location: NeighborhoodLocation | null;
   onLocationChange: (location: NeighborhoodLocation) => void;
   moveMarkerOnMapInteraction?: boolean;
   moveMarkerOnMapDragEnd?: boolean;
   showCurrentLocation?: boolean;
+  initialCurrentPosition?: CurrentPosition | null;
+  showSelectedMarker?: boolean;
+  initializeSelectionFromCurrentLocation?: boolean;
 }) {
   const [mapError, setMapError] = useState<string | null>(null);
-  const [currentPosition, setCurrentPosition] = useState<CurrentPosition | null>(null);
+  const [currentPosition, setCurrentPosition] = useState<CurrentPosition | null>(initialCurrentPosition);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const webViewRef = useRef<WebView>(null);
@@ -256,6 +258,7 @@ export function KakaoMapPreview({
   const requestId = useRef(0);
   const selectedByUser = useRef(false);
   const onLocationChangeRef = useRef(onLocationChange);
+  const initializeSelection = useRef(initializeSelectionFromCurrentLocation);
   onLocationChangeRef.current = onLocationChange;
   const handleLocationChange = useCallback((next: NeighborhoodLocation) => {
     selectedByUser.current = true;
@@ -283,7 +286,7 @@ export function KakaoMapPreview({
       ]);
       if (!active()) return;
       // A late initial GPS response must not override a place the user already picked.
-      if (initial && !selectedByUser.current) {
+      if (initial && initializeSelection.current && !selectedByUser.current) {
         onLocationChangeRef.current(buildCurrentLocation(position.coords));
       }
       setCurrentPosition({ latitude: position.coords.latitude, longitude: position.coords.longitude });
@@ -297,9 +300,9 @@ export function KakaoMapPreview({
 
   useEffect(() => {
     mounted.current = true;
-    if (showCurrentLocation) void locate(true);
+    if (showCurrentLocation && !initialCurrentPosition) void locate(true);
     return () => { mounted.current = false; requestId.current += 1; };
-  }, [showCurrentLocation, locate]);
+  }, [showCurrentLocation, locate, initialCurrentPosition]);
 
   const syncNativePosition = () => {
     if (!currentPosition) return;
@@ -320,7 +323,6 @@ export function KakaoMapPreview({
     );
   }
 
-  const markerLabel = location ? formatLocationLabel(location) : '지도에서 위치를 선택해주세요';
 
   const html = `
     <!doctype html>
@@ -370,8 +372,8 @@ export function KakaoMapPreview({
               center: position,
               level: 4
             });
-            var marker = new kakao.maps.Marker({ position: position, draggable: true });
-            marker.setMap(map);
+            var marker = new kakao.maps.Marker({ position: position, draggable: ${moveMarkerOnMapInteraction} });
+            if (${showSelectedMarker}) marker.setMap(map);
             var currentDot = new kakao.maps.CustomOverlay({ content: ${JSON.stringify(currentDotContent)}, zIndex: 2 });
             window.updateCurrentPosition = function(coords, recenter) {
               var point = new kakao.maps.LatLng(coords.latitude, coords.longitude);
@@ -380,10 +382,6 @@ export function KakaoMapPreview({
               if (recenter) map.panTo(point);
             };
             postMapMessage({ type: 'mapReady' });
-            var infowindow = new kakao.maps.InfoWindow({
-              content: '<div style="padding:8px 10px;font-size:13px;white-space:nowrap;">${markerLabel}</div>'
-            });
-            infowindow.open(map, marker);
 
             function sendLocation(latLng) {
               geocoder.coord2Address(latLng.getLng(), latLng.getLat(), function(result, status) {
@@ -441,12 +439,12 @@ export function KakaoMapPreview({
           <WebKakaoMap
             key={`${mapLocation.id}-${mapLocation.latitude}-${mapLocation.longitude}`}
             location={mapLocation}
-            markerLabel={markerLabel}
             moveMarkerOnMapInteraction={moveMarkerOnMapInteraction}
             moveMarkerOnMapDragEnd={moveMarkerOnMapDragEnd}
             onLocationChange={handleLocationChange}
             onMapError={setMapError}
             currentPosition={currentPosition}
+            showSelectedMarker={showSelectedMarker}
           />
         )
         : (

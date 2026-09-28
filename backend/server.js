@@ -42,6 +42,7 @@ const productsRoutes = require("./routes/products");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/members", membersRoutes);
+app.use("/api/certification", require("./routes/certification"));
 app.use("/api/posts", postsRoutes);
 app.use("/api/mypage", require("./routes/mypage"));
 app.use("/api/chats", chatRoutes);

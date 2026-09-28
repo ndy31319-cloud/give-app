@@ -15,7 +15,8 @@
     "migrate:inquiries": "node backend/scripts/migrateInquiries.js",
     "test:inquiries:integration": "node --test backend/tests/inquiries.integration.js",
     "test:reviews:integration": "node --test backend/tests/reviews.integration.js",
-    "test:notifications:integration": "node --test backend/tests/notifications.integration.js"
+    "test:notifications:integration": "node --test backend/tests/notifications.integration.js",
+    "test:certification": "node --test backend/tests/certification.test.js backend/tests/certification.integration.js"
   },
   "keywords": [],
   "author": "",
@@ -32,10 +33,13 @@
     "firebase-admin": "^13.7.0",
     "form-data": "^4.0.5",
     "jsonwebtoken": "^9.0.3",
+    "jsqr": "^1.4.0",
     "multer": "^2.1.1",
-    "mysql2": "^3.20.0"
+    "mysql2": "^3.20.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "qrcode": "^1.5.4"
   }
 }

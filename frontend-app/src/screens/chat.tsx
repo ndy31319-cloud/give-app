@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Location from 'expo-location';
 import { captureImage, pickImageFromLibrary } from '@/src/utils/imagePicker';
-import { ChatAttachment, TradeRequest } from '@/src/types/app';
+import { ChatAttachment, TradeRequest, NeighborhoodLocation } from '@/src/types/app';
 import { tradeAPI } from '@/src/services/tradeApi';
 import { router, useLocalSearchParams } from "expo-router";
 
@@ -28,7 +29,6 @@ import { reviewAPI } from "@/src/services/api";
 import { loadReviewStatus, ReviewStatus } from '@/src/services/reviewApi';
 import { MemberReputation } from '@/src/components/common/MemberReputation';
 import { colors, radius, spacing } from "@/src/theme/colors";
-import { NeighborhoodLocation } from "@/src/types/app";
 import { formatLocationLabel } from "@/src/utils/location";
 
 const meetingHours = Array.from({ length: 24 }, (_, index) => index);
@@ -195,6 +195,21 @@ export function ChatRoomScreen() {
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const attachmentLock = useRef(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const pendingPlusAction = useRef<(() => void) | null>(null);
+  const runAfterPlusCloses = (action: () => void) => {
+    if (Platform.OS === 'ios') {
+      pendingPlusAction.current = action;
+      setPlusOpen(false);
+    } else {
+      setPlusOpen(false);
+      action();
+    }
+  };
+  const finishPlusDismiss = () => {
+    const action = pendingPlusAction.current;
+    pendingPlusAction.current = null;
+    action?.();
+  };
 
   const newMessageId = () => `attachment_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
@@ -282,11 +297,11 @@ export function ChatRoomScreen() {
   const handleSchedulePlace = async (knownTrade?: TradeRequest) => {
     setPlusOpen(false);
     const tradeId = knownTrade?.id || roomTrade?.id;
-    if (!tradeId) { Alert.alert('약속 관리', '나눔 요청이 수락된 거래에서 약속을 정할 수 있어요.'); return; }
-    const result = await tradeAPI.get(tradeId, authToken ?? undefined);
-    if (!result.data || result.data.status !== 'approved') { Alert.alert('약속 관리', result.error || '상대방이 나눔 요청을 수락한 뒤 약속을 정해주세요.'); return; }
-    setEditingTrade(result.data);
-    const previous = result.data.appointment?.pending || result.data.appointment?.confirmed;
+    const result = tradeId ? await tradeAPI.get(tradeId, authToken ?? undefined) : null;
+    if (result?.error) { Alert.alert('약속 조회 실패', result.error); return; }
+    const approvedTrade = result?.data?.status === 'approved' ? result.data : null;
+    setEditingTrade(approvedTrade);
+    const previous = approvedTrade?.appointment?.pending || approvedTrade?.appointment?.confirmed;
     const date = previous && new Date(previous.at).getTime() > Date.now() ? new Date(previous.at) : new Date(Date.now() + 86400000);
     setMeetingDate(startOfDay(date)); setCalendarMonth(startOfDay(date));
     setMeetingHour(date.getHours()); setMeetingMinute(Math.floor(date.getMinutes() / 10) * 10);
@@ -296,7 +311,7 @@ export function ChatRoomScreen() {
   };
 
   const sendMeetingPlace = async () => {
-    if (!editingTrade || meetingLock.current) return;
+    if (!chatRoom || meetingLock.current) return;
     if (!meetingLabel.trim() && !meetingPlace) {
       Alert.alert("약속장소를 입력하거나 지도에서 선택해주세요");
       return;
@@ -305,9 +320,20 @@ export function ChatRoomScreen() {
     if (at.getTime() <= Date.now()) { Alert.alert('시간 확인', '현재보다 이후 시간을 선택해주세요.'); return; }
     meetingLock.current = true;
     setIsSendingMeetingPlace(true);
+    try {
+    if (!editingTrade) {
+      if (!meetingPlace) { Alert.alert('약속장소 선택', '지도에서 만날 위치를 선택해주세요.'); return; }
+      const result = await sendMessage(chatRoom.id, [
+        `약속장소 제안: ${meetingLabel.trim() || formatLocationLabel(meetingPlace)}`,
+        `날짜: ${formatMeetingDate(meetingDate)}`,
+        `시간: ${formatMeetingTime(meetingHour, meetingMinute)}`,
+        `좌표: ${meetingPlace.latitude.toFixed(6)}, ${meetingPlace.longitude.toFixed(6)}`,
+      ].join('\n'));
+      if (result.error) { Alert.alert('약속 제안 실패', result.error); return; }
+      setMeetingPlaceOpen(false);
+      return;
+    }
     const result = await tradeAPI.proposeAppointment(editingTrade.id, { revision: editingTrade.appointment?.revision || 0, at: at.toISOString(), place: meetingLabel.trim() || formatLocationLabel(meetingPlace!), latitude: meetingPlace?.latitude ?? null, longitude: meetingPlace?.longitude ?? null }, authToken ?? undefined);
-    meetingLock.current = false;
-    setIsSendingMeetingPlace(false);
 
     if (result.error) {
       Alert.alert("약속 제안 실패", result.error);
@@ -319,6 +345,12 @@ export function ChatRoomScreen() {
 
     setMeetingPlaceOpen(false);
     if (result.data) applyTrade(result.data);
+    } catch {
+      Alert.alert('약속 제안 실패', '서버 연결을 확인하고 다시 시도해주세요.');
+    } finally {
+      meetingLock.current = false;
+      setIsSendingMeetingPlace(false);
+    }
   };
 
   if (!chatRoom) {
@@ -666,14 +698,14 @@ export function ChatRoomScreen() {
         <AppButton label="닫기" onPress={() => setMenuOpen(false)} />
       </AppModal>
 
-      <AppModal visible={plusOpen} onClose={() => setPlusOpen(false)}>
+      <AppModal visible={plusOpen} onClose={() => setPlusOpen(false)} onDismiss={finishPlusDismiss}>
         <Text style={styles.modalTitle}>추가 기능</Text>
 
         <View style={styles.plusGrid}>
           <Pressable
             style={styles.plusAction}
             disabled={attachmentBusy}
-            onPress={() => void selectPhoto(false)}
+            onPress={() => runAfterPlusCloses(() => void selectPhoto(false))}
           >
             <Ionicons name="image-outline" size={24} color={colors.brand} />
             <Text style={styles.plusActionText}>사진</Text>
@@ -682,18 +714,18 @@ export function ChatRoomScreen() {
           <Pressable
             style={styles.plusAction}
             disabled={attachmentBusy}
-            onPress={() => void selectPhoto(true)}
+            onPress={() => runAfterPlusCloses(() => void selectPhoto(true))}
           >
             <Ionicons name="camera-outline" size={24} color={colors.brand} />
             <Text style={styles.plusActionText}>카메라</Text>
           </Pressable>
 
-          <Pressable style={styles.plusAction} onPress={handleShareLocation}>
+          <Pressable style={styles.plusAction} disabled={attachmentBusy} onPress={() => runAfterPlusCloses(() => void handleShareLocation())}>
             <Ionicons name="location-outline" size={24} color={colors.brand} />
             <Text style={styles.plusActionText}>위치 공유</Text>
           </Pressable>
 
-          <Pressable style={styles.plusAction} onPress={() => void handleSchedulePlace()}>
+          <Pressable style={styles.plusAction} onPress={() => runAfterPlusCloses(() => void handleSchedulePlace())}>
             <Ionicons name="calendar-outline" size={24} color={colors.brand} />
             <Text style={styles.plusActionText}>약속장소</Text>
           </Pressable>
@@ -709,6 +741,7 @@ export function ChatRoomScreen() {
           <Text style={styles.sectionText}>이 위치를 채팅 상대에게 한 번 공유합니다.</Text>
           <Text style={styles.meetingPlaceCoords}>{attachment.location.latitude.toFixed(6)}, {attachment.location.longitude.toFixed(6)}</Text>
           <KakaoMapPreview location={{ ...attachment.location, id: 'current_share', city: '', district: '', neighborhood: '', dongName: '', fullAddress: '현재 위치', radiusKm: 1 }}
+            showCurrentLocation initialCurrentPosition={attachment.location} showSelectedMarker={false} initializeSelectionFromCurrentLocation={false}
             onLocationChange={() => undefined} moveMarkerOnMapInteraction={false} moveMarkerOnMapDragEnd={false} />
         </>}
         <View style={styles.modalButtonRow}>
@@ -732,7 +765,7 @@ export function ChatRoomScreen() {
           contentContainerStyle={styles.meetingModalContent}
         >
           <Text style={styles.modalTitle}>{editingTrade?.appointment?.confirmed ? '약속 변경 제안' : '만날 약속 정하기'}</Text>
-          <Text style={styles.sectionText}>상대방이 확인하면 확정돼요. 시간은 기기에 설정된 시간대 기준입니다.</Text>
+          <Text style={styles.sectionText}>{editingTrade ? '상대방이 확인하면 확정돼요.' : '선택한 장소와 시간을 채팅으로 보내요.'} 시간은 기기에 설정된 시간대 기준입니다.</Text>
           <AppTextField label="만날 장소" placeholder="예: 학교 정문 앞 벤치" value={meetingLabel} maxLength={200} onChangeText={value => { setMeetingLabel(value); setMeetingPlace(null); }} />
           <Text style={styles.sectionText}>
             파란 점은 내 위치예요. 지도를 누르거나 핀을 움직여 만날 위치를 정해주세요.
@@ -741,6 +774,7 @@ export function ChatRoomScreen() {
           location={meetingPlace}
           onLocationChange={place => { setMeetingPlace(place); setMeetingLabel(formatLocationLabel(place)); }}
           showCurrentLocation
+          initializeSelectionFromCurrentLocation={!editingTrade?.appointment?.pending && !editingTrade?.appointment?.confirmed}
           moveMarkerOnMapInteraction
           moveMarkerOnMapDragEnd={false}
         />}

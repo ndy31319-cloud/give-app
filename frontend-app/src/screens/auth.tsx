@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { AppButton } from '@/src/components/common/AppButton';
+import { CertificateVerification } from '@/src/components/common/CertificateVerification';
 import { AppHeader } from '@/src/components/common/AppHeader';
 import { buildCurrentLocation, buildKakaoMapUrl, KakaoMapPreview } from '@/src/components/common/KakaoMapPreview';
 import { AppScreen } from '@/src/components/common/AppScreen';
@@ -20,7 +21,6 @@ import { useAppContext } from '@/src/context/AppContext';
 import { colors } from '@/src/theme/colors';
 import { styles } from '@/src/screens/auth.styles';
 import { NeighborhoodLocation } from '@/src/types/app';
-import { captureImage, pickImageFromLibrary } from '@/src/utils/imagePicker';
 import { formatLocationLabel } from '@/src/utils/location';
 import {
   validateEmail,
@@ -175,14 +175,15 @@ function SignupForm({
   }) => void;
   beforeSubmit?: (helpers: { submitForm: () => boolean }) => React.ReactNode;
 }) {
+  const { signupDraft } = useAppContext();
   const [formData, setFormData] = useState({
-    name: '',
-    nickname: '',
-    email: '',
-    phone: '',
-    birthdate: '',
-    password: '',
-    confirmPassword: '',
+    name: signupDraft.name ?? '',
+    nickname: signupDraft.nickname ?? '',
+    email: signupDraft.email ?? '',
+    phone: signupDraft.phone ?? '',
+    birthdate: signupDraft.birthdate ?? '',
+    password: signupDraft.password ?? '',
+    confirmPassword: signupDraft.password ?? '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -260,12 +261,12 @@ function SignupForm({
         error={errors.confirmPassword}
       />
       {beforeSubmit?.({ submitForm })}
-      <AppButton
+      {!beforeSubmit ? <AppButton
         label="다음"
         onPress={() => {
           submitForm();
         }}
-      />
+      /> : null}
     </View>
   );
 }
@@ -439,27 +440,7 @@ export function VulnerableSelectScreen() {
 
 export function VulnerableInfoScreen() {
   const { mergeSignupDraft, signupDraft } = useAppContext();
-  const [certificateImageName, setCertificateImageName] = useState(signupDraft.certificateImage?.name ?? '');
   const [certificateError, setCertificateError] = useState('');
-  const [infoReady, setInfoReady] = useState(Boolean(signupDraft.name && signupDraft.phone));
-  const hasCertificate = Boolean(certificateImageName || signupDraft.certificateImage);
-
-  const pickCertificate = async (source: 'camera' | 'gallery') => {
-    try {
-      const image = source === 'camera' ? await captureImage() : await pickImageFromLibrary();
-      if (!image) {
-        return;
-      }
-
-      mergeSignupDraft({ certificateImage: image });
-      setCertificateImageName(image.name);
-      setCertificateError('');
-    } catch (error) {
-      console.error('Certificate image picker failed:', error);
-      const message = error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.';
-      Alert.alert('증빙 이미지 선택 중 오류가 발생했습니다', message);
-    }
-  };
 
   return (
     <AuthShell title="개인정보 입력">
@@ -467,33 +448,24 @@ export function VulnerableInfoScreen() {
         includeCertificate
         onNext={(payload) => {
           mergeSignupDraft({ ...payload, isVulnerable: true });
-          setInfoReady(true);
         }}
         beforeSubmit={({ submitForm }) => (
           <>
-            <View style={styles.uploadCard}>
-              <Text style={styles.uploadTitle}>취약계층 인증 서류 *</Text>
-              <Text style={styles.supportText}>취약계층 회원가입을 완료하려면 인증 서류 이미지를 반드시 첨부해야 합니다.</Text>
-              {certificateImageName ? <Text style={styles.selectedFile}>{certificateImageName}</Text> : null}
-              <View style={styles.inlineButtons}>
-                <AppButton label="갤러리 선택" variant="secondary" onPress={() => pickCertificate('gallery')} />
-                <AppButton label="카메라 촬영" variant="secondary" onPress={() => pickCertificate('camera')} />
-              </View>
-              {certificateError ? <Text style={styles.errorText}>{certificateError}</Text> : null}
-            </View>
+            <CertificateVerification />
+            {certificateError && !signupDraft.certificateVerified ? <Text style={styles.errorText}>{certificateError}</Text> : null}
 
             <View style={styles.locationActionCard}>
               <Text style={styles.uploadTitle}>동네 설정</Text>
-              <Text style={styles.supportText}>개인정보와 인증 서류 등록을 완료한 뒤 대표 동네를 설정합니다.</Text>
+              <Text style={styles.supportText}>개인정보와 인증서 확인을 완료한 뒤 대표 동네를 설정합니다.</Text>
               <AppButton
                 label="동네 설정으로 이동"
                 onPress={() => {
-                  const validInfo = infoReady || submitForm();
+                  const validInfo = submitForm();
                   if (!validInfo) {
                     return;
                   }
-                  if (!hasCertificate) {
-                    setCertificateError('취약계층 인증 자료를 첨부해주세요.');
+                  if (!signupDraft.certificateVerified || !signupDraft.certificateCode) {
+                    setCertificateError('인증서의 QR 또는 인증 번호를 먼저 확인해주세요.');
                     return;
                   }
                   router.push('/location-setting');
@@ -532,7 +504,8 @@ export function PersonalInfoScreen() {
       <SignupForm
         includeCertificate={false}
         onNext={(payload) => {
-          mergeSignupDraft({ ...payload, isVulnerable: false, vulnerableTypes: [] });
+          mergeSignupDraft({ ...payload, isVulnerable: false, vulnerableTypes: [],
+            certificateImage: null, certificateCode: '', certificateVerified: false, certificateScanFailures: 0 });
           router.push('/location-setting');
         }}
       />
@@ -580,8 +553,8 @@ export function LocationSettingScreen() {
   const handleComplete = async () => {
     const representativeLocation = selectedLocation;
 
-    if (signupDraft.isVulnerable && !signupDraft.certificateImage) {
-      Alert.alert('인증 서류가 필요합니다', '취약계층 회원가입은 인증 서류 첨부가 필수입니다.');
+    if (signupDraft.isVulnerable && (!signupDraft.certificateVerified || !signupDraft.certificateCode)) {
+      Alert.alert('인증서 확인이 필요합니다', '인증서의 QR 또는 인증 번호를 먼저 확인해주세요.');
       router.replace('/vulnerable-info');
       return;
     }
@@ -597,6 +570,7 @@ export function LocationSettingScreen() {
 
     if (result.error) {
       Alert.alert('회원가입 실패', result.error);
+      if (result.errorCode === 'CERT_USED' || result.errorCode === 'CERT_INVALID') router.replace('/vulnerable-info');
       return;
     }
 

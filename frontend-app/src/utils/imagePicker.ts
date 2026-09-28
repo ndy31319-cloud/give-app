@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { UploadableImage } from '@/src/types/app';
@@ -33,30 +33,7 @@ async function ensurePermission(
   return true;
 }
 
-async function ensureMediaLibraryPermission() {
-  const current = await ImagePicker.getMediaLibraryPermissionsAsync();
-
-  if (current.granted) {
-    return true;
-  }
-
-  if (!current.canAskAgain) {
-    Alert.alert(
-      '사진 접근 권한이 필요합니다',
-      '기기 설정에서 사진 접근 권한을 허용해주세요.',
-    );
-    return false;
-  }
-
-  return ensurePermission('mediaLibrary', ImagePicker.requestMediaLibraryPermissionsAsync);
-}
-
 export async function pickImageFromLibrary() {
-  const granted = await ensureMediaLibraryPermission();
-  if (!granted) {
-    return null;
-  }
-
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
@@ -70,11 +47,6 @@ export async function pickImageFromLibrary() {
 }
 
 export async function pickImagesFromLibrary() {
-  const granted = await ensureMediaLibraryPermission();
-  if (!granted) {
-    return null;
-  }
-
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
@@ -90,7 +62,7 @@ export async function pickImagesFromLibrary() {
 }
 
 export async function captureImage() {
-  const granted = await ensurePermission('camera', ImagePicker.requestCameraPermissionsAsync);
+  const granted = Platform.OS === 'web' || await ensurePermission('camera', ImagePicker.requestCameraPermissionsAsync);
   if (!granted) {
     return null;
   }

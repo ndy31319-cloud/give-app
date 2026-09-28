@@ -18,6 +18,7 @@ import { AppModal } from "@/src/components/common/AppModal";
 import { AppScreen } from "@/src/components/common/AppScreen";
 import { AppTextField } from "@/src/components/common/AppTextField";
 import { PostCard } from "@/src/components/common/PostCard";
+import { PostPhotoGallery } from "@/src/components/common/PostPhotoGallery";
 import { useAppContext } from "@/src/context/AppContext";
 import { catalogAPI, postAPI } from "@/src/services/api";
 import { colors } from "@/src/theme/colors";
@@ -741,13 +742,7 @@ export function PostDetailScreen() {
         }
       />
 
-      {post.images[0] ? (
-        <Image
-          source={{ uri: post.images[0] }}
-          style={styles.detailImage}
-          contentFit="cover"
-        />
-      ) : null}
+      <PostPhotoGallery key={post.id} images={post.images} />
 
       <View style={styles.detailContent}>
         <View style={styles.authorRow}>

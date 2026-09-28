@@ -77,7 +77,7 @@ import { formatDate } from "@/src/utils/time";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
-type ApiResult<T> = Promise<{ data: T; error: string | null }>;
+type ApiResult<T> = Promise<{ data: T; error: string | null; errorCode?: string }>;
 
 const knownProductCategoryIds = new Set([
   "가구",
@@ -519,6 +519,9 @@ export const memberAPI = {
     draft: SignupDraft,
     location: NeighborhoodLocation,
   ): ApiResult<{ user: User; token: string }> {
+    if (draft.isVulnerable) {
+      return authAPI.signup(draft, location);
+    }
     const requestPayload = {
       role: draft.isVulnerable ? "BENEFICIARY" : "USER",
       role_name: draft.isVulnerable ? "BENEFICIARY" : "USER",
@@ -532,7 +535,7 @@ export const memberAPI = {
       email: draft.email ?? "",
       phone: draft.phone ?? "",
       certificate_number: "",
-      qr_code: "",
+      qr_code: draft.isVulnerable ? draft.certificateCode ?? "" : "",
       dong_name: location.dongName,
       dongName: location.dongName,
       latitude: location.latitude,
@@ -2066,6 +2069,9 @@ export const authAPI = {
   },
 
   async signup(draft: SignupDraft, location: NeighborhoodLocation) {
+    if (draft.isVulnerable && (!draft.certificateVerified || !draft.certificateCode)) {
+      return { data: null as never, error: "인증서의 QR 또는 인증 번호를 먼저 확인해주세요.", errorCode: 'CERT_INVALID' };
+    }
     const backendPayload = {
       name: draft.name ?? "사용자",
       nickname: draft.nickname ?? draft.name ?? "사용자",
@@ -2077,7 +2083,7 @@ export const authAPI = {
       role_name: draft.isVulnerable ? "BENEFICIARY" : "USER",
       role_id: draft.isVulnerable ? "role_beneficiary" : "role_user",
       certificate_number: "",
-      qr_code: "",
+      qr_code: draft.isVulnerable ? draft.certificateCode ?? "" : "",
       birth_date: draft.birthdate ?? "",
       birthdate: draft.birthdate ?? "",
       isVulnerable: draft.isVulnerable ?? false,
@@ -2101,7 +2107,7 @@ export const authAPI = {
     );
 
     if (backendResult.error) {
-      return { data: null as never, error: backendResult.error };
+      return { data: null as never, error: backendResult.error, errorCode: backendResult.errorCode };
     }
 
     if (backendResult.data) {
@@ -2114,6 +2120,9 @@ export const authAPI = {
       };
     }
 
+    if (draft.isVulnerable) {
+      return { data: null as never, error: "인증 서버 연결 설정을 확인해주세요." };
+    }
     return memberAPI.signup(draft, location);
   },
 };

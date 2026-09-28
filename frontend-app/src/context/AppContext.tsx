@@ -70,7 +70,7 @@ interface AppContextValue {
   ) => Promise<{ error: string | null }>;
   completeSignup: (
     location: NeighborhoodLocation,
-  ) => Promise<{ error: string | null }>;
+  ) => Promise<{ error: string | null; errorCode?: string }>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<{ error: string | null }>;
   updateLocation: (
@@ -326,9 +326,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function completeSignup(location: NeighborhoodLocation) {
+    if (signupDraft.isVulnerable && (!signupDraft.certificateVerified || !signupDraft.certificateCode)) {
+      return { error: "인증서의 QR 또는 인증 번호를 먼저 확인해주세요." };
+    }
     const result = await authAPI.signup(signupDraft, location);
     if (result.error || !result.data) {
-      return { error: result.error ?? "회원가입에 실패했습니다." };
+      if (result.errorCode === 'CERT_USED' || result.errorCode === 'CERT_INVALID') {
+        setSignupDraft(prev => ({ ...prev, certificateCode: '', certificateVerified: false }));
+      }
+      return { error: result.error ?? "회원가입에 실패했습니다.", errorCode: result.errorCode };
     }
 
     setUser({

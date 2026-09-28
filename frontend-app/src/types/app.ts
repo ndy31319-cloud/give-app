@@ -141,6 +141,9 @@ export interface SignupDraft {
   isVulnerable?: boolean;
   vulnerableTypes?: string[];
   certificateImage?: UploadableImage | null;
+  certificateCode?: string;
+  certificateVerified?: boolean;
+  certificateScanFailures?: number;
 }
 
 export interface SignupPreset {

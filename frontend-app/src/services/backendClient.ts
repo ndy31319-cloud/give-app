@@ -20,6 +20,7 @@ export interface ApiEnvelope<T> {
   success?: boolean;
   message?: string;
   error?: string;
+  errorCode?: string;
   data?: T;
 }
 
@@ -79,6 +80,7 @@ export async function requestEnvelope<T>(path: string, init?: RequestInit) {
       return {
         data: null as T | null,
         error: raw?.message ?? raw?.error ?? `HTTP ${response.status}`,
+        errorCode: raw?.errorCode,
       };
     }
 
@@ -86,6 +88,7 @@ export async function requestEnvelope<T>(path: string, init?: RequestInit) {
       return {
         data: null as T | null,
         error: raw.message ?? raw.error ?? '요청 처리에 실패했습니다.',
+        errorCode: raw.errorCode,
       };
     }
 
