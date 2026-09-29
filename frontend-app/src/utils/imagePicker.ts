@@ -46,12 +46,12 @@ export async function pickImageFromLibrary() {
   return assetToUploadableImage(result.assets[0]);
 }
 
-export async function pickImagesFromLibrary() {
+export async function pickImagesFromLibrary(selectionLimit = 5) {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     quality: 0.9,
     allowsMultipleSelection: true,
-    selectionLimit: 5,
+    selectionLimit: Math.max(1, Math.min(5, selectionLimit)),
   });
 
   if (result.canceled || !result.assets.length) {

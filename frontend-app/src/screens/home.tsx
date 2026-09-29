@@ -46,6 +46,8 @@ import { validateRequired } from "@/src/utils/validation";
 
 type HomeStatusFilter = "active" | "includeCompleted";
 
+const MAX_POST_IMAGES = 5;
+
 function isBeneficiaryUser(
   user?: {
     isVulnerable?: boolean;
@@ -905,6 +907,7 @@ export function WriteFormScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [imageConfirmed, setImageConfirmed] = useState(false);
+  const [imageAnalysisError, setImageAnalysisError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     category: "",
@@ -945,6 +948,10 @@ export function WriteFormScreen() {
       return;
     }
 
+    setSelectedImages(images);
+    setAiAnalysis(null);
+    setImageConfirmed(false);
+    setImageAnalysisError(null);
     setChecking(true);
     let result;
     try {
@@ -955,12 +962,16 @@ export function WriteFormScreen() {
       );
     } catch {
       setChecking(false);
+      setImageAnalysisError("AI 검사 중 오류가 발생했습니다. 다시 시도해주세요.");
       showUnexpectedError("AI 판독 중 오류가 발생했습니다");
       return;
     }
     setChecking(false);
 
     if (!result.data) {
+      setImageAnalysisError(
+        result.error ?? "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.",
+      );
       Alert.alert(
         "AI 판독 실패",
         result.error ??
@@ -970,15 +981,20 @@ export function WriteFormScreen() {
     }
 
     if (result.data.isHarmful) {
+      setImageAnalysisError(
+        result.data.reason ?? "정책상 등록이 제한된 품목입니다. 사진을 확인해주세요.",
+      );
       Alert.alert(
         "유해물품으로 나눔하실 수 없습니다!",
         result.data.reason ?? "정책상 등록이 제한된 품목입니다.",
-        [{ text: "확인", onPress: navigateToHome }],
       );
       return;
     }
 
     if (result.data.isSameItem === false) {
+      setImageAnalysisError(
+        result.data.reason ?? "같은 물품의 사진인지 확인할 수 없습니다.",
+      );
       Alert.alert(
         "AI 사진 판독 실패",
         result.data.reason ??
@@ -988,24 +1004,41 @@ export function WriteFormScreen() {
     }
 
     const analysis = result.data;
-    setSelectedImages(images);
     setSkipImage(false);
     setAiAnalysis(analysis);
+    setImageAnalysisError(null);
     setImageConfirmed(false);
   };
 
   const handleChooseImage = async (source: "camera" | "gallery") => {
+    if (checking) {
+      return;
+    }
+
     try {
       setSourceModalOpen(false);
       const images =
         source === "gallery"
-          ? await pickImagesFromLibrary()
+          ? await pickImagesFromLibrary(
+              Math.max(1, MAX_POST_IMAGES - selectedImages.length),
+            )
           : await pickImage(source).then((image) => (image ? [image] : null));
       if (!images?.length) {
         return;
       }
 
-      await analyzeImage(images);
+      const existingUris = new Set(selectedImages.map((image) => image.uri));
+      const additions = images.filter((image) => !existingUris.has(image.uri));
+      if (!additions.length) {
+        Alert.alert("이미 추가된 사진입니다", "다른 사진을 선택해주세요.");
+        return;
+      }
+
+      const nextImages = [...selectedImages, ...additions].slice(
+        0,
+        MAX_POST_IMAGES,
+      );
+      await analyzeImage(nextImages);
     } catch (error) {
       console.error("Image picker failed:", error);
       const message =
@@ -1017,12 +1050,28 @@ export function WriteFormScreen() {
   const handleSkipImage = () => {
     setSelectedImages([]);
     setAiAnalysis(null);
+    setImageAnalysisError(null);
+    setImageConfirmed(false);
     setSkipImage(true);
     setErrors((prev) => {
       const next = { ...prev };
       delete next.image;
       return next;
     });
+  };
+
+  const handleRemoveImage = (uri: string) => {
+    const remainingImages = selectedImages.filter((image) => image.uri !== uri);
+    setImageConfirmed(false);
+    setAiAnalysis(null);
+    setImageAnalysisError(null);
+
+    if (!remainingImages.length) {
+      setSelectedImages([]);
+      return;
+    }
+
+    void analyzeImage(remainingImages);
   };
 
   const handleAutoFill = () => {
@@ -1205,47 +1254,54 @@ export function WriteFormScreen() {
         <View style={styles.photoGate}>
           <SectionTitle
             title="2. 사진 등록"
-            description="카메라 촬영 또는 갤러리 선택이 가능합니다."
+            description={`카메라나 갤러리에서 최대 ${MAX_POST_IMAGES}장까지 추가할 수 있습니다. 사진을 추가할 때마다 전체 사진을 AI 검사합니다.`}
           />
           {selectedImages.length ? (
-            <View style={styles.photoPreviewCard}>
-              <Image
-                source={{ uri: selectedImages[0].uri }}
-                style={styles.photoPreview}
-                contentFit="cover"
-              />
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.writeOptionTitle}>
-                  사진 {selectedImages.length}장 첨부됨
-                </Text>
-                <Text style={styles.sectionDescription}>
-                  {aiWritingEnabled
-                    ? pickLabelForAnalysis(aiAnalysis)
-                    : "사진 등록 완료"}
-                </Text>
-                {selectedImages.length > 1 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.thumbnailRow}
+            <View style={styles.photoSelectionWrap}>
+              <Text style={styles.writeOptionTitle}>
+                사진 {selectedImages.length}/{MAX_POST_IMAGES}장
+              </Text>
+              <View style={styles.photoThumbnailGrid}>
+                {selectedImages.map((image, index) => (
+                  <View key={image.uri} style={styles.photoGridItem}>
+                    <Image
+                      source={{ uri: image.uri }}
+                      style={styles.photoGridImage}
+                      contentFit="cover"
+                    />
+                    <Text style={styles.photoIndexBadge}>{index + 1}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${index + 1}번 사진 삭제`}
+                      disabled={checking}
+                      style={styles.photoRemoveButton}
+                      onPress={() => handleRemoveImage(image.uri)}
+                    >
+                      <Ionicons name="close-circle" size={23} color={colors.danger} />
+                    </Pressable>
+                  </View>
+                ))}
+                {selectedImages.length < MAX_POST_IMAGES ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="사진 추가하기"
+                    disabled={checking}
+                    style={[
+                      styles.photoAddTile,
+                      checking && styles.photoAddTileDisabled,
+                    ]}
+                    onPress={() => setSourceModalOpen(true)}
                   >
-                    {selectedImages.map((image) => (
-                      <Image
-                        key={image.uri}
-                        source={{ uri: image.uri }}
-                        style={styles.thumbnailImage}
-                        contentFit="cover"
-                      />
-                    ))}
-                  </ScrollView>
+                    <Ionicons name="add" size={28} color={colors.brand} />
+                    <Text style={styles.photoAddText}>추가</Text>
+                  </Pressable>
                 ) : null}
-                <Pressable
-                  style={styles.changePhotoButton}
-                  onPress={() => setSourceModalOpen(true)}
-                >
-                  <Text style={styles.changePhotoText}>사진 변경</Text>
-                </Pressable>
               </View>
+              <Text style={styles.sectionDescription}>
+                {aiAnalysis
+                  ? `${selectedImages.length}장 모두 AI 검사를 통과했습니다. ${pickLabelForAnalysis(aiAnalysis)}`
+                  : "사진을 추가할 때마다 첨부된 사진 전체를 AI 검사합니다."}
+              </Text>
             </View>
           ) : skipImage ? (
             <View style={styles.uploadPrompt}>
@@ -1296,35 +1352,40 @@ export function WriteFormScreen() {
               AI가 사진을 판독하고 있어요...
             </Text>
           ) : null}
-          {selectedImages.length && !checking ? (
+          {selectedImages.length > 0 && !checking ? (
             <View style={styles.aiPhotoConfirmCard}>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={styles.aiSuggestionTitle}>
                   {imageConfirmed
-                    ? "사진 등록 확인 완료"
-                    : aiWritingEnabled
-                      ? "AI 사진 판독 완료"
-                      : "사진 등록 완료"}
+                    ? "AI 사진 검사 확인 완료"
+                    : aiAnalysis
+                      ? "AI 사진 검사 완료"
+                      : "AI 사진 검사 필요"}
                 </Text>
                 <Text style={styles.sectionDescription}>
                   {imageConfirmed
-                    ? "이 사진으로 게시글을 작성할 수 있습니다."
-                    : aiWritingEnabled
-                      ? "AI 결과를 확인한 뒤 사진 등록을 확정해주세요."
-                      : "사진 등록을 확정해주세요."}
+                    ? "검사를 통과한 사진으로 게시글을 작성할 수 있습니다."
+                    : imageAnalysisError ??
+                      (aiAnalysis
+                        ? "검사 결과를 확인한 뒤 사진 등록을 확정해주세요."
+                        : "사진을 추가하거나 AI 검사를 다시 실행해주세요.")}
                 </Text>
               </View>
               <AppButton
                 label={
                   imageConfirmed
                     ? "확인됨"
-                    : aiWritingEnabled
-                      ? "AI 사진 등록 확인"
-                      : "사진 등록 확인"
+                    : aiAnalysis
+                      ? "AI 검사 확인"
+                      : "AI 검사 다시하기"
                 }
                 variant={imageConfirmed ? "secondary" : "primary"}
-                disabled={imageConfirmed}
+                disabled={imageConfirmed || checking}
                 onPress={() => {
+                  if (!aiAnalysis) {
+                    void analyzeImage(selectedImages);
+                    return;
+                  }
                   setImageConfirmed(true);
                   setErrors((prev) => {
                     const next = { ...prev };
