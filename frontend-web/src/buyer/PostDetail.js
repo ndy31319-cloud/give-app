@@ -92,10 +92,8 @@ function PostDetail() {
           onClick={() => setImagePreviewOpen(true)}
           aria-label="사진 크게 보기"
         >
-          <div className="post-detail-image-frame">
-            <PostImage item={item} alt={item.title} className="w-full h-full object-contain" />
-          </div>
-          <span className="post-detail-image-label">사진 크게 보기</span>
+          <PostImage item={item} alt={item.title} className="w-full h-full object-cover" />
+          <span>사진 크게 보기</span>
         </button>
 
         <div className="post-detail-info flex-1 p-14 flex flex-col">

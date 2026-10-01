@@ -137,7 +137,7 @@ function MainScreen() {
                   className="main-post-card text-left bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <div className="post-thumb bg-gray-100 relative">
-                    <PostImage item={item} alt={item.title} className="w-full h-full object-contain" />
+                    <PostImage item={item} alt={item.title} className="w-full h-full object-cover" />
                   </div>
                   <div className="p-6">
                     <h3 className="text-[22px] font-bold text-[#333] mb-2 truncate">{item.title}</h3>
