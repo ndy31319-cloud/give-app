@@ -1,0 +1,15 @@
+[
+  ["**지원 대상**입니다.", "지원 대상입니다."],
+  ["*신청*하세요.", "신청하세요."],
+  ["***중요***", "중요"],
+  ["**가**", "가"],
+  ["**대상**과 **방법**", "대상과 방법"],
+  ["2 * 3 * 4", "2 * 3 * 4"],
+  ["별표 * 하나", "별표 * 하나"],
+  ["\\*그대로\\*", "\\*그대로\\*"],
+  ["https://example.com/a*b?q=**x**", "https://example.com/a*b?q=**x**"],
+  ["**https://example.com/a*b**", "https://example.com/a*b"],
+  ["[**신청**](https://example.com/a*b)", "[신청](https://example.com/a*b)"],
+  ["**안내**\nhttps://example.com/path?q=1&b=2", "안내\nhttps://example.com/path?q=1&b=2"],
+  ["", ""]
+]
