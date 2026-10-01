@@ -9,6 +9,7 @@ import { useAppContext } from '@/src/context/AppContext';
 import { policyAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { Policy } from '@/src/types/app';
+import { normalizeChatbotText } from '@/src/utils/chatText';
 
 function PolicyCard({
   title,
@@ -282,7 +283,7 @@ export function PolicyScreen() {
                 <View
                   key={`${message.sender}-${index}`}
                   style={[styles.chatBubble, message.sender === 'user' ? styles.chatUser : styles.chatBot]}>
-                  <Text style={[styles.chatText, message.sender === 'user' && { color: '#fff' }]}>{message.text}</Text>
+                  <Text style={[styles.chatText, message.sender === 'user' && { color: '#fff' }]}>{message.sender === 'bot' ? normalizeChatbotText(message.text) : message.text}</Text>
                 </View>
               ))}
             </ScrollView>
