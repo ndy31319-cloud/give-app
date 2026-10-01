@@ -15,3 +15,10 @@
 - `frontend-web/.env`
 - `backend/ca.pem`
 - `backend/serviceAccountKey.json`
+
+## 거래 취소 사유 배포
+
+API 서버를 업데이트하기 전에 `npm run migrate:trade-cancel-reason`을 실행합니다.
+이 명령은 기존 나눔 요청을 유지하면서 `PICKUP_REQUEST.cancel_reason` 열을 추가하며, 다시 실행해도 중복 추가하지 않습니다.
+취소 API(`POST /api/trades/:id/cancel`)는 JSON 본문의 `reason`에 1~200자의 사유를 받습니다.
+서버를 먼저 배포한 뒤 앱을 업데이트해야 입력한 사유가 DB와 채팅 카드에 저장됩니다.

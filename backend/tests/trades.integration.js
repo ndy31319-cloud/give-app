@@ -104,8 +104,27 @@ test('request, concurrent contention, recovery, approval, cancellation, expirati
     assert.notEqual(again.id, trade.id);
     const old = await trades.act(trade.id, 'reject', donor);
     assert.equal(old.postStatus, 'reserved');
-    await trades.act(again.id, 'cancel', other);
+    await trades.act(again.id, 'cancel', other, { reason: '일정이 맞지 않아요.' });
     assert.equal(await status(id), 'open');
+  });
+
+  await t.test('canceled trade can be requested again in the same room with both request cards', async () => {
+    const id = await post();
+    const first = await trades.create(id, requester);
+    await trades.act(first.id, 'cancel', requester, { reason: '일정이 맞지 않아요.' });
+    const second = await trades.create(id, requester);
+    assert.notEqual(second.id, first.id);
+    assert.equal(second.roomId, first.roomId);
+    const room = await realFirestore().collection('chatRooms').doc(first.roomId).get();
+    assert.equal(room.data().tradeRequestId, second.id);
+    const messages = await room.ref.collection('messages').get();
+    assert.ok(messages.docs.some(message => message.id === `request_${first.id}`));
+    assert.ok(messages.docs.some(message => message.id === `request_${second.id}`));
+    assert.equal(messages.docs.find(message => message.id === `request_${second.id}`).data().tradeRequest.status, 'pending');
+    await trades.act(second.id, 'approve', donor);
+    await trades.act(second.id, 'complete', donor);
+    const eligibility = await require('../services/reviews').eligibility(first.roomId, requester);
+    assert.equal(eligibility.canReview, true);
   });
 
   await t.test('appointment agreement, stale proposals, activity readback and closed-trade protection', async () => {
@@ -135,7 +154,7 @@ test('request, concurrent contention, recovery, approval, cancellation, expirati
     assert.deepEqual(activity.sentRequests.find(row => row.id === trade.id).appointment, changed.appointment);
     const snapshot = await realFirestore().collection('chatRooms').doc(trade.roomId).collection('messages').doc(`request_${trade.id}`).get();
     assert.deepEqual(snapshot.data().tradeRequest.appointment, changed.appointment);
-    await trades.act(trade.id, 'cancel', requester);
+    await trades.act(trade.id, 'cancel', requester, { reason: '약속 시간에 방문하기 어려워요.' });
     await assert.rejects(trades.appointment(trade.id, 'confirm', { revision: 3 }, requester), e => e.statusCode === 409);
     const [notices] = await db.query("SELECT notification_id FROM NOTIFICATION WHERE related_type = 'pickup' AND related_id = ? AND notification_type = 'request'", [trade.id]);
     assert.equal(notices.length, 3);
@@ -154,7 +173,7 @@ test('request, concurrent contention, recovery, approval, cancellation, expirati
     await db.query('UPDATE PICKUP_REQUEST SET expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE) WHERE pickup_id = ?', [again.id]);
     await trades.expireDonation(id);
     assert.equal((await trades.get(again.id, other)).status, 'approved');
-    await trades.act(again.id, 'cancel', donor);
+    await trades.act(again.id, 'cancel', donor, { reason: '물품 상태를 다시 확인해야 해요.' });
     assert.equal(await status(id), 'open');
     await trades.sync(trade.id);
   });

@@ -1604,6 +1604,17 @@ export const policyAPI = {
     return { data: [], error: null };
   },
 
+  async clearChatbotHistory(authToken?: string): ApiResult<{ success: boolean }> {
+    const result = await requestEnvelope<{ success: boolean }>(
+      `${backendConfig.endpoints.policiesChatbot}/history`,
+      { method: 'DELETE', headers: buildAuthHeaders(authToken) },
+    );
+    return {
+      data: result.data ?? { success: false },
+      error: result.error ?? (result.data?.success ? null : '대화 기록 삭제를 확인하지 못했습니다.'),
+    };
+  },
+
   async askChatbot(
     message: string,
     conversationHistory: { role: "user" | "bot"; message: string }[],

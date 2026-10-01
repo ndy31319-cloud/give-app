@@ -1,7 +1,7 @@
 const db = require('../db');
 const { readAppointment, transition } = require('../lib/appointment');
 const { getFirestore } = require('../lib/firebaseAdmin');
-const { activeStatuses, nextStatus, fail } = require('../lib/tradeState');
+const { activeStatuses, nextStatus, validateCancelReason, fail } = require('../lib/tradeState');
 
 const selectTrade = `SELECT p.*, d.member_id AS donor_id, d.title, d.status AS post_status,
   UNIX_TIMESTAMP(p.expires_at) * 1000 AS expires_ms,
@@ -17,6 +17,7 @@ function payload(row) {
     status: row.request_status, postStatus: row.post_status,
     expiresAt: row.expires_ms ? new Date(Number(row.expires_ms)).toISOString() : null,
     title: row.title,
+    cancelReason: row.cancel_reason || null,
     appointment: readAppointment(row.appointment),
   };
 }
@@ -82,11 +83,14 @@ async function create(donateId, requesterId) {
       fail(409, '다른 분의 나눔 요청이 진행 중입니다.');
     }
     if (donation.status !== 'open') fail(409, '현재 나눔 요청이 가능한 게시글이 아닙니다.');
+    const [previous] = await connection.query(`SELECT chat_room_id FROM PICKUP_REQUEST
+      WHERE donate_id = ? AND requester_id = ? AND chat_room_id IS NOT NULL
+      ORDER BY pickup_id ASC LIMIT 1`, [donateId, requesterId]);
     const [result] = await connection.query(`INSERT INTO PICKUP_REQUEST
       (requester_id, donate_id, request_status, requested_at, expires_at, chat_synced)
       VALUES (?, ?, 'pending', NOW(), DATE_ADD(NOW(), INTERVAL 24 HOUR), FALSE)`, [requesterId, donateId]);
     await connection.query('UPDATE PICKUP_REQUEST SET chat_room_id = ? WHERE pickup_id = ?',
-      [`trade_${result.insertId}`, result.insertId]);
+      [previous[0]?.chat_room_id || `trade_${result.insertId}`, result.insertId]);
     await connection.query("UPDATE ITEM_DONATE SET status = 'reserved' WHERE donate_id = ?", [donateId]);
     const [members] = await connection.query('SELECT nickname FROM MEMBER WHERE member_id = ?', [requesterId]);
     await notify(connection, donation.member_id, result.insertId, 'pickup_request', `${members[0]?.nickname || '이웃'}님이 ‘${donation.title}’ 나눔을 요청했어요.`);
@@ -109,7 +113,7 @@ async function get(id, memberId) {
   return payload(row);
 }
 
-async function act(id, action, memberId) {
+async function act(id, action, memberId, input = {}) {
   const current = await get(id, memberId); // Also persists expiration before rejecting stale actions.
   await transaction(async connection => {
     const [donations] = await connection.query('SELECT * FROM ITEM_DONATE WHERE donate_id = ? FOR UPDATE', [current.donateId]);
@@ -124,12 +128,14 @@ async function act(id, action, memberId) {
     }
     const target = nextStatus(row, action, memberId);
     if (row.request_status === target) return;
+    const cancelReason = action === 'cancel' ? validateCancelReason(input?.reason) : null;
     if (donations[0].status !== 'reserved') fail(409, '게시글 상태가 변경되어 거래를 처리할 수 없습니다.');
     await connection.query(`UPDATE PICKUP_REQUEST SET request_status = ?, chat_synced = FALSE,
       approved_at = IF(? = 'approved', NOW(), approved_at),
       pickup_at = IF(? = 'completed', NOW(), pickup_at),
-      resolved_at = IF(? IN ('rejected','canceled','completed'), NOW(), resolved_at)
-      WHERE pickup_id = ?`, [target, target, target, target, id]);
+      resolved_at = IF(? IN ('rejected','canceled','completed'), NOW(), resolved_at),
+      cancel_reason = IF(? = 'canceled', ?, cancel_reason)
+      WHERE pickup_id = ?`, [target, target, target, target, target, cancelReason, id]);
     const postStatus = target === 'completed' ? 'completed' : activeStatuses.has(target) ? 'reserved' : 'open';
     await connection.query('UPDATE ITEM_DONATE SET status = ? WHERE donate_id = ?', [postStatus, row.donate_id]);
     const recipient = Number(memberId) === Number(row.donor_id) ? row.requester_id : row.donor_id;
@@ -155,7 +161,7 @@ async function sync(id) {
     const [details] = await connection.query(`${selectTrade} WHERE p.pickup_id = ?`, [id]);
     const row = details[0];
     if (!row) return;
-    const [members] = await connection.query('SELECT member_id, name, nickname, email FROM MEMBER WHERE member_id IN (?, ?)', [row.donor_id, row.requester_id]);
+    const [members] = await connection.query('SELECT member_id, name, nickname, email, dong_name FROM MEMBER WHERE member_id IN (?, ?)', [row.donor_id, row.requester_id]);
     const firestore = getFirestore();
     const room = firestore.collection('chatRooms').doc(row.chat_room_id);
     const snapshot = await room.get();
@@ -171,6 +177,12 @@ async function sync(id) {
         tradeRequestId: String(id), lastMessage: text, lastMessageAt: createdAt,
         createdAt, updatedAt: createdAt,
       });
+    } else if (Number(snapshot.data()?.tradeRequestId || 0) < Number(id)) {
+      batch.set(room, {
+        tradeRequestId: String(id), lastMessage: text, lastMessageAt: createdAt,
+        updatedAt: createdAt, participants: members,
+        participantIds: members.map(m => Number(m.member_id)),
+      }, { merge: true });
     }
     batch.set(room.collection('messages').doc(`request_${id}`), {
       messageId: `request_${id}`, roomId: room.id, type: 'TRADE_REQUEST', text,

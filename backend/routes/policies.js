@@ -398,6 +398,19 @@ const normalizeSuggestedPolicies = (rawSuggestedPolicies, policies) => {
     .filter(Boolean);
 };
 
+// Derive the owner from the verified token, never from the request body.
+router.delete("/chatbot/history", authenticateToken, async (req, res) => {
+  const memberId = getMemberId(req);
+  if (!memberId) return res.status(401).json({ message: "로그인이 필요합니다." });
+  try {
+    await db.query("DELETE FROM AI_CHAT_HISTORY WHERE member_id = ?", [memberId]);
+    return res.json({ success: true, message: "대화 기록이 삭제되었습니다." });
+  } catch (error) {
+    console.error("Chat history deletion failed:", error.code);
+    return res.status(500).json({ message: "대화 기록을 삭제하지 못했습니다. 다시 시도해주세요." });
+  }
+});
+
 router.post("/chatbot", authenticateToken, async (req, res) => {
   const message = String(req.body.message || "").trim();
   const conversationHistory = Array.isArray(req.body.conversationHistory)

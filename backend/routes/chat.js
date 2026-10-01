@@ -14,6 +14,7 @@ const formatParticipant = (member) => ({
   name: member.name || null,
   nickname: member.nickname || null,
   email: member.email || null,
+  dong_name: member.dong_name || null,
 });
 
 const getCurrentMemberId = (req) => Number(req.user.member_id || req.user.id);
@@ -37,7 +38,7 @@ const getMembersByIds = async (memberIds) => {
 
   const placeholders = uniqueIds.map(() => "?").join(", ");
   const [rows] = await db.query(
-    `SELECT member_id, name, nickname, email
+    `SELECT member_id, name, nickname, email, dong_name
      FROM MEMBER
      WHERE member_id IN (${placeholders})`,
     uniqueIds,
@@ -48,8 +49,8 @@ const getMembersByIds = async (memberIds) => {
 
 const ensureRoomParticipant = async (roomId, memberId) => {
   const firestore = getFirestore();
-  const roomRef = firestore.collection("chatRooms").doc(String(roomId));
-  const roomSnapshot = await roomRef.get();
+  let roomRef = firestore.collection("chatRooms").doc(String(roomId));
+  let roomSnapshot = await roomRef.get();
 
   if (!roomSnapshot.exists) {
     const error = new Error("채팅방을 찾을 수 없습니다.");
@@ -57,6 +58,15 @@ const ensureRoomParticipant = async (roomId, memberId) => {
     throw error;
   }
 
+  if (roomSnapshot.data().mergedInto) {
+    roomRef = firestore.collection("chatRooms").doc(roomSnapshot.data().mergedInto);
+    roomSnapshot = await roomRef.get();
+    if (!roomSnapshot.exists) {
+      const error = new Error("채팅방을 찾을 수 없습니다.");
+      error.statusCode = 404;
+      throw error;
+    }
+  }
   const roomData = roomSnapshot.data();
   const participantIds = Array.isArray(roomData.participantIds)
     ? roomData.participantIds.map(Number)
@@ -90,8 +100,8 @@ const reviews = require('../services/reviews');
 const handleReviewStatus = async (req, res) => {
   try {
     const memberId = getCurrentMemberId(req);
-    await ensureRoomParticipant(req.params.roomId, memberId);
-    res.json({ success: true, data: await reviews.eligibility(req.params.roomId, memberId) });
+    const { roomRef } = await ensureRoomParticipant(req.params.roomId, memberId);
+    res.json({ success: true, data: await reviews.eligibility(roomRef.id, memberId) });
   } catch (error) {
     res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : '후기 정보를 불러오지 못했습니다.' });
   }
@@ -99,8 +109,8 @@ const handleReviewStatus = async (req, res) => {
 const handleCreateReview = async (req, res) => {
   try {
     const memberId = getCurrentMemberId(req);
-    await ensureRoomParticipant(req.params.roomId, memberId);
-    res.status(201).json({ success: true, data: await reviews.create(req.params.roomId, memberId, req.body) });
+    const { roomRef } = await ensureRoomParticipant(req.params.roomId, memberId);
+    res.status(201).json({ success: true, data: await reviews.create(roomRef.id, memberId, req.body) });
   } catch (error) {
     res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : '후기를 저장하지 못했습니다. 다시 시도해주세요.' });
   }
@@ -153,20 +163,20 @@ router.post("/rooms", async (req, res) => {
     const existingRoomSnapshot = await firestore
       .collection("chatRooms")
       .where("roomKey", "==", roomKey)
-      .limit(1)
       .get();
 
     if (!existingRoomSnapshot.empty) {
-      const existingRoom = existingRoomSnapshot.docs[0];
-
-      return res.status(200).json({
-        success: true,
-        message: "이미 존재하는 채팅방입니다.",
-        data: {
-          id: existingRoom.id,
-          ...existingRoom.data(),
-        },
-      });
+      const existingRoom = existingRoomSnapshot.docs.find(doc => !doc.data().mergedInto);
+      if (existingRoom) {
+        return res.status(200).json({
+          success: true,
+          message: "이미 존재하는 채팅방입니다.",
+          data: {
+            id: existingRoom.id,
+            ...existingRoom.data(),
+          },
+        });
+      }
     }
 
     const roomRef = firestore.collection("chatRooms").doc();
@@ -231,6 +241,7 @@ router.get("/rooms", async (req, res) => {
         id: doc.id,
         ...doc.data(),
       }))
+      .filter(room => !room.mergedInto)
       .sort((a, b) => {
         const aTime =
           a.lastMessageAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
@@ -239,8 +250,22 @@ router.get("/rooms", async (req, res) => {
         return bTime - aTime;
       });
 
-    const reputation = await reviews.scores(rooms.flatMap(room => room.participantIds || []));
-    for (const room of rooms) room.participants = (room.participants || []).map(member => ({ ...member, temperature: reputation[member.member_id]?.score ?? 36.5 }));
+    const participantIds = rooms.flatMap(room => room.participantIds || []);
+    const [reputation, members] = await Promise.all([
+      reviews.scores(participantIds),
+      getMembersByIds(participantIds),
+    ]);
+    const currentMembers = new Map(members.map(member => [Number(member.member_id), member]));
+    for (const room of rooms) {
+      room.participants = (room.participants || []).map(member => {
+        const current = currentMembers.get(Number(member.member_id));
+        return {
+          ...member,
+          ...(current ? formatParticipant(current) : {}),
+          temperature: reputation[member.member_id]?.score ?? 36.5,
+        };
+      });
+    }
     return res.status(200).json({ success: true, data: rooms });
   } catch (error) {
     console.error("채팅방 목록 조회 오류:", error);
@@ -285,7 +310,7 @@ async function persistMessage(roomId, memberId, content, clientMessageId) {
     throw Object.assign(new Error('올바른 메시지 번호가 필요합니다.'), { statusCode: 400 });
   }
   const { roomRef } = await ensureRoomParticipant(roomId, memberId);
-  const [members] = await db.query('SELECT member_id, name, nickname, email FROM MEMBER WHERE member_id = ?', [memberId]);
+  const [members] = await db.query('SELECT member_id, name, nickname, email, dong_name FROM MEMBER WHERE member_id = ?', [memberId]);
   if (!members[0]) throw Object.assign(new Error('회원 정보를 찾을 수 없습니다.'), { statusCode: 404 });
   const messageRef = clientMessageId
     ? roomRef.collection('messages').doc(`member_${memberId}_${clientMessageId}`)
@@ -299,7 +324,7 @@ async function persistMessage(roomId, memberId, content, clientMessageId) {
     const existing = await transaction.get(messageRef);
     if (existing.exists) return { data: { id: existing.id, ...existing.data() }, created: false };
     const now = new Date();
-    const data = { messageId: messageRef.id, roomId, ...content, sender: formatParticipant(members[0]), createdAt: now };
+    const data = { messageId: messageRef.id, roomId: roomRef.id, ...content, sender: formatParticipant(members[0]), createdAt: now };
     transaction.set(messageRef, data);
     transaction.update(roomRef, { lastMessage: content.text, lastMessageAt: now, updatedAt: now });
     return { data: { id: messageRef.id, ...data }, created: true };

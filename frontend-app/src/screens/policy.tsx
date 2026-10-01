@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert, Keyboard, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/src/components/common/AppButton';
 import { AppScreen } from '@/src/components/common/AppScreen';
@@ -10,6 +10,68 @@ import { policyAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { Policy } from '@/src/types/app';
 import { normalizeChatbotText } from '@/src/utils/chatText';
+import { LoadingDots } from '@/src/components/common/LoadingDots';
+
+const chatbotLinkPattern = /\[([^\]\n]+)\]\(((?:https?:\/\/|www\.)[^\s)]+)\)|(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+
+function trimLinkEnding(value: string) {
+  let end = value.length;
+  while (end > 0) {
+    const last = value[end - 1];
+    if (/[.,!?;:，。！？、\]\}]/.test(last)) {
+      end -= 1;
+    } else if (last === ')' &&
+      (value.slice(0, end).match(/\)/g)?.length ?? 0) > (value.slice(0, end).match(/\(/g)?.length ?? 0)) {
+      end -= 1;
+    } else {
+      break;
+    }
+  }
+  return value.slice(0, end);
+}
+
+function ChatbotReply({ text }: { text: string }) {
+  const content: ReactNode[] = [];
+  let cursor = 0;
+
+  for (const match of text.matchAll(chatbotLinkPattern)) {
+    const start = match.index;
+    if (start > cursor) content.push(text.slice(cursor, start));
+
+    const markdown = Boolean(match[2]);
+    const matchedText = match[0];
+    const visibleUrl = markdown ? match[2] : trimLinkEnding(matchedText);
+    const target = /^www\./i.test(visibleUrl) ? `https://${visibleUrl}` : visibleUrl;
+    let valid = false;
+    try {
+      const parsed = new URL(target);
+      valid = (parsed.protocol === 'https:' || parsed.protocol === 'http:') && Boolean(parsed.hostname);
+    } catch { /* An incomplete URL stays ordinary text. */ }
+
+    if (valid) {
+      content.push(
+        <Text
+          key={`link-${start}`}
+          accessibilityRole="link"
+          accessibilityLabel={`링크 열기: ${target}`}
+          style={styles.chatLink}
+          onPress={() => {
+            void Linking.openURL(target).catch(() =>
+              Alert.alert('링크를 열 수 없어요', '주소를 확인한 뒤 다시 시도해주세요.'));
+          }}>
+          {markdown ? `${match[1]} ↗` : visibleUrl}
+        </Text>,
+      );
+      if (!markdown) content.push(matchedText.slice(visibleUrl.length));
+    } else {
+      content.push(matchedText);
+    }
+    cursor = start + matchedText.length;
+  }
+
+  if (cursor < text.length) content.push(text.slice(cursor));
+  return <Text style={styles.chatText}>{content}</Text>;
+}
 
 function PolicyCard({
   title,
@@ -52,12 +114,36 @@ export function PolicyScreen() {
   const [allPolicies, setAllPolicies] = useState<Policy[]>([]);
   const [recommendedPolicies, setRecommendedPolicies] = useState<Policy[]>([]);
   const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([
-    {
-      sender: 'bot',
-      text: '안녕하세요! 현재 상황이나 필요하신 지원을 말씀해주시면 알맞은 정책을 추천해드릴게요.',
-    },
-  ]);
+  const [chatPending, setChatPending] = useState(false);
+  const [chatStarted, setChatStarted] = useState(false);
+  const [chatResetting, setChatResetting] = useState(false);
+  const chatResetLock = useRef(false);
+  const chatRequestLock = useRef(false);
+  const chatScrollRef = useRef<ScrollView>(null);
+  const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
+
+  const resetChat = async (start: boolean) => {
+    if (chatRequestLock.current || chatResetLock.current) return;
+    Keyboard.dismiss();
+    chatResetLock.current = true;
+    setChatResetting(true);
+    try {
+      // Clear abandoned sessions too, so Start always begins with fresh context.
+      const result = await policyAPI.clearChatbotHistory(authToken ?? undefined);
+      if (result.error) {
+        Alert.alert(start ? '대화를 시작하지 못했어요' : '대화를 종료하지 못했어요', result.error);
+        return;
+      }
+      setChatInput('');
+      setMessages(start ? [{ sender: 'bot', text: '안녕하세요! 현재 상황이나 필요하신 지원을 말씀해주시면 알맞은 정책을 추천해드릴게요.' }] : []);
+      setChatStarted(start);
+    } catch {
+      Alert.alert('대화 기록 삭제 실패', '연결을 확인한 뒤 다시 시도해주세요.');
+    } finally {
+      chatResetLock.current = false;
+      setChatResetting(false);
+    }
+  };
 
   const categories = ['생활비', '주거', '의료', '교육', '문화', '일자리', '복지'];
 
@@ -161,10 +247,14 @@ export function PolicyScreen() {
 
   const sendChat = async () => {
     const trimmed = chatInput.trim();
-    if (!trimmed) return;
+    if (!trimmed || !chatStarted || chatRequestLock.current || chatResetLock.current) return;
 
+    Keyboard.dismiss();
+    chatRequestLock.current = true;
+    setChatPending(true);
     setMessages((prev) => [...prev, { sender: 'user', text: trimmed }]);
     setChatInput('');
+    try {
     const result = await policyAPI.askChatbot(
       trimmed,
       messages.map((message) => ({ role: message.sender, message: message.text })),
@@ -177,6 +267,12 @@ export function PolicyScreen() {
         text: result.data?.response ?? result.error ?? '정책 챗봇 응답을 받을 수 없습니다.',
       },
     ]);
+    } catch {
+      setMessages(prev => [...prev, { sender: 'bot', text: '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.' }]);
+    } finally {
+      chatRequestLock.current = false;
+      setChatPending(false);
+    }
   };
 
   return (
@@ -274,7 +370,24 @@ export function PolicyScreen() {
 
         {activeTab === 'chatbot' ? (
           <View style={styles.chatWrap}>
+            {!chatStarted ? (
+              <ScrollView style={styles.chatScroll} contentContainerStyle={styles.chatStart} showsVerticalScrollIndicator={false}>
+                <View style={styles.chatStartCard}>
+                  <Text style={[styles.chatStartTitle, styles.chatStartCentered]}>나눔이와 이야기해요</Text>
+                  <Text style={[styles.chatStartDescription, styles.chatStartCentered]}>필요한 복지 정보를 물어보세요.</Text>
+                  <Text style={[styles.chatStartDescription, styles.chatStartCentered]}>종료하기를 누르면{ '\n' }대화 내역이 삭제돼요.</Text>
+                  <AppButton label="시작하기" style={styles.chatStartButton} loading={chatResetting} onPress={() => void resetChat(true)} />
+                </View>
+              </ScrollView>
+            ) : <>
+            <View style={styles.chatToolbar}>
+              <Text style={styles.chatStartTitle}>나눔이</Text>
+              <AppButton label="종료하기" variant="ghost" loading={chatResetting} disabled={chatPending} onPress={() => void resetChat(false)} />
+            </View>
+            {chatPending && <Text style={styles.chatStartDescription}>답변이 끝나면 대화를 종료할 수 있어요.</Text>}
             <ScrollView
+              ref={chatScrollRef}
+              onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
               style={styles.chatScroll}
               contentContainerStyle={styles.content}
               keyboardShouldPersistTaps="handled"
@@ -283,20 +396,27 @@ export function PolicyScreen() {
                 <View
                   key={`${message.sender}-${index}`}
                   style={[styles.chatBubble, message.sender === 'user' ? styles.chatUser : styles.chatBot]}>
-                  <Text style={[styles.chatText, message.sender === 'user' && { color: '#fff' }]}>{message.sender === 'bot' ? normalizeChatbotText(message.text) : message.text}</Text>
+                  {message.sender === 'bot' ? <ChatbotReply text={normalizeChatbotText(message.text)} /> : (
+                    <Text style={[styles.chatText, { color: '#fff' }]}>{message.text}</Text>
+                  )}
                 </View>
               ))}
+              {chatPending && <View style={[styles.chatBubble, styles.chatBot]}>
+                <LoadingDots accessibilityLabel="나눔이가 답변을 작성하고 있어요" />
+              </View>}
             </ScrollView>
             <View style={styles.chatInputArea}>
               <View style={{ flex: 1 }}>
                 <AppTextField
                   value={chatInput}
                   onChangeText={setChatInput}
+                  editable={!chatResetting}
                   placeholder="상황이나 필요하신 지원을 입력하세요"
                 />
               </View>
-              <AppButton label="전송" onPress={sendChat} />
+              <AppButton label="전송" disabled={chatPending || chatResetting || !chatInput.trim()} onPress={sendChat} />
             </View>
+            </>}
           </View>
         ) : null}
       </View>
@@ -459,6 +579,24 @@ const styles = StyleSheet.create({
   chatWrap: {
     flex: 1,
   },
+  chatStart: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 16 },
+  chatStartCard: {
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
+    alignItems: 'center',
+    padding: 24,
+    gap: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chatStartButton: { alignSelf: 'center', minWidth: 128, paddingHorizontal: 28, marginTop: 4 },
+  chatStartTitle: { fontSize: 18, lineHeight: 28, paddingVertical: 2, fontWeight: '700', color: colors.text },
+  chatStartDescription: { fontSize: 14, lineHeight: 24, paddingVertical: 2, color: colors.textMuted },
+  chatStartCentered: { textAlign: 'center', alignSelf: 'stretch', flexShrink: 0 },
+  chatToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   chatScroll: {
     flex: 1,
   },
@@ -479,6 +617,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.text,
+  },
+  chatLink: {
+    color: colors.brand,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   chatInputArea: {
     flexDirection: 'row',

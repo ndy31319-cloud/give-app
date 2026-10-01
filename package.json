@@ -12,6 +12,7 @@
     "migrate:trades": "node backend/scripts/migrateTradeRequests.js",
     "migrate:notifications": "node backend/scripts/migrateNotifications.js",
     "migrate:appointments": "node backend/scripts/migrateAppointments.js",
+    "migrate:trade-cancel-reason": "node backend/scripts/migrateTradeCancelReason.js",
     "migrate:inquiries": "node backend/scripts/migrateInquiries.js",
     "test:inquiries:integration": "node --test backend/tests/inquiries.integration.js",
     "test:reviews:integration": "node --test backend/tests/reviews.integration.js",

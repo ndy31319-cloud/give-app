@@ -19,6 +19,7 @@ import { AppScreen } from "@/src/components/common/AppScreen";
 import { AppTextField } from "@/src/components/common/AppTextField";
 import { PostCard } from "@/src/components/common/PostCard";
 import { PostPhotoGallery } from "@/src/components/common/PostPhotoGallery";
+import { LoadingDots } from "@/src/components/common/LoadingDots";
 import { useAppContext } from "@/src/context/AppContext";
 import { catalogAPI, postAPI } from "@/src/services/api";
 import { colors } from "@/src/theme/colors";
@@ -552,11 +553,6 @@ export function HomeScreen() {
             <Text style={styles.homeSearchText}>
               찾고 싶은 물품을 검색해보세요
             </Text>
-            <Ionicons
-              name="camera-outline"
-              size={18}
-              color={colors.textMuted}
-            />
           </Pressable>
         </View>
       </View>
@@ -1348,9 +1344,7 @@ export function WriteFormScreen() {
             </View>
           )}
           {checking ? (
-            <Text style={styles.analysisLoading}>
-              AI가 사진을 판독하고 있어요...
-            </Text>
+            <LoadingDots label="AI가 사진을 판독하고 있어요" />
           ) : null}
           {selectedImages.length > 0 && !checking ? (
             <View style={styles.aiPhotoConfirmCard}>

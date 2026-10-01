@@ -1,10 +1,34 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { AppState, Platform } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 import 'react-native-reanimated';
 
 import { AppProvider } from '@/src/context/AppContext';
 
 export default function RootLayout() {
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const hideNavigationBar = () => {
+      void NavigationBar.setVisibilityAsync('hidden').catch((error) => {
+        console.warn('Failed to hide the Android navigation bar:', error);
+      });
+    };
+
+    hideNavigationBar();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        hideNavigationBar();
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   return (
     <AppProvider>
       <Stack>

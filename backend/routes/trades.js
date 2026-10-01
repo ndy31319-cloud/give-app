@@ -16,5 +16,5 @@ router.post('/posts/:id', handle((req, memberId) => trades.create(req.params.id,
 router.get('/:id', handle((req, memberId) => trades.get(req.params.id, memberId)));
 router.put('/:id/appointment', handle((req, memberId) => trades.appointment(req.params.id, 'propose', req.body, memberId)));
 router.post('/:id/appointment/confirm', handle((req, memberId) => trades.appointment(req.params.id, 'confirm', req.body, memberId)));
-router.post('/:id/:action', handle((req, memberId) => trades.act(req.params.id, req.params.action, memberId)));
+router.post('/:id/:action', handle((req, memberId) => trades.act(req.params.id, req.params.action, memberId, req.body)));
 module.exports = router;

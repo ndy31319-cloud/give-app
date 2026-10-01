@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radius } from '@/src/theme/colors';
 
@@ -7,16 +8,18 @@ interface AppModalProps {
   visible: boolean;
   onClose: () => void;
   onDismiss?: () => void;
+  avoidKeyboard?: boolean;
   children: ReactNode;
 }
 
-export function AppModal({ visible, onClose, onDismiss, children }: AppModalProps) {
+export function AppModal({ visible, onClose, onDismiss, avoidKeyboard = false, children }: AppModalProps) {
+  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} onDismiss={onDismiss}>
-      <View style={styles.overlay}>
+    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent navigationBarTranslucent onRequestClose={onClose} onDismiss={onDismiss}>
+      <KeyboardAvoidingView style={styles.overlay} enabled={avoidKeyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.sheet}>{children}</View>
-      </View>
+        <View style={[styles.sheet, { paddingBottom: Math.max(20, insets.bottom + 12) }]}>{children}</View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

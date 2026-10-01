@@ -8,6 +8,13 @@ function fail(statusCode, message) {
   throw Object.assign(new Error(message), { statusCode });
 }
 
+function validateCancelReason(value) {
+  if (typeof value !== 'string' || !value.trim()) fail(400, '거래 취소 사유를 입력해주세요.');
+  const reason = value.trim();
+  if (reason.length > 200) fail(400, '취소 사유는 200자 이내로 입력해주세요.');
+  return reason;
+}
+
 function nextStatus(trade, action, memberId) {
   const isDonor = Number(trade.donor_id) === Number(memberId);
   const isRequester = Number(trade.requester_id) === Number(memberId);
@@ -25,4 +32,4 @@ function nextStatus(trade, action, memberId) {
   return target;
 }
 
-module.exports = { activeStatuses, statusLabels, nextStatus, fail };
+module.exports = { activeStatuses, statusLabels, nextStatus, validateCancelReason, fail };

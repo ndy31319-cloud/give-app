@@ -197,7 +197,7 @@ function EasyMainScreen() {
                     className="easy-post-thumb bg-gray-100 rounded-[28px] overflow-hidden shrink-0 border-4 border-gray-100 shadow-inner"
                     aria-label={`${getItemTitle(item)} 자세히 보기`}
                   >
-                    <PostImage item={item} alt={getItemTitle(item)} className="w-full h-full object-cover" />
+                    <PostImage item={item} alt={getItemTitle(item)} className="w-full h-full object-contain" />
                   </button>
 
                   <div className="easy-post-info min-w-0 flex flex-col gap-4">

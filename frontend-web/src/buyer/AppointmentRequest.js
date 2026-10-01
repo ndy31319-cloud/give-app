@@ -135,7 +135,7 @@ function AppointmentRequest() {
           </button>
 
           <div className="appointment-image mb-6 overflow-hidden rounded-[24px] bg-gray-100">
-            <PostImage item={displayItem} alt={displayItem.title} className="h-full w-full object-cover" />
+            <PostImage item={displayItem} alt={displayItem.title} className="h-full w-full object-contain" />
           </div>
 
           <div className="min-w-0">

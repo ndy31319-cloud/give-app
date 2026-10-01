@@ -1,7 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Keyboard,
   Linking,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -185,6 +188,12 @@ export function ChatRoomScreen() {
   const [isSending, setIsSending] = useState(false);
   const [isSendingMeetingPlace, setIsSendingMeetingPlace] = useState(false);
   const sendingRef = useRef(false);
+  const messageScrollRef = useRef<ScrollView | null>(null);
+  const isNearMessageEndRef = useRef(true);
+  const forceScrollToMessageEndRef = useRef(false);
+  const didInitialMessageScrollRef = useRef(false);
+  const keyboardVisibleRef = useRef(false);
+  const scrollAfterKeyboardHideRef = useRef(false);
   const [isReviewing, setIsReviewing] = useState(false);
   const reviewLock = useRef(false);
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
@@ -235,10 +244,19 @@ export function ChatRoomScreen() {
     if (!attachment || !chatRoom || attachmentLock.current) return;
     attachmentLock.current = true;
     setAttachmentBusy(true);
+    scrollAfterKeyboardHideRef.current = keyboardVisibleRef.current;
+    Keyboard.dismiss();
+    forceScrollToMessageEndRef.current = true;
     try {
       const result = await sendAttachment(chatRoom.id, attachment);
-      if (result.error) Alert.alert('전송 실패', result.error);
-      else setAttachment(null);
+      if (result.error) {
+        forceScrollToMessageEndRef.current = false;
+        scrollAfterKeyboardHideRef.current = false;
+        Alert.alert('전송 실패', result.error);
+      } else {
+        setAttachment(null);
+        scrollToLatestMessage(true);
+      }
     } finally { attachmentLock.current = false; setAttachmentBusy(false); }
   }
 
@@ -254,7 +272,85 @@ export function ChatRoomScreen() {
     [chatRoom?.postId, posts],
   );
   const messages = chatRoom ? (messagesByChat[chatRoom.id] ?? []) : [];
-  const roomTrade = messages.find(item => item.tradeRequest)?.tradeRequest;
+  const roomTrade = [...messages].reverse().find(item => item.tradeRequest)?.tradeRequest;
+
+  function scrollToLatestMessage(animated = true) {
+    requestAnimationFrame(() => {
+      messageScrollRef.current?.scrollToEnd({ animated });
+    });
+  }
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
+      keyboardVisibleRef.current = true;
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardVisibleRef.current = false;
+      if (scrollAfterKeyboardHideRef.current) {
+        scrollAfterKeyboardHideRef.current = false;
+        scrollToLatestMessage(false);
+      }
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  function handleMessageListScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromEnd = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    isNearMessageEndRef.current = distanceFromEnd < 88;
+  }
+
+  function handleMessageListContentSizeChange() {
+    if (!didInitialMessageScrollRef.current) {
+      didInitialMessageScrollRef.current = true;
+      scrollToLatestMessage(false);
+      return;
+    }
+
+    if (forceScrollToMessageEndRef.current || isNearMessageEndRef.current) {
+      forceScrollToMessageEndRef.current = false;
+      scrollToLatestMessage(true);
+    }
+  }
+
+  async function sendTextMessage() {
+    const draft = message.trim();
+    if (!chatRoom || !draft || sendingRef.current) return;
+
+    scrollAfterKeyboardHideRef.current = keyboardVisibleRef.current;
+    Keyboard.dismiss();
+    forceScrollToMessageEndRef.current = true;
+    scrollToLatestMessage(false);
+    sendingRef.current = true;
+    setIsSending(true);
+    setMessage("");
+
+    try {
+      const result = await sendMessage(chatRoom.id, draft);
+      if (result.error) {
+        forceScrollToMessageEndRef.current = false;
+        scrollAfterKeyboardHideRef.current = false;
+        Alert.alert("전송 실패", result.error);
+        setMessage(draft);
+        return;
+      }
+      scrollToLatestMessage(true);
+    } catch (error) {
+      forceScrollToMessageEndRef.current = false;
+      scrollAfterKeyboardHideRef.current = false;
+      console.log("메시지 전송 오류:", error);
+      Alert.alert("전송 실패", "메시지 전송 중 오류가 발생했습니다.");
+      setMessage(draft);
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }
+
   async function openReview() {
     setMenuOpen(false); setRatingOpen(true); setReviewStatus(null); setReviewError(null);
     setRatingType(null); setRatingComment('');
@@ -429,12 +525,17 @@ export function ChatRoomScreen() {
         </View>
       ) : null}
 
-      {roomTrade && <ScrollView style={{ maxHeight: 280, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: 16 }}>
+      {roomTrade && <View style={styles.pinnedTradeRequest}>
         <TradeRequestCard request={roomTrade} onSchedule={trade => void handleSchedulePlace(trade)} onReview={() => void openReview()} />
-      </ScrollView>}
+      </View>}
       <ScrollView
+        ref={messageScrollRef}
+        style={styles.messageScroll}
         contentContainerStyle={styles.messageList}
         keyboardShouldPersistTaps="handled"
+        onScroll={handleMessageListScroll}
+        onContentSizeChange={handleMessageListContentSizeChange}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       >
         {messages.map((item, index) => {
@@ -557,6 +658,9 @@ export function ChatRoomScreen() {
             value={message}
             onChangeText={setMessage}
             placeholder="메시지를 입력하세요"
+            returnKeyType="send"
+            blurOnSubmit
+            onSubmitEditing={() => void sendTextMessage()}
           />
         </View>
         <Pressable
@@ -565,38 +669,7 @@ export function ChatRoomScreen() {
             (!message.trim() || isSending) && { opacity: 0.4 },
           ]}
           disabled={!message.trim() || isSending}
-          onPress={async () => {
-            const draft = message.trim();
-
-            if (!draft) {
-              return;
-            }
-
-            if (sendingRef.current) {
-              return;
-            }
-
-            sendingRef.current = true;
-            setIsSending(true);
-            setMessage("");
-
-            try {
-              const result = await sendMessage(chatRoom.id, draft);
-
-              if (result.error) {
-                Alert.alert("전송 실패", result.error);
-                setMessage(draft);
-                return;
-              }
-            } catch (error) {
-              console.log("메시지 전송 오류:", error);
-              Alert.alert("전송 실패", "메시지 전송 중 오류가 발생했습니다.");
-              setMessage(draft);
-            } finally {
-              sendingRef.current = false;
-              setIsSending(false);
-            }
-          }}
+          onPress={() => void sendTextMessage()}
         >
           <Ionicons name="send" size={18} color="#fff" />
         </Pressable>
@@ -739,7 +812,6 @@ export function ChatRoomScreen() {
         {attachment?.type === 'IMAGE' && <Image source={{ uri: attachment.image.uri }} style={{ width: '100%', height: 300 }} contentFit="contain" />}
         {attachment?.type === 'LOCATION' && <>
           <Text style={styles.sectionText}>이 위치를 채팅 상대에게 한 번 공유합니다.</Text>
-          <Text style={styles.meetingPlaceCoords}>{attachment.location.latitude.toFixed(6)}, {attachment.location.longitude.toFixed(6)}</Text>
           <KakaoMapPreview location={{ ...attachment.location, id: 'current_share', city: '', district: '', neighborhood: '', dongName: '', fullAddress: '현재 위치', radiusKm: 1 }}
             showCurrentLocation initialCurrentPosition={attachment.location} showSelectedMarker={false} initializeSelectionFromCurrentLocation={false}
             onLocationChange={() => undefined} moveMarkerOnMapInteraction={false} moveMarkerOnMapDragEnd={false} />
@@ -838,19 +910,23 @@ export function ChatRoomScreen() {
                     onPress={() => day && setMeetingDate(day)}
                     style={[
                       styles.calendarDay,
-                      active && styles.calendarDayActive,
                       disabled && styles.calendarDayDisabled,
                     ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={day ? `${day.getFullYear()}년 ${day.getMonth() + 1}월 ${day.getDate()}일` : undefined}
+                    accessibilityState={{ selected: active, disabled: !day || disabled }}
                   >
-                    <Text
-                      style={[
-                        styles.calendarDayText,
-                        active && styles.calendarDayTextActive,
-                        disabled && styles.calendarDayTextDisabled,
-                      ]}
-                    >
-                      {day ? day.getDate() : ""}
-                    </Text>
+                    <View style={[styles.calendarDayCircle, active && styles.calendarDayActive]}>
+                      <Text
+                        style={[
+                          styles.calendarDayText,
+                          active && styles.calendarDayTextActive,
+                          disabled && styles.calendarDayTextDisabled,
+                        ]}
+                      >
+                        {day ? day.getDate() : ""}
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -1108,6 +1184,14 @@ export function ChatRoomScreen() {
 }
 
 const styles = StyleSheet.create({
+  pinnedTradeRequest: {
+    flexShrink: 0,
+    paddingHorizontal: 16,
+  },
+  messageScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
   listHeader: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
@@ -1460,12 +1544,18 @@ const styles = StyleSheet.create({
   },
   calendarDay: {
     width: "14.285%",
-    aspectRatio: 1,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calendarDayCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
   calendarDayActive: {
-    borderRadius: radius.pill,
     backgroundColor: colors.brand,
   },
   calendarDayDisabled: {
@@ -1473,6 +1563,10 @@ const styles = StyleSheet.create({
   },
   calendarDayText: {
     fontSize: 13,
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlign: "center",
+    textAlignVertical: "center",
     fontWeight: "700",
     color: colors.text,
   },

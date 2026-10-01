@@ -49,6 +49,7 @@ export type ChatAttachment = { clientMessageId: string } & (
   { type: 'IMAGE'; image: UploadableImage } | { type: 'LOCATION'; location: SharedChatLocation }
 );
 export interface TradeRequest {
+  cancelReason?: string | null;
   appointment?: TradeAppointment;
   id: string;
   roomId: string;

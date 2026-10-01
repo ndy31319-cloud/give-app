@@ -366,7 +366,10 @@ export function mapBackendChatRoom(raw: any, viewerId: string): ChatRoom {
     userId: String(participant?.id ?? participant?.member_id ?? participant?.memberId ?? raw?.userId ?? ''),
     userName: participant?.name ?? raw?.userName ?? '상대방',
     userNickname: participant?.nickname ?? raw?.userNickname,
-    userLocation: participant?.location ?? raw?.userLocation ?? '동네 정보 없음',
+    userLocation: participant?.dong_name ?? participant?.dongName ??
+      (typeof participant?.location === 'string'
+        ? participant.location
+        : participant?.location?.neighborhood) ?? raw?.userLocation ?? '동네 정보 없음',
     postId: raw?.postId ?? raw?.relatedPostId,
     postType:
       raw?.postType === 'need' || raw?.relatedPostType === 'request'

@@ -13,5 +13,5 @@ export const tradeAPI = {
   confirmAppointment: (id: string, revision: number, token?: string) => request(`/${encodeURIComponent(id)}/appointment/confirm`, token, 'POST', { revision }),
   create: (postId: string, token?: string) => request(`/posts/${encodeURIComponent(postId)}`, token, 'POST'),
   get: (id: string, token?: string) => request(`/${encodeURIComponent(id)}`, token),
-  act: (id: string, action: TradeAction, token?: string) => request(`/${encodeURIComponent(id)}/${action}`, token, 'POST'),
+  act: (id: string, action: TradeAction, token?: string, reason?: string) => request(`/${encodeURIComponent(id)}/${action}`, token, 'POST', action === 'cancel' ? { reason } : undefined),
 };

@@ -27,7 +27,8 @@ async function profile(memberId) {
 }
 async function eligibility(roomId, memberId, connection = db) {
   const [[trade]] = await connection.query(`SELECT p.*, d.member_id AS donor_id, d.status AS post_status
-    FROM PICKUP_REQUEST p JOIN ITEM_DONATE d ON d.donate_id = p.donate_id WHERE p.chat_room_id = ? LIMIT 1`, [roomId]);
+    FROM PICKUP_REQUEST p JOIN ITEM_DONATE d ON d.donate_id = p.donate_id
+    WHERE p.chat_room_id = ? ORDER BY p.pickup_id DESC LIMIT 1`, [roomId]);
   if (!trade) return { canReview: false, alreadyReviewed: false, reason: '완료한 거래 기록이 연결되어 있지 않습니다.' };
   if (![trade.donor_id, trade.requester_id].some(id => Number(id) === Number(memberId))) fail(403, '실제 거래 당사자만 평가할 수 있습니다.');
   const target = Number(memberId) === Number(trade.donor_id) ? trade.requester_id : trade.donor_id;
