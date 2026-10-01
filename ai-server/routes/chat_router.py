@@ -13,6 +13,7 @@ from sqlalchemy import create_engine, text
 from pydantic import BaseModel
 
 from schemas.chat_schema import ChatRequest, ChatResponse, PolicyItem, ChatHistoryItem, ChatHistoryResponse
+from core.chat_text import normalize_chatbot_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -194,7 +195,7 @@ async def process_chat(request: ChatRequest):
     if len(past_messages) == 0:
         context_status = """
 🚨 [시스템 긴급 통제: 현재 과거 대화 내역 없음 (첫 대화)]
-사용자가 '지원 대상이 누군데?', '신청방법은?' 처럼 주어(정책명) 없이 다짜고짜 질문했다면, 검색된 [DB 정보]를 **절대 읽지도, 입 밖으로 꺼내지도 마세요.** 오직 "어떤 정책을 말씀하시나요? 정책 이름을 알려주시면 안내해 드릴게요!" 라고만 짧게 되물어보세요. (정책 나열 절대 금지)
+사용자가 '지원 대상이 누군데?', '신청방법은?' 처럼 주어(정책명) 없이 다짜고짜 질문했다면, 검색된 [DB 정보]를 절대 읽지도, 입 밖으로 꺼내지도 마세요. 오직 "어떤 정책을 말씀하시나요? 정책 이름을 알려주시면 안내해 드릴게요!" 라고만 짧게 되물어보세요. (정책 나열 절대 금지)
 """
     else:
         context_status = "✅ [시스템 상태: 과거 대화 내역 있음] 이전 대화 문맥을 파악하여 자연스럽게 이어서 답변하세요."
@@ -243,7 +244,7 @@ async def process_chat(request: ChatRequest):
                 raise HTTPException(status_code=503, detail="AI 서버 통신 중 오류가 발생했습니다.")
                 
             res_json = response.json()
-            ai_answer = res_json['result']['message']['content']
+            ai_answer = normalize_chatbot_text(res_json['result']['message']['content'])
 
     except Exception as e:
         error_msg = str(e)
