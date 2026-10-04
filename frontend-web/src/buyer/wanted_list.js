@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWantedPosts, hasAuthToken } from '../api/client';
-import { getPostId, getSentDonationRequestIds, isRequestOpen, saveDonationInterest } from './postListUtils';
+import { fetchWantedPosts } from '../api/client';
+import { isRequestOpen } from './postListUtils';
 
 function WantedList() {
   const navigate = useNavigate();
   const [wantedItems, setWantedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [sentRequestIds, setSentRequestIds] = useState(() => getSentDonationRequestIds());
 
   useEffect(() => {
     let ignore = false;
@@ -37,29 +36,17 @@ function WantedList() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [navigate]);
 
   const handleDonateClick = (item) => {
     if (!isRequestOpen(item)) {
       return;
     }
 
-    if (!hasAuthToken()) {
-      alert('나눔 의사를 전달하려면 회원코드 인증이 필요합니다.');
-      navigate('/code-login?mode=donation-intent');
-      return;
-    }
-
-    if (window.confirm('이 요청에 나눔을 시작하시겠습니까?')) {
-      alert('나눔 의사를 전달했습니다.');
-      const requestId = saveDonationInterest(item);
-      if (requestId) {
-        setSentRequestIds((currentIds) => new Set([...currentIds, requestId]));
-      }
-    }
+    alert('나눔해주기 기능은 일반 회원 인증 방식을 정한 뒤 이용할 수 있어요.');
   };
 
-  const visibleWantedItems = wantedItems.filter((item) => !sentRequestIds.has(String(getPostId(item))));
+  const visibleWantedItems = wantedItems;
 
   return (
     <div
@@ -77,7 +64,7 @@ function WantedList() {
         </div>
 
         <button
-          onClick={() => navigate('/Write-Wanted')}
+          onClick={() => navigate('/code-login?mode=wanted-write')}
           className="bg-[#2f7d4f] text-white px-8 py-4 rounded-[20px] flex items-center gap-3 text-[20px] font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all hover:bg-blue-700"
         >
           물품 요청하기

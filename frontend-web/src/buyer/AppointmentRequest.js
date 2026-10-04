@@ -157,17 +157,17 @@ function AppointmentRequest() {
 
         <form onSubmit={handleSubmit} className="appointment-form flex min-w-0 flex-col">
           <div className="appointment-heading mb-8">
-            <p className="mb-3 text-[24px] font-black text-[#2f7d4f]">비대면 수령 요청</p>
+            <p className="mb-3 text-[24px] font-black text-[#2f7d4f]">비대면 물품 수령</p>
             <h2 className="text-[52px] font-black leading-tight text-[#111827] word-keep">
-              보관함에 넣어둘 시간을 요청해요
+              물품 수령을 요청해요
             </h2>
             <p className="mt-4 text-[24px] font-bold leading-snug text-gray-500 word-keep">
-              원하는 날짜와 시간을 적으면 후원자가 확인합니다.
+              희망 날짜와 시간을 선택하면 후원자가 확인해요.
             </p>
           </div>
 
           <div className="mb-6 rounded-[24px] bg-[#e9f5ee] px-6 py-5 text-[22px] font-bold leading-snug text-[#2f7d4f] word-keep">
-            요청한 날짜에 다시 방문해주세요. 보관함 준비 상태는 앱에서도 확인할 수 있습니다.
+            요청한 날짜에 다시 방문해 물품을 받아주세요. 보관함 준비 상태는 앱에서도 확인할 수 있어요.
           </div>
 
           <div className="appointment-fields grid flex-1 min-h-0 grid-cols-2 gap-5">
@@ -194,7 +194,7 @@ function AppointmentRequest() {
               <textarea
                 value={appointment.memo}
                 onChange={handleChange('memo')}
-                placeholder="예: 가능하면 오후 3시 이후에 보관함에 넣어주세요"
+                placeholder="예: 가능하면 오후 3시 이후에 수령하고 싶어요"
                 className="min-h-[150px] resize-none rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[24px] font-bold outline-none focus:border-[#2f7d4f]"
               />
             </label>
@@ -204,7 +204,7 @@ function AppointmentRequest() {
             type="submit"
             className="mt-7 w-full rounded-[28px] bg-[#2f7d4f] py-6 text-[34px] font-black text-white shadow-lg active:scale-[0.98]"
           >
-            비대면 수령 요청하기
+            물품 수령 요청하기
           </button>
         </form>
       </section>

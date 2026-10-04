@@ -15,13 +15,16 @@ function CodeLogin() {
   const mode = searchParams.get('mode');
   const isLockerPickup = mode === 'locker-pickup';
   const isDonationIntent = mode === 'donation-intent';
+  const isWantedWrite = mode === 'wanted-write';
   const detailPath = isLockerPickup
     ? '/locker'
     : isDonationIntent
       ? (isEasyMode ? '/easy-wanted' : '/wanted')
-    : isEasyMode
-      ? '/easy-main'
-      : '/buyer-main';
+      : isWantedWrite
+        ? (isEasyMode ? '/easy-wanted' : '/wanted')
+        : isEasyMode
+          ? '/easy-main'
+          : '/buyer-main';
   const [codeYear, setCodeYear] = useState('');
   const [codeNumber, setCodeNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +69,8 @@ function CodeLogin() {
   const getNextPath = () => (
     isLockerPickup
       ? '/locker/pickup'
+      : isWantedWrite
+        ? (isEasyMode ? '/easy-write-wanted' : '/write-wanted')
       : isDonationIntent
         ? (isEasyMode ? '/easy-wanted' : '/wanted')
       : postId
