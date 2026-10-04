@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWantedPosts } from '../api/client';
+import { fetchWantedPosts, hasAuthToken } from '../api/client';
 import { isRequestOpen } from './postListUtils';
 
 function WantedList() {
@@ -12,6 +12,11 @@ function WantedList() {
     let ignore = false;
 
     async function loadWantedPosts() {
+      if (!hasAuthToken()) {
+        navigate('/code-login?mode=wanted-access', { replace: true });
+        return;
+      }
+
       try {
         setIsLoading(true);
         const data = await fetchWantedPosts();
@@ -64,7 +69,7 @@ function WantedList() {
         </div>
 
         <button
-          onClick={() => navigate('/code-login?mode=wanted-write')}
+          onClick={() => navigate('/Write-Wanted')}
           className="bg-[#2f7d4f] text-white px-8 py-4 rounded-[20px] flex items-center gap-3 text-[20px] font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all hover:bg-blue-700"
         >
           물품 요청하기
