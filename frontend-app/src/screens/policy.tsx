@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Keyboard, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/src/components/common/AppButton';
@@ -9,67 +9,27 @@ import { useAppContext } from '@/src/context/AppContext';
 import { policyAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { Policy } from '@/src/types/app';
-import { normalizeChatbotText } from '@/src/utils/chatText';
+import { normalizeChatbotText, splitChatbotLinks } from '@/src/utils/chatText';
 import { LoadingDots } from '@/src/components/common/LoadingDots';
 
-const chatbotLinkPattern = /\[([^\]\n]+)\]\(((?:https?:\/\/|www\.)[^\s)]+)\)|(?:https?:\/\/|www\.)[^\s<>"']+/gi;
-
-function trimLinkEnding(value: string) {
-  let end = value.length;
-  while (end > 0) {
-    const last = value[end - 1];
-    if (/[.,!?;:，。！？、\]\}]/.test(last)) {
-      end -= 1;
-    } else if (last === ')' &&
-      (value.slice(0, end).match(/\)/g)?.length ?? 0) > (value.slice(0, end).match(/\(/g)?.length ?? 0)) {
-      end -= 1;
-    } else {
-      break;
-    }
-  }
-  return value.slice(0, end);
-}
-
 function ChatbotReply({ text }: { text: string }) {
-  const content: ReactNode[] = [];
-  let cursor = 0;
-
-  for (const match of text.matchAll(chatbotLinkPattern)) {
-    const start = match.index;
-    if (start > cursor) content.push(text.slice(cursor, start));
-
-    const markdown = Boolean(match[2]);
-    const matchedText = match[0];
-    const visibleUrl = markdown ? match[2] : trimLinkEnding(matchedText);
-    const target = /^www\./i.test(visibleUrl) ? `https://${visibleUrl}` : visibleUrl;
-    let valid = false;
-    try {
-      const parsed = new URL(target);
-      valid = (parsed.protocol === 'https:' || parsed.protocol === 'http:') && Boolean(parsed.hostname);
-    } catch { /* An incomplete URL stays ordinary text. */ }
-
-    if (valid) {
-      content.push(
-        <Text
-          key={`link-${start}`}
-          accessibilityRole="link"
-          accessibilityLabel={`링크 열기: ${target}`}
-          style={styles.chatLink}
-          onPress={() => {
-            void Linking.openURL(target).catch(() =>
-              Alert.alert('링크를 열 수 없어요', '주소를 확인한 뒤 다시 시도해주세요.'));
-          }}>
-          {markdown ? `${match[1]} ↗` : visibleUrl}
-        </Text>,
-      );
-      if (!markdown) content.push(matchedText.slice(visibleUrl.length));
-    } else {
-      content.push(matchedText);
-    }
-    cursor = start + matchedText.length;
-  }
-
-  if (cursor < text.length) content.push(text.slice(cursor));
+  const content = splitChatbotLinks(text).map((part, index) => {
+    if (!part.target) return part.text;
+    const target = part.target;
+    return (
+      <Text
+        key={`link-${index}`}
+        accessibilityRole="link"
+        accessibilityLabel={`링크 열기: ${target}`}
+        style={styles.chatLink}
+        onPress={() => {
+          void Linking.openURL(target).catch(() =>
+            Alert.alert('링크를 열 수 없어요', '주소를 확인한 뒤 다시 시도해주세요.'));
+        }}>
+        {part.text}
+      </Text>
+    );
+  });
   return <Text style={styles.chatText}>{content}</Text>;
 }
 
