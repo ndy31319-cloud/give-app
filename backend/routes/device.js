@@ -441,7 +441,7 @@ router.post("/qr/validate", authenticateToken, async (req, res) => {
   if (!token) {
     return res.status(400).json({
       success: false,
-      message: "QR ÅäÅ«À» ÀÔ·ÂÇØÁÖ¼¼¿ä.",
+      message: "QR í† í°ì„ ì…ë ¥í•´ì£¼ì„¸ìš”.",
     });
   }
 
@@ -453,7 +453,7 @@ router.post("/qr/validate", authenticateToken, async (req, res) => {
       console.error("Validate QR DB error:", error);
       return res.status(500).json({
         success: false,
-        message: "QR °ËÁõ¿¡ ½ÇÆĞÇß½À´Ï´Ù.",
+        message: "QR ê²€ì¦ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.",
       });
     }
   }
@@ -465,7 +465,7 @@ router.post("/qr/validate", authenticateToken, async (req, res) => {
   if (!session) {
     return res.status(404).json({
       success: false,
-      message: "À¯È¿ÇÑ QR ¼¼¼ÇÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.",
+      message: "ìœ íš¨í•œ QR ì„¸ì…˜ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
     });
   }
 
@@ -473,14 +473,14 @@ router.post("/qr/validate", authenticateToken, async (req, res) => {
     return res.status(409).json({
       success: false,
       data: toResponseSession(session),
-      message: "ÀÌ¹Ì »ç¿ëÇß°Å³ª ¸¸·áµÈ QRÀÔ´Ï´Ù.",
+      message: "ì´ë¯¸ ì‚¬ìš©í–ˆê±°ë‚˜ ë§Œë£Œëœ QRì…ë‹ˆë‹¤.",
     });
   }
 
   return res.status(200).json({
     success: true,
     data: toResponseSession(session),
-    message: "QR °ËÁõ¿¡ ¼º°øÇß½À´Ï´Ù.",
+    message: "QR ê²€ì¦ì— ì„±ê³µí–ˆìŠµë‹ˆë‹¤.",
   });
 });
 
@@ -534,7 +534,7 @@ router.post("/qr/consume", authenticateToken, async (req, res) => {
   if (!token) {
     return res.status(400).json({
       success: false,
-      message: "QR ÅäÅ«À» ÀÔ·ÂÇØÁÖ¼¼¿ä.",
+      message: "QR í† í°ì„ ì…ë ¥í•´ì£¼ì„¸ìš”.",
     });
   }
 
@@ -558,7 +558,7 @@ router.post("/qr/consume", authenticateToken, async (req, res) => {
   if (!session) {
     return res.status(404).json({
       success: false,
-      message: "À¯È¿ÇÑ QR ¼¼¼ÇÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.",
+      message: "ìœ íš¨í•œ QR ì„¸ì…˜ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
     });
   }
 
@@ -566,7 +566,7 @@ router.post("/qr/consume", authenticateToken, async (req, res) => {
     return res.status(409).json({
       success: false,
       data: toResponseSession(session),
-      message: "ÀÌ¹Ì »ç¿ëÇß°Å³ª ¸¸·áµÈ QRÀÔ´Ï´Ù.",
+      message: "ì´ë¯¸ ì‚¬ìš©í–ˆê±°ë‚˜ ë§Œë£Œëœ QRì…ë‹ˆë‹¤.",
     });
   }
 
