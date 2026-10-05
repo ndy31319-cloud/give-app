@@ -235,6 +235,12 @@ export async function createWantedPost({
   });
 }
 
+export async function createWantedDonationOffer(requestId) {
+  return request(`/api/wanted/${encodeURIComponent(requestId)}/donation-offer`, {
+    method: 'POST',
+  });
+}
+
 export async function validateLockerQr(token) {
   return request('/api/device/qr/storage/validate', {
     method: 'POST',

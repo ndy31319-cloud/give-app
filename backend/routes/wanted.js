@@ -7,6 +7,8 @@ const router = express.Router();
 const ROLE_VULNERABLE = 3;
 const DEFAULT_PRODUCT_ID = 51;
 const DEFAULT_ITEM_CONDITION = "상태 무관";
+const DONATION_OFFER_VISIT_GUIDE =
+  "3일 후에 방문해 확인해주세요. 그때 물품이 없으면 사정으로 인해 나눔이 어려운 것으로 이해해주세요.";
 
 const parsePositiveInteger = (value) => {
   const normalizedValue = String(value || "").trim();
@@ -132,6 +134,99 @@ router.post("/", authenticateToken, async (req, res) => {
       message: error.statusCode
         ? error.message
         : "요청해요 게시글 등록 중 오류가 발생했습니다.",
+    });
+  } finally {
+    connection.release();
+  }
+});
+
+router.post("/:id/donation-offer", authenticateToken, async (req, res) => {
+  const connection = await db.getConnection();
+
+  try {
+    const requestId = parsePositiveInteger(req.params.id);
+    const donorId = req.user.member_id || req.user.id;
+    const roleId = Number(req.user.role_id);
+
+    if (!requestId) {
+      return res.status(400).json({
+        message: "올바른 요청글 번호가 필요합니다.",
+      });
+    }
+
+    if (roleId === ROLE_VULNERABLE) {
+      return res.status(403).json({
+        message: "나눔해주기는 일반 사용자만 이용할 수 있습니다.",
+      });
+    }
+
+    await connection.beginTransaction();
+
+    const [requestRows] = await connection.query(
+      `SELECT request_id, member_id, title, status
+       FROM ITEM_REQUEST
+       WHERE request_id = ?
+       FOR UPDATE`,
+      [requestId],
+    );
+
+    const wantedPost = requestRows[0];
+
+    if (!wantedPost) {
+      const error = new Error("요청글을 찾을 수 없습니다.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (String(wantedPost.status || "").toLowerCase() !== "open") {
+      const error = new Error("현재 나눔 의사를 보낼 수 없는 요청글입니다.");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (Number(wantedPost.member_id) === Number(donorId)) {
+      const error = new Error("본인이 작성한 요청글에는 나눔 의사를 보낼 수 없습니다.");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const [donorRows] = await connection.query(
+      `SELECT nickname, name
+       FROM MEMBER
+       WHERE member_id = ?
+       LIMIT 1`,
+      [donorId],
+    );
+    const donorName = donorRows[0]?.nickname || donorRows[0]?.name || "이웃";
+    const message = `${donorName}님이 ‘${wantedPost.title}’ 요청에 나눔 의사를 보냈어요. ${DONATION_OFFER_VISIT_GUIDE}`;
+
+    await connection.query(
+      `INSERT INTO NOTIFICATION
+        (member_id, related_type, related_id, notification_type, message, is_read, created_at)
+       VALUES (?, 'request', ?, 'wanted_donation_offer', ?, FALSE, NOW())`,
+      [wantedPost.member_id, requestId, message],
+    );
+
+    await connection.commit();
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        requestId,
+        request_id: requestId,
+        donorId,
+        donor_id: donorId,
+        guide: DONATION_OFFER_VISIT_GUIDE,
+      },
+      message: "나눔 의사를 전달했습니다.",
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Create wanted donation offer error:", error);
+    return res.status(error.statusCode || 500).json({
+      message: error.statusCode
+        ? error.message
+        : "나눔 의사 전달 중 오류가 발생했습니다.",
     });
   } finally {
     connection.release();

@@ -21,6 +21,7 @@ const notificationTitles = {
   pickup_request: "수거 요청",
   pickup_approved: "수거 승인",
   pickup_completed: "수거 완료",
+  wanted_donation_offer: "나눔 의사",
   admin: "관리자 알림",
 };
 

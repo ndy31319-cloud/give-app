@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWantedPosts, hasAuthToken } from '../api/client';
+import { createWantedDonationOffer, fetchWantedPosts, hasAuthToken } from '../api/client';
 import { getPostId, getSentDonationRequestIds, isRequestOpen, saveDonationInterest } from './postListUtils';
 
 const PAGE_SIZE = 4;
+const DONATION_OFFER_GUIDE = '나눔 의사를 전달했습니다. 요청자 앱에 알림이 전송됩니다.\n\n3일 후에 방문해 확인해주세요. 그때 물품이 없으면 사정으로 인해 나눔이 어려운 것으로 이해해주세요.';
 
 function getWantedSummary(item) {
   const summary = item?.content || item?.description || item?.detail || item?.itemName || item?.item_name || item?.title;
@@ -64,7 +65,7 @@ function EasyWantedList() {
     setPage((current) => (current - 1 + pageCount) % pageCount);
   };
 
-  const handleDonateClick = (item) => {
+  const handleDonateClick = async (item) => {
     if (!isRequestOpen(item)) {
       return;
     }
@@ -76,10 +77,18 @@ function EasyWantedList() {
     }
 
     if (window.confirm('이 요청에 나눔을 시작하시겠습니까?')) {
-      alert('나눔 의사를 전달했습니다.');
-      const requestId = saveDonationInterest(item);
+      const requestId = getPostId(item);
+      try {
+        await createWantedDonationOffer(requestId);
+        alert(DONATION_OFFER_GUIDE);
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+
       if (requestId) {
-        setSentRequestIds((currentIds) => new Set([...currentIds, requestId]));
+        saveDonationInterest(item);
+        setSentRequestIds((currentIds) => new Set([...currentIds, String(requestId)]));
       }
     }
   };

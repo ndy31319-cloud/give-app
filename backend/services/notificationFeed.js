@@ -3,7 +3,9 @@ const titles = {
   chat: '새 채팅', request: '새 요청', pickup_request: '나눔 요청이 도착했어요',
   pickup_approved: '예약이 확정됐어요', pickup_rejected: '요청이 거절됐어요',
   pickup_canceled: '거래가 취소됐어요', pickup_expired: '요청 시간이 만료됐어요',
-  pickup_completed: '나눔이 완료됐어요', admin: '운영 안내',
+  pickup_completed: '나눔이 완료됐어요',
+  wanted_donation_offer: '나눔 의사가 도착했어요',
+  admin: '운영 안내',
 };
 async function feed(memberId, query) {
   const before = query.before ? Number(query.before) : null;
