@@ -31,7 +31,7 @@ function EasyWriteWanted() {
 
   useEffect(() => {
     if (!hasAuthToken()) {
-      navigate('/code-login?mode=wanted-access&easy=1', { replace: true });
+      navigate('/code-login?mode=wanted-write&easy=1', { replace: true });
     }
   }, [navigate]);
 

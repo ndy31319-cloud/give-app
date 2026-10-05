@@ -21,11 +21,6 @@ function EasyWantedList() {
     let ignore = false;
 
     async function loadWantedPosts() {
-      if (!hasAuthToken()) {
-        navigate('/code-login?mode=wanted-access&easy=1', { replace: true });
-        return;
-      }
-
       try {
         setIsLoading(true);
         const data = await fetchWantedPosts();
@@ -50,7 +45,7 @@ function EasyWantedList() {
     return () => {
       ignore = true;
     };
-  }, [navigate]);
+  }, []);
 
   const visibleItems = items.filter((item) => !sentRequestIds.has(String(getPostId(item))));
   const pageCount = Math.max(1, Math.ceil(visibleItems.length / PAGE_SIZE));
@@ -101,7 +96,7 @@ function EasyWantedList() {
             {page + 1} / {pageCount}
           </div>
           <button
-            onClick={() => navigate('/easy-write-wanted')}
+            onClick={() => navigate('/code-login?mode=wanted-write&easy=1')}
             className="easy-header-secondary-button bg-[#f3fbf6] text-[#177245] px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-white active:bg-white"
           >
             요청 글쓰기
@@ -129,7 +124,7 @@ function EasyWantedList() {
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/easy-write-wanted')}
+                onClick={() => navigate('/code-login?mode=wanted-write&easy=1')}
                 className="bg-[#2f7d4f] text-white px-12 py-6 rounded-[28px] text-[38px] font-bold border-4 border-[#2f7d4f] active:bg-green-700"
               >
                 요청 글쓰기
