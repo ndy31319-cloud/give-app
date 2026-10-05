@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createWantedDonationOffer, fetchWantedPosts, hasAuthToken } from '../api/client';
+import useAuthStore from '../store/useAuthStore';
 import { getPostId, getSentDonationRequestIds, isRequestOpen, saveDonationInterest } from './postListUtils';
 
 const PAGE_SIZE = 4;
 const DONATION_OFFER_GUIDE = '나눔 의사를 전달했습니다. 요청자 앱에 알림이 전송됩니다.\n\n3일 후에 방문해 확인해주세요. 그때 물품이 없으면 사정으로 인해 나눔이 어려운 것으로 이해해주세요.';
+
+function isGeneralMember(user) {
+  const roleId = Number(user?.roleId || user?.role_id);
+  const roleText = String(user?.role || user?.roleName || user?.role_name || '').toUpperCase();
+
+  return roleId === 1 || roleText.includes('GENERAL');
+}
 
 function getWantedSummary(item) {
   const summary = item?.content || item?.description || item?.detail || item?.itemName || item?.item_name || item?.title;
@@ -13,6 +21,7 @@ function getWantedSummary(item) {
 
 function EasyWantedList() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,9 +79,8 @@ function EasyWantedList() {
       return;
     }
 
-    if (!hasAuthToken()) {
-      alert('나눔 의사를 전달하려면 회원코드 인증이 필요합니다.');
-      navigate('/code-login?mode=donation-intent&easy=1');
+    if (!hasAuthToken() || !isGeneralMember(user)) {
+      navigate('/login-buyer?redirect=/easy-wanted');
       return;
     }
 

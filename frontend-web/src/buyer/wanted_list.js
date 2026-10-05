@@ -1,12 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createWantedDonationOffer, fetchWantedPosts, hasAuthToken } from '../api/client';
+import useAuthStore from '../store/useAuthStore';
 import { getPostId, getSentDonationRequestIds, isRequestOpen, saveDonationInterest } from './postListUtils';
 
 const DONATION_OFFER_GUIDE = '나눔 의사를 전달했습니다. 요청자 앱에 알림이 전송됩니다.\n\n3일 후에 방문해 확인해주세요. 그때 물품이 없으면 사정으로 인해 나눔이 어려운 것으로 이해해주세요.';
 
+function isGeneralMember(user) {
+  const roleId = Number(user?.roleId || user?.role_id);
+  const roleText = String(user?.role || user?.roleName || user?.role_name || '').toUpperCase();
+
+  return roleId === 1 || roleText.includes('GENERAL');
+}
+
 function WantedList() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const [wantedItems, setWantedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sentRequestIds, setSentRequestIds] = useState(() => getSentDonationRequestIds());
@@ -46,9 +55,8 @@ function WantedList() {
       return;
     }
 
-    if (!hasAuthToken()) {
-      alert('나눔해주기는 일반 사용자 인증이 필요합니다.');
-      navigate('/code-login?mode=donation-intent');
+    if (!hasAuthToken() || !isGeneralMember(user)) {
+      navigate('/login-buyer?redirect=/wanted');
       return;
     }
 

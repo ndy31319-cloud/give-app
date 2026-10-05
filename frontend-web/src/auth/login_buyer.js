@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { loginMember } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
 
 function LoginBuyer() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const login = useAuthStore((state) => state.login);
+  const redirectPath = searchParams.get('redirect') || '/buyer-main';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +27,7 @@ function LoginBuyer() {
       const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
       const member = result.member || result.user || result.data?.user || result.data || {};
       login('buyer', email, token, member);
-      navigate('/buyer-main');
+      navigate(redirectPath);
     } catch (error) {
       alert(error.message);
     } finally {
