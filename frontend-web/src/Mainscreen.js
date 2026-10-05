@@ -150,7 +150,7 @@ function MainScreen() {
 
         <div className="buyer-bottom-actions absolute bottom-0 right-0 w-full bg-white border-t border-gray-200 p-6 flex justify-end gap-4 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
           <button
-            onClick={() => navigate('/code-login?mode=wanted-access')}
+            onClick={() => navigate('/wanted')}
             className="bg-[#e9f5ee] text-[#2f7d4f] px-8 py-4 rounded-2xl flex items-center gap-2 text-[20px] font-bold active:scale-95 transition-all"
           >
             나눔 요청
