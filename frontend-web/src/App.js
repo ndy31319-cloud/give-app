@@ -3,7 +3,6 @@ import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 
 import CodeLogin from './auth/code_login';
 import LoginBuyer from './auth/login_buyer';
-import SignupBuyer from './auth/signup_buyer';
 import AppointmentRequest from './buyer/AppointmentRequest';
 import BuyerSelect from './buyer/BuyerSelect';
 import BuyerEdit from './buyer/buyer_edit';
@@ -117,7 +116,6 @@ function App() {
 
         <Route path="/buyer-select" element={<BuyerSelect />} />
         <Route path="/login-buyer" element={<LoginBuyer />} />
-        <Route path="/signup-buyer" element={<SignupBuyer />} />
         <Route path="/buyer-main" element={<MainScreen />} />
         <Route path="/posts/:postId" element={<PostDetail />} />
         <Route path="/code-login" element={<CodeLogin />} />

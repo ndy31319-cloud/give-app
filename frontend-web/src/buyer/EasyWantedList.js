@@ -11,7 +11,7 @@ function isGeneralMember(user) {
   const roleId = Number(user?.roleId || user?.role_id);
   const roleText = String(user?.role || user?.roleName || user?.role_name || '').toUpperCase();
 
-  return roleId === 1 || roleText.includes('GENERAL');
+  return roleId === 1 || roleText === 'USER' || roleText.includes('GENERAL');
 }
 
 function getWantedSummary(item) {

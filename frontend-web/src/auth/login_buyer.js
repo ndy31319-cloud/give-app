@@ -3,6 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { loginMember } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
 
+function isGeneralMember(member) {
+  const roleId = Number(member?.roleId || member?.role_id);
+  const roleText = String(member?.role || member?.roleName || member?.role_name || '').toUpperCase();
+
+  return roleId === 1 || roleText === 'USER' || roleText.includes('GENERAL');
+}
+
 function LoginBuyer() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -26,6 +33,12 @@ function LoginBuyer() {
       const result = await loginMember({ email, password });
       const token = result.accessToken || result.token || result.data?.access_token || result.data?.token;
       const member = result.member || result.user || result.data?.user || result.data || {};
+
+      if (!isGeneralMember(member)) {
+        alert('DB에 등록된 일반회원 계정으로 로그인해주세요.');
+        return;
+      }
+
       login('buyer', email, token, member);
       navigate(redirectPath);
     } catch (error) {
@@ -52,8 +65,8 @@ function LoginBuyer() {
         </button>
 
         <div className="text-center mb-14">
-          <h1 className="text-[42px] font-bold text-[#333] mb-2">필요한 물품 찾기</h1>
-          <p className="text-[20px] text-gray-400">이메일과 비밀번호를 입력해주세요</p>
+          <h1 className="text-[42px] font-bold text-[#333] mb-2">일반회원 로그인</h1>
+          <p className="text-[20px] text-gray-400">등록된 이메일과 비밀번호를 입력해주세요</p>
         </div>
 
         <form onSubmit={handleLogin} className="flex-1 flex flex-col">
@@ -81,21 +94,13 @@ function LoginBuyer() {
             </div>
           </div>
 
-          <div className="mt-14 space-y-4">
+          <div className="mt-14">
             <button
               type="submit"
               disabled={isLoading}
               className="w-full bg-[#2f7d4f] text-white py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98] shadow-lg disabled:opacity-60"
             >
               {isLoading ? '로그인 중...' : '로그인'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/signup-buyer')}
-              className="w-full bg-white text-[#2f7d4f] border-2 border-[#2f7d4f] py-5 rounded-[18px] text-[22px] font-bold transition-all active:scale-[0.98]"
-            >
-              회원가입
             </button>
           </div>
         </form>
