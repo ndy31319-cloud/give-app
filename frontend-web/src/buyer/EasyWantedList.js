@@ -21,6 +21,11 @@ function EasyWantedList() {
     let ignore = false;
 
     async function loadWantedPosts() {
+      if (!hasAuthToken()) {
+        navigate('/code-login?mode=wanted-access&easy=1', { replace: true });
+        return;
+      }
+
       try {
         setIsLoading(true);
         const data = await fetchWantedPosts();
@@ -45,7 +50,7 @@ function EasyWantedList() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [navigate]);
 
   const visibleItems = items.filter((item) => !sentRequestIds.has(String(getPostId(item))));
   const pageCount = Math.max(1, Math.ceil(visibleItems.length / PAGE_SIZE));

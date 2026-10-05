@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createWantedPost, KIOSK_DEFAULT_LOCATION } from '../api/client';
+import { createWantedPost, hasAuthToken, KIOSK_DEFAULT_LOCATION } from '../api/client';
 import { getWantedCategoryPayload, URGENCY_OPTIONS, WANTED_CATEGORY_OPTIONS } from './wantedOptions';
 
 function getSavedUser() {
@@ -28,6 +28,12 @@ function EasyWriteWanted() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canSubmitWanted = isVulnerableMember(savedUser);
   const isCustomCategory = selectedCategory === 'custom';
+
+  useEffect(() => {
+    if (!hasAuthToken()) {
+      navigate('/code-login?mode=wanted-access&easy=1', { replace: true });
+    }
+  }, [navigate]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
