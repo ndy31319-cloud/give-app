@@ -175,7 +175,7 @@ function LockerScreen() {
 
     setStatus({
       ...initialStatus,
-      message: '카메라가 켜졌습니다. 앱에서 발급된 보관함 QR을 비춰주세요.',
+      message: '전면 카메라가 켜졌습니다. 앱에서 발급된 보관함 QR을 비춰주세요.',
     });
 
     try {
@@ -185,7 +185,7 @@ function LockerScreen() {
       setScanning(true);
 
       await scanner.start(
-        { facingMode: 'environment' },
+        { facingMode: 'user' },
         {
           fps: 10,
           qrbox: { width: 360, height: 360 },
