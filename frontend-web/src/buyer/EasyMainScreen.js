@@ -129,7 +129,7 @@ function EasyMainScreen() {
           </div>
           <button
             type="button"
-            onClick={() => navigate('/easy-wanted')}
+            onClick={() => navigate('/code-login?mode=wanted-access&easy=1')}
             className="easy-header-secondary-button bg-[#f3fbf6] text-[#177245] px-10 py-5 rounded-[28px] text-[34px] font-bold border-4 border-white active:bg-white"
           >
             요청하기

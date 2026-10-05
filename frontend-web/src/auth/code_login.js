@@ -21,7 +21,7 @@ function CodeLogin() {
     : isDonationIntent
       ? (isEasyMode ? '/easy-wanted' : '/wanted')
       : isWantedAccess
-        ? '/buyer-main'
+        ? (isEasyMode ? '/easy-main' : '/buyer-main')
         : isEasyMode
           ? '/easy-main'
           : '/buyer-main';
