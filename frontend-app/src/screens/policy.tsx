@@ -382,7 +382,7 @@ export function PolicyScreen() {
             ) : <>
             <View style={styles.chatToolbar}>
               <Text style={styles.chatStartTitle}>나눔이</Text>
-              <AppButton label="종료하기" variant="ghost" loading={chatResetting} disabled={chatPending} onPress={() => void resetChat(false)} />
+              <AppButton label="종료하기" variant="secondary" style={styles.chatExitButton} loading={chatResetting} disabled={chatPending} onPress={() => void resetChat(false)} />
             </View>
             {chatPending && <Text style={styles.chatStartDescription}>답변이 끝나면 대화를 종료할 수 있어요.</Text>}
             <ScrollView
@@ -596,7 +596,15 @@ const styles = StyleSheet.create({
   chatStartTitle: { fontSize: 18, lineHeight: 28, paddingVertical: 2, fontWeight: '700', color: colors.text },
   chatStartDescription: { fontSize: 14, lineHeight: 24, paddingVertical: 2, color: colors.textMuted },
   chatStartCentered: { textAlign: 'center', alignSelf: 'stretch', flexShrink: 0 },
-  chatToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  chatToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12 },
+  chatExitButton: {
+    minWidth: 116,
+    minHeight: 44,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
   chatScroll: {
     flex: 1,
   },

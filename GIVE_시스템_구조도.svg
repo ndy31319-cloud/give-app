@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">GIVE 시스템 구조도</title>
+  <desc id="desc">React Native 앱과 React 웹 키오스크가 Node.js Express 백엔드에 연결되고, 백엔드는 MySQL, Firebase Firestore, AI 서버와 연동합니다. 기부함 하드웨어는 연동 예정입니다.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-soft" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      text { font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif; fill: #17212b; }
+      .title { font-size: 30px; font-weight: 750; }
+      .subtitle { font-size: 15px; fill: #64748b; }
+      .section { font-size: 14px; font-weight: 700; fill: #64748b; letter-spacing: 1px; }
+      .name { font-size: 19px; font-weight: 750; }
+      .stack { font-size: 15px; font-weight: 650; }
+      .body { font-size: 13px; fill: #536273; }
+      .small { font-size: 12px; fill: #64748b; }
+      .tag { font-size: 11px; font-weight: 700; }
+      .node { fill: #ffffff; stroke: #d9e1e8; stroke-width: 1.5; }
+      .solid { fill: none; stroke: #475569; stroke-width: 2.2; marker-end: url(#arrow); }
+      .dashed { fill: none; stroke: #94a3b8; stroke-width: 2.2; stroke-dasharray: 8 7; marker-end: url(#arrow-soft); }
+    </style>
+  </defs>
+
+  <rect width="1440" height="900" fill="#f7f9fb"/>
+  <text x="64" y="66" class="title">GIVE 시스템 구조도</text>
+  <text x="64" y="94" class="subtitle">앱·웹 키오스크에서 공통 API를 사용하고, 데이터와 AI 기능은 백엔드가 연결합니다.</text>
+
+  <!-- Connectors are behind the nodes. -->
+  <path d="M350 238 H470" class="solid"/>
+  <path d="M350 397 H410 V270 H470" class="solid"/>
+  <path d="M790 238 H875 V190 H955" class="solid"/>
+  <path d="M790 254 H900 V347 H955" class="solid"/>
+  <path d="M630 310 V478" class="solid"/>
+  <path d="M790 290 H835 V721 H790" class="solid"/>
+  <path d="M790 721 H900 V543 H955" class="dashed"/>
+
+  <text x="389" y="222" class="small">HTTPS API</text>
+  <text x="380" y="385" class="small">HTTPS API</text>
+  <text x="816" y="175" class="small">핵심 데이터</text>
+  <text x="815" y="332" class="small">채팅 데이터</text>
+  <text x="645" y="397" class="small">AI 요청</text>
+  <text x="813" y="707" class="small">QR API</text>
+
+  <text x="64" y="145" class="section">FRONTEND</text>
+  <rect x="64" y="162" width="286" height="152" rx="8" class="node"/>
+  <rect x="64" y="162" width="7" height="152" rx="3" fill="#21a179"/>
+  <rect x="88" y="184" width="42" height="42" rx="10" fill="#e5f5ef"/>
+  <text x="109" y="211" text-anchor="middle" font-size="20" font-weight="800" fill="#16845f">W</text>
+  <text x="145" y="202" class="name">웹 키오스크</text>
+  <text x="145" y="226" class="stack">React.js</text>
+  <text x="88" y="267" class="body">물품 탐색 · 쉬운 모드 · QR 스캔</text>
+  <text x="88" y="290" class="small">frontend-web</text>
+
+  <rect x="64" y="321" width="286" height="152" rx="8" class="node"/>
+  <rect x="64" y="321" width="7" height="152" rx="3" fill="#3585d6"/>
+  <rect x="88" y="343" width="42" height="42" rx="10" fill="#e9f2fc"/>
+  <text x="109" y="371" text-anchor="middle" font-size="20" font-weight="800" fill="#2874bd">A</text>
+  <text x="145" y="361" class="name">모바일 앱</text>
+  <text x="145" y="385" class="stack">React Native · Expo</text>
+  <text x="88" y="426" class="body">나눔 · 거래 · 채팅 · 동적 QR</text>
+  <text x="88" y="449" class="small">frontend-app</text>
+
+  <text x="470" y="145" class="section">API SERVER</text>
+  <rect x="470" y="162" width="320" height="148" rx="8" fill="#182b36"/>
+  <rect x="494" y="184" width="42" height="42" rx="10" fill="#29434f"/>
+  <path d="M515 192 L526 198 V212 L515 218 L504 212 V198 Z" fill="none" stroke="#71d7b1" stroke-width="2.5"/>
+  <text x="550" y="202" class="name" fill="#ffffff">공통 백엔드</text>
+  <text x="550" y="228" class="stack" fill="#d5e3e9">Node.js + Express</text>
+  <line x1="494" y1="247" x2="765" y2="247" stroke="#38515c"/>
+  <text x="494" y="274" class="body" fill="#d5e3e9">인증 · 게시글 · 거래 · QR 검증 · 알림</text>
+  <text x="494" y="295" class="small" fill="#a9bdc5">backend</text>
+
+  <text x="955" y="145" class="section">DATA</text>
+  <rect x="955" y="162" width="405" height="126" rx="8" class="node"/>
+  <rect x="979" y="184" width="42" height="42" rx="10" fill="#fff2d6"/>
+  <ellipse cx="1000" cy="195" rx="12" ry="5" fill="#e6a62e"/>
+  <path d="M988 195 V212 C988 219 1012 219 1012 212 V195" fill="#f2bd56" stroke="#d28e16" stroke-width="1.5"/>
+  <ellipse cx="1000" cy="212" rx="12" ry="5" fill="#f2bd56" stroke="#d28e16" stroke-width="1.5"/>
+  <text x="1040" y="200" class="name">MySQL</text>
+  <text x="1040" y="224" class="body">회원 · 게시글 · 거래 · 인증서 · 알림</text>
+  <text x="1040" y="254" class="small">주요 서비스 데이터</text>
+
+  <rect x="955" y="307" width="405" height="126" rx="8" class="node"/>
+  <rect x="979" y="329" width="42" height="42" rx="10" fill="#e3f5f2"/>
+  <circle cx="1000" cy="350" r="13" fill="none" stroke="#159b8b" stroke-width="2"/>
+  <circle cx="1000" cy="350" r="5" fill="#159b8b"/>
+  <text x="1040" y="345" class="name">Firebase Firestore</text>
+  <text x="1040" y="369" class="body">실시간 채팅방 · 메시지</text>
+  <text x="1040" y="399" class="small">MySQL 거래 정보와 역할 분리</text>
+
+  <text x="470" y="454" class="section">AI SERVICE</text>
+  <rect x="470" y="478" width="320" height="126" rx="8" class="node"/>
+  <rect x="494" y="500" width="42" height="42" rx="10" fill="#fce9e4"/>
+  <text x="515" y="528" text-anchor="middle" font-size="18" font-weight="800" fill="#c45c3d">AI</text>
+  <text x="550" y="518" class="name">AI 서버</text>
+  <text x="550" y="542" class="stack">Python + FastAPI</text>
+  <text x="494" y="575" class="body">이미지 분석 · 글 생성 · 정책 챗봇</text>
+  <text x="494" y="594" class="small">ai-server</text>
+
+  <text x="955" y="480" class="section">DEVICE · PLANNED</text>
+  <rect x="955" y="497" width="405" height="93" rx="8" fill="#fbfcfd" stroke="#aab8c5" stroke-width="1.5" stroke-dasharray="7 6"/>
+  <rect x="979" y="520" width="42" height="42" rx="10" fill="#eef2f5"/>
+  <rect x="991" y="530" width="18" height="20" rx="3" fill="none" stroke="#617383" stroke-width="2"/>
+  <circle cx="1000" cy="540" r="3" fill="#617383"/>
+  <text x="1040" y="533" class="name">라즈베리파이 · 기부함</text>
+  <text x="1040" y="557" class="body">QR 리더 · 도어락 · 센서 / LED</text>
+  <text x="1040" y="578" class="small">실물 장치 연동은 예정 단계</text>
+
+  <rect x="955" y="614" width="405" height="93" rx="8" fill="#ffffff" stroke="#d9e1e8" stroke-width="1.5"/>
+  <rect x="979" y="637" width="42" height="42" rx="10" fill="#eaf0f8"/>
+  <path d="M991 642 H1009 V660 H991 Z M995 646 H1005 V656 H995 Z M994 663 H1006" fill="none" stroke="#53749b" stroke-width="2"/>
+  <text x="1040" y="650" class="name">이미지 저장소</text>
+  <text x="1040" y="674" class="body">Firebase Storage / Cloudinary</text>
+  <text x="1040" y="695" class="small">게시글 · 채팅 사진</text>
+
+  <text x="64" y="656" class="section">QR FLOW</text>
+  <rect x="64" y="674" width="286" height="94" rx="8" fill="#ffffff" stroke="#d9e1e8" stroke-width="1.5"/>
+  <text x="88" y="710" class="stack">앱에서 QR 표시 · 스캔</text>
+  <text x="88" y="738" class="body">동적 QR은 백엔드에 발급 요청</text>
+  <rect x="470" y="674" width="320" height="94" rx="8" fill="#ffffff" stroke="#d9e1e8" stroke-width="1.5"/>
+  <text x="494" y="710" class="stack">QR 검증 API</text>
+  <text x="494" y="738" class="body">앱·키오스크 QR 인증 흐름</text>
+  <path d="M790 721 H900 V543 H955" class="dashed"/>
+  <text x="814" y="707" class="small">물리 장치 연결은 예정</text>
+
+  <line x1="64" y1="815" x2="1376" y2="815" stroke="#e1e7ec"/>
+  <path d="M74 846 H126" class="solid"/>
+  <text x="140" y="851" class="small">현재 코드의 API·데이터 연결</text>
+  <path d="M390 846 H442" class="dashed"/>
+  <text x="456" y="851" class="small">하드웨어 실연동 예정</text>
+  <text x="1376" y="851" text-anchor="end" class="small">GIVE · 시스템 구성</text>
+</svg>

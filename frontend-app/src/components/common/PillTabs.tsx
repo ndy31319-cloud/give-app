@@ -1,4 +1,4 @@
-import { ScrollView, Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius } from '@/src/theme/colors';
 
@@ -10,11 +10,7 @@ interface PillTabsProps {
 
 export function PillTabs({ tabs, value, onChange }: PillTabsProps) {
   return (
-    <ScrollView
-      horizontal
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      showsHorizontalScrollIndicator={false}>
+    <View style={styles.content}>
       {tabs.map((tab) => {
         const active = tab.id === value;
 
@@ -27,29 +23,28 @@ export function PillTabs({ tabs, value, onChange }: PillTabsProps) {
           </Pressable>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flexGrow: 0,
-    backgroundColor: colors.surface,
-  },
   content: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: colors.surface,
   },
   pill: {
+    flex: 1,
+    minWidth: 0,
     minHeight: 48,
-    borderRadius: radius.pill,
-    paddingHorizontal: 15,
+    borderRadius: radius.lg,
+    paddingHorizontal: 8,
     paddingVertical: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-start',
   },
   pillActive: {
     backgroundColor: colors.brandSoft,
