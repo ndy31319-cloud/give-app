@@ -45,7 +45,15 @@ import { getPostStatusLabel, isOpenPostStatus } from "@/src/utils/post";
 import { formatTimeAgo } from "@/src/utils/time";
 import { validateRequired } from "@/src/utils/validation";
 
-type HomeStatusFilter = "active" | "includeCompleted";
+type HomeStatusFilter = "active" | "kiosk" | "completed";
+
+const activePostStatuses = new Set([
+  "open",
+  "reserved",
+  "storage_requested",
+  "stored",
+  "pickup_pending",
+]);
 
 const MAX_POST_IMAGES = 5;
 
@@ -491,6 +499,7 @@ async function pickImage(source: "camera" | "gallery") {
 export function HomeScreen() {
   const { user, posts } = useAppContext();
   const [statusFilter, setStatusFilter] = useState<HomeStatusFilter>("active");
+  const isGeneralMember = user?.roleCode === "USER";
   const allowedHomePostType = user
     ? isBeneficiaryUser(user)
       ? "share"
@@ -498,15 +507,23 @@ export function HomeScreen() {
     : "all";
   const homeFeed = useMemo(() => {
     const visiblePosts = posts.filter((post) => {
+      const isKioskRequest = post.type === "need" && post.createdFrom === "web";
       const isMyPost = user
         ? String(post.author.id) === String(user.id)
         : false;
-      if (isMyPost) return statusFilter === "active";
-      if (statusFilter === "active" && !isOpenPostStatus(post.status))
-        return false;
+      if (statusFilter === "kiosk") {
+        return isGeneralMember && isKioskRequest && activePostStatuses.has(post.status);
+      }
+      if (statusFilter === "completed") {
+        if (post.status !== "completed") return false;
+      } else {
+        if (!activePostStatuses.has(post.status) || (isGeneralMember && isKioskRequest)) return false;
+      }
+      if (isMyPost) return true;
       if (allowedHomePostType !== "all" && post.type !== allowedHomePostType)
         return false;
       if (!user) return true;
+      if (isGeneralMember && isKioskRequest) return true;
       return (
         filterPostsByRadius([post], user.location, user.location.radiusKm)
           .length > 0
@@ -517,7 +534,7 @@ export function HomeScreen() {
       location: user?.location ?? null,
       posts: visiblePosts,
     };
-  }, [allowedHomePostType, posts, statusFilter, user]);
+  }, [allowedHomePostType, isGeneralMember, posts, statusFilter, user]);
 
   return (
     <AppScreen>
@@ -565,8 +582,9 @@ export function HomeScreen() {
         >
           <View style={styles.feedFilterBar}>
             {[
-              { value: "active", label: "거래중만 보기" },
-              { value: "includeCompleted", label: "완료된 글도 보기" },
+              { value: "active", label: "거래중" },
+              ...(isGeneralMember ? [{ value: "kiosk", label: "키오스크" }] : []),
+              { value: "completed", label: "완료" },
             ].map((item) => {
               const active = statusFilter === item.value;
               return (
@@ -633,14 +651,49 @@ export function HomeScreen() {
 
 export function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { posts, removePost, startChatWithPost, user } = useAppContext();
+  const { posts, removePost, startChatWithPost, user, authToken } = useAppContext();
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSendingOffer, setIsSendingOffer] = useState(false);
+  const [offeredRequestIds, setOfferedRequestIds] = useState<string[]>([]);
   const post = posts.find((item) => item.id === id);
   const isMyPost = Boolean(
     user && post && String(post.author.id) === String(user.id),
   );
+  const isKioskRequest = Boolean(
+    user &&
+    user.roleCode === "USER" &&
+    post?.type === "need" &&
+    post.createdFrom === "web" &&
+    !isMyPost,
+  );
+  const offerSent = Boolean(post && offeredRequestIds.includes(post.recordId));
   const statusLabel = post ? getPostStatusLabel(post.status) : "";
+
+  async function handleSendKioskOffer() {
+    if (!post || isSendingOffer || offerSent || post.status !== "open") return;
+
+    const send = async () => {
+      setIsSendingOffer(true);
+      const result = await postAPI.sendKioskDonationOffer(post.recordId, authToken ?? undefined);
+      setIsSendingOffer(false);
+      if (result.error) {
+        Alert.alert("나눔 의사 전달 실패", result.error);
+        return;
+      }
+      setOfferedRequestIds((current) => [...current, post.recordId]);
+      Alert.alert("나눔 의사 전달 완료", "요청자에게 알림을 보냈어요. 3일 후 방문해 확인해주세요.");
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("이 요청에 나눔 의사를 보내시겠어요?")) await send();
+      return;
+    }
+    Alert.alert("나눔 의사 보내기", "이 요청에 나눔 의사를 보내시겠어요?", [
+      { text: "취소", style: "cancel" },
+      { text: "보내기", onPress: () => void send() },
+    ]);
+  }
 
   async function handleStartChat() {
     if (!post || isStartingChat) {
@@ -810,7 +863,7 @@ export function PostDetailScreen() {
               {formatTimeAgo(post.createdAt)}
             </Text>
           </View>
-          {user ? (
+          {user && !isKioskRequest ? (
             <View style={styles.metaLine}>
               <Ionicons name="walk-outline" size={18} color={colors.brand} />
               <Text style={styles.metaLineText}>
@@ -838,6 +891,16 @@ export function PostDetailScreen() {
             loading={isDeleting}
             disabled={isDeleting}
             onPress={handleDeletePost}
+            style={{ flex: 1 }}
+          />
+        </View>
+      ) : isKioskRequest ? (
+        <View style={styles.bottomActions}>
+          <AppButton
+            label={isSendingOffer ? "전달 중" : offerSent ? "전달 완료" : post.status === "open" ? "나눔 의사 보내기" : "요청 마감"}
+            loading={isSendingOffer}
+            disabled={isSendingOffer || offerSent || post.status !== "open"}
+            onPress={() => void handleSendKioskOffer()}
             style={{ flex: 1 }}
           />
         </View>

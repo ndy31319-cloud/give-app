@@ -1,24 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createWantedDonationOffer, fetchWantedPosts, hasAuthToken } from '../api/client';
-import useAuthStore from '../store/useAuthStore';
-import { getPostId, getSentDonationRequestIds, isRequestOpen, saveDonationInterest } from './postListUtils';
-
-const DONATION_OFFER_GUIDE = '나눔 의사를 전달했습니다. 요청자 앱에 알림이 전송됩니다.\n\n3일 후에 방문해 확인해주세요. 그때 물품이 없으면 사정으로 인해 나눔이 어려운 것으로 이해해주세요.';
-
-function isGeneralMember(user) {
-  const roleId = Number(user?.roleId || user?.role_id);
-  const roleText = String(user?.role || user?.roleName || user?.role_name || '').toUpperCase();
-
-  return roleId === 1 || roleText === 'USER' || roleText.includes('GENERAL');
-}
+import { fetchWantedPosts } from '../api/client';
+import { isRequestOpen } from './postListUtils';
 
 function WantedList() {
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
   const [wantedItems, setWantedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [sentRequestIds, setSentRequestIds] = useState(() => getSentDonationRequestIds());
 
   useEffect(() => {
     let ignore = false;
@@ -50,35 +38,6 @@ function WantedList() {
     };
   }, [navigate]);
 
-  const handleDonateClick = async (item) => {
-    if (!isRequestOpen(item)) {
-      return;
-    }
-
-    if (!hasAuthToken() || !isGeneralMember(user)) {
-      navigate('/login-buyer?redirect=/wanted');
-      return;
-    }
-
-    if (window.confirm('이 요청에 나눔을 시작하시겠습니까?')) {
-      const requestId = getPostId(item);
-      try {
-        await createWantedDonationOffer(requestId);
-        alert(DONATION_OFFER_GUIDE);
-      } catch (error) {
-        alert(error.message);
-        return;
-      }
-
-      if (requestId) {
-        saveDonationInterest(item);
-        setSentRequestIds((currentIds) => new Set([...currentIds, String(requestId)]));
-      }
-    }
-  };
-
-  const visibleWantedItems = wantedItems.filter((item) => !sentRequestIds.has(String(getPostId(item))));
-
   return (
     <div
       className="p-8 bg-[#f7f7f4] min-h-screen"
@@ -100,11 +59,18 @@ function WantedList() {
         >
           물품 요청하기
         </button>
+        <button
+          type="button"
+          onClick={() => navigate('/code-login?mode=offer-notices')}
+          className="bg-white text-[#2f7d4f] border-2 border-[#2f7d4f] px-8 py-4 rounded-[20px] text-[20px] font-bold"
+        >
+          내 요청 알림 확인
+        </button>
       </div>
 
       <div className="bg-blue-50 p-6 rounded-[24px] mb-10 flex items-center gap-4 border border-blue-100">
         <p className="text-blue-700 text-[18px] font-medium">
-          필요한 물품을 요청하면 나눔 가능한 사람이 확인할 수 있어요.
+          필요한 물품을 요청하면 앱을 사용하는 이웃이 확인할 수 있어요.
         </p>
       </div>
 
@@ -112,13 +78,13 @@ function WantedList() {
         <div className="flex flex-col items-center justify-center py-20 opacity-50">
           <p className="text-[20px] font-bold text-[#333]">게시글을 불러오는 중입니다...</p>
         </div>
-      ) : visibleWantedItems.length === 0 ? (
+      ) : wantedItems.length === 0 ? (
         <div className="bg-white rounded-[32px] p-16 text-center border border-gray-100">
           <p className="text-[28px] font-bold text-gray-500">등록된 요청 게시글이 없습니다.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {visibleWantedItems.map((item) => (
+          {wantedItems.map((item) => (
             <div key={item.id} className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100 transition-all active:scale-[0.98]">
               <div className="flex justify-between items-start mb-4">
                 <span className="bg-green-100 text-green-600 px-4 py-1 rounded-full font-bold text-[14px]">
@@ -127,24 +93,10 @@ function WantedList() {
               </div>
 
               <h3 className="text-[26px] font-bold text-[#333] mb-2">{item.title}</h3>
-              <p className="text-gray-500 text-[18px] mb-6 leading-relaxed">
+              <p className="text-gray-500 text-[18px] leading-relaxed">
                 {item.content || item.description}
               </p>
 
-              <div className="flex justify-end border-t pt-6">
-                <button
-                  type="button"
-                  disabled={!isRequestOpen(item)}
-                  onClick={() => handleDonateClick(item)}
-                  className={`font-bold text-[18px] border-2 px-6 py-2 rounded-xl transition-all ${
-                    isRequestOpen(item)
-                      ? 'text-[#2f7d4f] border-[#2f7d4f] active:bg-blue-50'
-                      : 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed'
-                  }`}
-                >
-                  {isRequestOpen(item) ? '나눔해주기' : '나눔 완료'}
-                </button>
-              </div>
             </div>
           ))}
         </div>

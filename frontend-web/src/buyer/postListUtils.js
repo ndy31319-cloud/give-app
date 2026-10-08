@@ -10,7 +10,6 @@ const UNAVAILABLE_DONATE_STATUSES = new Set([
   'picked up',
   'pickup completed',
 ]);
-const DONATION_INTEREST_STORAGE_PREFIX = 'givegive_donation_interest_request_ids';
 
 const CATEGORY_ALIASES = {
   clothing: [
@@ -144,38 +143,6 @@ export function isDonatePost(item) {
 export function isRequestOpen(item) {
   const status = simplify(item?.status || item?.postStatus || item?.post_status);
   return status === 'open';
-}
-
-function getDonationInterestStorageKey() {
-  try {
-    const user = JSON.parse(localStorage.getItem('givegive_user') || 'null');
-    const userId = user?.memberId || user?.member_id || user?.id || user?.email || 'unknown';
-    return `${DONATION_INTEREST_STORAGE_PREFIX}:${userId}`;
-  } catch {
-    return `${DONATION_INTEREST_STORAGE_PREFIX}:unknown`;
-  }
-}
-
-export function getSentDonationRequestIds() {
-  try {
-    const savedIds = JSON.parse(localStorage.getItem(getDonationInterestStorageKey()) || '[]');
-    return new Set(Array.isArray(savedIds) ? savedIds.map(String) : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function saveDonationInterest(item) {
-  const requestId = getPostId(item);
-
-  if (requestId === undefined || requestId === null) {
-    return null;
-  }
-
-  const sentIds = getSentDonationRequestIds();
-  sentIds.add(String(requestId));
-  localStorage.setItem(getDonationInterestStorageKey(), JSON.stringify([...sentIds]));
-  return String(requestId);
 }
 
 export function normalizeCategory(category) {

@@ -2143,6 +2143,17 @@ export const postAPI = {
     return pingBackend();
   },
 
+  async sendKioskDonationOffer(requestId: string | number, authToken?: string) {
+    if (!authToken || !backendConfig.baseUrl || backendConfig.useMockOnly) {
+      return { error: "로그인 및 서버 연결이 필요합니다." };
+    }
+    const response = await requestEnvelope<{ requestId: number }>(
+      `/api/wanted/${encodeURIComponent(String(requestId))}/donation-offer`,
+      { method: "POST", headers: buildAuthHeaders(authToken) },
+    );
+    return { error: response.error };
+  },
+
   async createPost(
     payload: CreatePostInput,
     context?: { authToken?: string | null; user?: User | null },

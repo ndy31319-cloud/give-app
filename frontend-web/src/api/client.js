@@ -66,13 +66,6 @@ function buildKioskHeaders() {
     : {};
 }
 
-export async function loginMember({ email, password }) {
-  return request('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, member_pw: password }),
-  });
-}
-
 export async function loginWithMemberCode({ code, postId }) {
   const certificateNumber = normalizeCertificateCode(code);
   const digits = certificateNumber.replace(/\D/g, '');
@@ -195,6 +188,14 @@ export async function fetchCurrentMember() {
   return request('/api/members/me');
 }
 
+export async function fetchDonationOfferNotices() {
+  const result = await request('/api/notifications');
+  const notices = Array.isArray(result.data) ? result.data : [];
+  return notices.filter((notice) =>
+    (notice.notificationTypeCode || notice.notification_type || notice.type) === 'wanted_donation_offer'
+  );
+}
+
 export async function fetchMyPosts() {
   return request('/api/members/me/posts');
 }
@@ -232,12 +233,6 @@ export async function createWantedPost({
       longitude,
       createdFrom: 'web',
     }),
-  });
-}
-
-export async function createWantedDonationOffer(requestId) {
-  return request(`/api/wanted/${encodeURIComponent(requestId)}/donation-offer`, {
-    method: 'POST',
   });
 }
 

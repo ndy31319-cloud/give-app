@@ -4,6 +4,7 @@ const authenticateToken = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
+const ROLE_GENERAL = 1;
 const ROLE_VULNERABLE = 3;
 const DEFAULT_PRODUCT_ID = 51;
 const DEFAULT_ITEM_CONDITION = "상태 무관";
@@ -154,9 +155,9 @@ router.post("/:id/donation-offer", authenticateToken, async (req, res) => {
       });
     }
 
-    if (roleId === ROLE_VULNERABLE) {
+    if (roleId !== ROLE_GENERAL) {
       return res.status(403).json({
-        message: "나눔해주기는 일반 사용자만 이용할 수 있습니다.",
+        message: "나눔 의사 보내기는 일반회원만 이용할 수 있습니다.",
       });
     }
 

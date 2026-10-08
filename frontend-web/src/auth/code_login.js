@@ -17,11 +17,12 @@ function CodeLogin() {
   const isDonationIntent = mode === 'donation-intent';
   const isWantedAccess = mode === 'wanted-access';
   const isWantedWrite = mode === 'wanted-write';
+  const isOfferNotices = mode === 'offer-notices';
   const detailPath = isLockerPickup
     ? '/locker'
     : isDonationIntent
       ? (isEasyMode ? '/easy-wanted' : '/wanted')
-      : isWantedAccess || isWantedWrite
+      : isWantedAccess || isWantedWrite || isOfferNotices
         ? (isEasyMode ? '/easy-wanted' : '/wanted')
         : isEasyMode
           ? '/easy-main'
@@ -70,6 +71,8 @@ function CodeLogin() {
   const getNextPath = () => (
     isLockerPickup
       ? '/locker/pickup'
+      : isOfferNotices
+        ? '/offer-notices'
       : isWantedWrite
         ? (isEasyMode ? '/easy-write-wanted' : '/write-wanted')
       : isDonationIntent || isWantedAccess
@@ -114,7 +117,10 @@ function CodeLogin() {
       }
 
       login('buyer', member.email || member.nickname || 'buyer', token, member);
-      navigate(getNextPath(), { replace: true });
+      navigate(getNextPath(), {
+        replace: true,
+        state: isOfferNotices ? { verifiedAt: Date.now(), easy: isEasyMode } : undefined,
+      });
     } catch (error) {
       if (isLockerPickup && /^WF-\d{4}-\d{4}$/.test(certificateCode)) {
         continueWithKioskCertificate(certificateCode);

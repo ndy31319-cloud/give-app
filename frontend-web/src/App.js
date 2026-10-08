@@ -1,13 +1,13 @@
 import React from 'react';
-import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
 import CodeLogin from './auth/code_login';
-import LoginBuyer from './auth/login_buyer';
 import AppointmentRequest from './buyer/AppointmentRequest';
 import BuyerSelect from './buyer/BuyerSelect';
 import BuyerEdit from './buyer/buyer_edit';
 import EasyMainScreen from './buyer/EasyMainScreen';
 import EasyWantedList from './buyer/EasyWantedList';
+import OfferNotices from './buyer/OfferNotices';
 import EasyWriteWanted from './buyer/EasyWriteWanted';
 import History from './buyer/history';
 import MypageBuyer from './buyer/mypage_buyer';
@@ -115,13 +115,14 @@ function App() {
         <Route path="/seller-input" element={<SellerInput />} />
 
         <Route path="/buyer-select" element={<BuyerSelect />} />
-        <Route path="/login-buyer" element={<LoginBuyer />} />
+        <Route path="/login-buyer" element={<Navigate to="/" replace />} />
         <Route path="/buyer-main" element={<MainScreen />} />
         <Route path="/posts/:postId" element={<PostDetail />} />
         <Route path="/code-login" element={<CodeLogin />} />
         <Route path="/appointment-request" element={<AppointmentRequest />} />
         <Route path="/easy-main" element={<EasyMainScreen />} />
         <Route path="/easy-wanted" element={<EasyWantedList />} />
+        <Route path="/offer-notices" element={<OfferNotices />} />
         <Route path="/easy-write-wanted" element={<EasyWriteWanted />} />
         <Route path="/mypage-buyer" element={<MypageBuyer />} />
         <Route path="/wanted" element={<WantedList />} />
