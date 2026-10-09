@@ -54,7 +54,10 @@ async function request(path, options = {}) {
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new Error(data?.message || data?.error || 'API 요청에 실패했습니다.');
+    const error = new Error(data?.message || data?.error || 'API 요청에 실패했습니다.');
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   return data;
