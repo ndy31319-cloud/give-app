@@ -53,19 +53,21 @@ function WantedList() {
           <h1 className="text-[36px] font-bold text-[#333]">나눔 요청 게시판</h1>
         </div>
 
-        <button
-          onClick={() => navigate('/code-login?mode=wanted-write')}
-          className="bg-[#2f7d4f] text-white px-8 py-4 rounded-[20px] flex items-center gap-3 text-[20px] font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all hover:bg-blue-700"
-        >
-          물품 요청하기
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/code-login?mode=offer-notices')}
-          className="bg-white text-[#2f7d4f] border-2 border-[#2f7d4f] px-8 py-4 rounded-[20px] text-[20px] font-bold"
-        >
-          내 요청 알림 확인
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/code-login?mode=wanted-write')}
+            className="bg-[#2f7d4f] text-white px-8 py-4 rounded-[20px] flex items-center gap-3 text-[20px] font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all hover:bg-blue-700"
+          >
+            물품 요청하기
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/code-login?mode=offer-notices')}
+            className="bg-white text-[#2f7d4f] border-2 border-[#2f7d4f] px-8 py-4 rounded-[20px] text-[20px] font-bold"
+          >
+            내 요청 알림 확인
+          </button>
+        </div>
       </div>
 
       <div className="bg-blue-50 p-6 rounded-[24px] mb-10 flex items-center gap-4 border border-blue-100">
