@@ -8,3 +8,5 @@ backend/serviceAccountKey.json
 .idea/deviceStreaming.xml
 backend/uploads/*
 !backend/uploads/upload.js
+outputs/**/static-member-qr/
+outputs/**/GIVE_회원QR_20명_테스트.zip

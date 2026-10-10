@@ -178,6 +178,7 @@ export function MyPageScreen() {
 
       <View style={styles.menuCard}>
         <MenuRow icon="location-outline" label="내 동네 설정" onPress={() => router.push('/my-location')} />
+        <MenuRow icon="qr-code-outline" label="내 회원 QR" onPress={() => router.push('/qr')} />
         <MenuRow icon="hardware-chip-outline" label="기부함 디바이스 시뮬레이터" onPress={() => router.push('/device')} />
         <MenuRow icon="heart-outline" label="신청·나눔 내역" onPress={() => router.push('/my-shares')} />
         <MenuRow icon="bar-chart-outline" label="나눔통계" onPress={() => router.push('/my-stats')} />

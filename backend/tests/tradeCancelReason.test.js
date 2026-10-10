@@ -15,6 +15,7 @@ function fixture() {
   let offline = false;
   const query = async (sql, args = []) => {
     if (sql.startsWith('SELECT * FROM ITEM_DONATE')) return [[{donate_id: 2, member_id: 10, status: row.post_status}]];
+    if (sql.startsWith('SELECT transfer_id, status FROM LOCKER_TRANSFER')) return [[]];
     if (sql.startsWith('SELECT p.') || sql.startsWith('SELECT * FROM PICKUP_REQUEST')) return [[{...row}]];
     if (sql.startsWith('SELECT member_id')) return [[{member_id:10}, {member_id:20}]];
     if (sql.startsWith('UPDATE PICKUP_REQUEST SET request_status')) {

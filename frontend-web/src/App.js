@@ -19,6 +19,7 @@ import WriteWanted from './buyer/write_wanted';
 import LockerMenu from './locker/LockerMenu';
 import LockerPickup from './locker/LockerPickup';
 import LockerScreen from './locker/LockerScreen';
+import MemberQrTest from './locker/MemberQrTest';
 import MainScreen from './Mainscreen';
 import SellerInput from './seller/input';
 import SellerHome from './seller/seller_home';
@@ -109,6 +110,7 @@ function App() {
         <Route path="/locker" element={<LockerMenu />} />
         <Route path="/locker/store" element={<LockerScreen />} />
         <Route path="/locker/pickup" element={<LockerPickup />} />
+        <Route path="/member-qr-test" element={<MemberQrTest />} />
 
         <Route path="/seller-home" element={<SellerHome />} />
         <Route path="/mypage-seller" element={<MypageSeller />} />

@@ -57,6 +57,7 @@ async function request(path, options = {}) {
     const error = new Error(data?.message || data?.error || 'API 요청에 실패했습니다.');
     error.status = response.status;
     error.data = data;
+    error.errorCode = data?.errorCode;
     throw error;
   }
 
@@ -241,6 +242,14 @@ export async function createWantedPost({
 
 export async function validateLockerQr(token) {
   return request('/api/device/qr/storage/validate', {
+    method: 'POST',
+    headers: buildKioskHeaders(),
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function validateMemberQr(token) {
+  return request('/api/member-qr/validate', {
     method: 'POST',
     headers: buildKioskHeaders(),
     body: JSON.stringify({ token }),

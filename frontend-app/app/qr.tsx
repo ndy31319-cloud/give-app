@@ -1,3 +1,3 @@
-import { DynamicQrScreen } from '@/src/screens/device';
+import { MemberQrScreen } from '@/src/screens/memberQr';
 
-export default DynamicQrScreen;
+export default MemberQrScreen;

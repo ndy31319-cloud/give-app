@@ -6,6 +6,7 @@ const authenticateToken = require("../middlewares/authMiddleware");
 const upload = require("../uploads/upload");
 const { buildUploadUrl } = require("../lib/uploadUrl");
 const { verifyCertificate } = require("../services/certification");
+const { ensureMemberQr } = require("../services/memberQr");
 
 const router = express.Router();
 router.get('/:id/reputation', authenticateToken, async (req, res) => {
@@ -264,6 +265,7 @@ router.post("/signup", async (req, res) => {
        VALUES (${insertFields.map(() => "?").join(", ")})`,
       insertValues,
     );
+    await ensureMemberQr(connection, result.insertId);
 
     if (certificate) {
       await connection.query(

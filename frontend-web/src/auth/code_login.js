@@ -82,19 +82,6 @@ function CodeLogin() {
         : '/appointment-request'
   );
 
-  const continueWithKioskCertificate = (certificateCode) => {
-    const member = {
-      email: `kiosk-${certificateCode.toLowerCase()}@local`,
-      nickname: certificateCode,
-      certificate_no: certificateCode,
-      role: 'buyer',
-      login_type: 'certificate_code',
-    };
-
-    login('buyer', member.email, null, member);
-    navigate(getNextPath(), { replace: true });
-  };
-
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -111,7 +98,7 @@ function CodeLogin() {
       const token = getAuthTokenFromLoginResult(result);
       const member = result.member || result.user || result.data?.user || result.data || {};
 
-      if (!token && !isLockerPickup) {
+      if (!token) {
         alert('회원코드 인증은 되었지만 로그인 토큰을 받지 못했습니다. 다시 시도해주세요.');
         return;
       }
@@ -122,11 +109,6 @@ function CodeLogin() {
         state: isOfferNotices ? { verifiedAt: Date.now(), easy: isEasyMode } : undefined,
       });
     } catch (error) {
-      if (isLockerPickup && /^WF-\d{4}-\d{4}$/.test(certificateCode)) {
-        continueWithKioskCertificate(certificateCode);
-        return;
-      }
-
       alert(error.message);
     } finally {
       setIsLoading(false);

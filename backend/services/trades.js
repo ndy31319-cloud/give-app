@@ -128,8 +128,23 @@ async function act(id, action, memberId, input = {}) {
     }
     const target = nextStatus(row, action, memberId);
     if (row.request_status === target) return;
+    const [[lockerTransfer]] = await connection.query(
+      'SELECT transfer_id, status FROM LOCKER_TRANSFER WHERE pickup_id = ? FOR UPDATE', [id],
+    );
+    if (lockerTransfer?.status === 'stored') {
+      fail(409, '물품이 보관함에 있어 거래 상태를 변경할 수 없습니다. 수령 후 자동으로 완료됩니다.');
+    }
+    if (lockerTransfer?.status === 'awaiting_deposit' && target === 'completed') {
+      fail(409, '보관함에 물품을 넣고 수령한 뒤 자동으로 완료됩니다.');
+    }
     const cancelReason = action === 'cancel' ? validateCancelReason(input?.reason) : null;
     if (donations[0].status !== 'reserved') fail(409, '게시글 상태가 변경되어 거래를 처리할 수 없습니다.');
+    if (lockerTransfer?.status === 'awaiting_deposit' && target === 'canceled') {
+      await connection.query("UPDATE LOCKER_TRANSFER SET status = 'canceled', deposit_scanned_at = NULL WHERE transfer_id = ?",
+        [lockerTransfer.transfer_id]);
+      await connection.query('UPDATE LOCKER_SLOT SET transfer_id = NULL WHERE slot_id = 1 AND transfer_id = ?',
+        [lockerTransfer.transfer_id]);
+    }
     await connection.query(`UPDATE PICKUP_REQUEST SET request_status = ?, chat_synced = FALSE,
       approved_at = IF(? = 'approved', NOW(), approved_at),
       pickup_at = IF(? = 'completed', NOW(), pickup_at),
