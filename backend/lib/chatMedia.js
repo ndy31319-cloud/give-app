@@ -6,30 +6,74 @@ const { getStorageBucket } = require('./firebaseAdmin');
 const { buildUploadUrl } = require('./uploadUrl');
 const { imageFormat } = require('./chatContent');
 
-async function saveChatImage(req, buffer) {
-  const [extension, contentType] = imageFormat(buffer);
-  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-    cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream({ folder: 'give-app/chat', resource_type: 'image' }, (error, value) => error ? reject(error) : resolve(value));
-      stream.end(buffer);
-    });
-    return { url: result.secure_url, remove: () => cloudinary.uploader.destroy(result.public_id) };
-  }
-  const name = `chat-${crypto.randomUUID()}.${extension}`;
-  if (process.env.FIREBASE_STORAGE_BUCKET) {
-    const bucket = getStorageBucket();
-    const file = bucket.file(`give-app/chat/${name}`);
-    const token = crypto.randomUUID();
-    await file.save(buffer, { metadata: { contentType, metadata: { firebaseStorageDownloadTokens: token } } });
-    return {
-      url: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media&token=${token}`,
-      remove: () => file.delete(),
-    };
-  }
-  const filePath = path.join(__dirname, '..', 'uploads', name);
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+
+function isCloudinaryConfigured() {
+  return Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET,
+  );
+}
+
+function isRecoverableStorageError(error) {
+  const status = Number(error?.status || error?.code || error?.response?.status || error?.cause?.code);
+  const message = JSON.stringify(error?.response?.data || error?.errors || error?.message || error || '').toLowerCase();
+  return (
+    status === 404 ||
+    error?.code === 'FIREBASE_STORAGE_CONFIG_INVALID' ||
+    message.includes('bucket') ||
+    message.includes('not found') ||
+    message.includes('notfound') ||
+    message.includes('configuration')
+  );
+}
+
+async function saveLocalChatImage(req, name, buffer) {
+  await fs.mkdir(uploadsDir, { recursive: true });
+  const filePath = path.join(uploadsDir, name);
   await fs.writeFile(filePath, buffer);
   return { url: buildUploadUrl(req, `/uploads/${name}`), remove: () => fs.unlink(filePath) };
+}
+
+async function saveChatImage(req, buffer) {
+  const [extension, contentType] = imageFormat(buffer);
+  const name = `chat-${crypto.randomUUID()}.${extension}`;
+  if (isCloudinaryConfigured()) {
+    try {
+      cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream({ folder: 'give-app/chat', resource_type: 'image' }, (error, value) => error ? reject(error) : resolve(value));
+        stream.end(buffer);
+      });
+      return { url: result.secure_url, remove: () => cloudinary.uploader.destroy(result.public_id) };
+    } catch (error) {
+      console.warn('Chat image Cloudinary upload failed. Falling back to local upload path.', error?.message || error);
+      return saveLocalChatImage(req, name, buffer);
+    }
+  }
+
+  if (process.env.FIREBASE_STORAGE_BUCKET) {
+    try {
+      const bucket = getStorageBucket();
+      const file = bucket.file(`give-app/chat/${name}`);
+      const token = crypto.randomUUID();
+      await file.save(buffer, { metadata: { contentType, metadata: { firebaseStorageDownloadTokens: token } } });
+      return {
+        url: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media&token=${token}`,
+        remove: () => file.delete(),
+      };
+    } catch (error) {
+      if (!isRecoverableStorageError(error)) {
+        throw error;
+      }
+
+      console.warn('Chat image Firebase Storage upload failed. Falling back to local upload path.', error?.message || error);
+      return saveLocalChatImage(req, name, buffer);
+    }
+  }
+
+  return saveLocalChatImage(req, name, buffer);
 }
 
 module.exports = { saveChatImage };

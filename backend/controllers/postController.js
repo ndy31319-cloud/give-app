@@ -21,28 +21,43 @@ const AI_REQUEST_TIMEOUT_MS = 30000;
 const AI_RETRY_DELAY_MS = 1000;
 const DONATION_REQUESTABLE_STATUS = "open";
 const DONATION_RESERVED_STATUS = "reserved";
+const DONATION_STORED_STATUS = "stored";
+const DONATION_PICKUP_REQUESTABLE_STATUSES = new Set([
+  DONATION_REQUESTABLE_STATUS,
+  DONATION_STORED_STATUS,
+]);
 const CATEGORY_PRODUCT_ID_MAP = {
   clothing: 1,
   clothes: 1,
   의류: 1,
+  "의류/잡화": 1,
   electronics: 2,
   electronic: 2,
   digital: 2,
   전자제품: 2,
   디지털: 2,
   디지털기기: 2,
+  "디지털/소형가전": 2,
   household: 51,
   kitchen: 51,
   baby: 51,
   생활용품: 51,
   주방용품: 51,
+  "생활/주방용품": 51,
   육아용품: 51,
+  "유아동/장난감": 51,
+  "위생/생필품": 51,
+  "문구/학용품": 106,
+  "건강/의료기구": 51,
   furniture: 91,
   가구: 91,
+  "가구/인테리어": 91,
   books: 106,
   book: 106,
   도서: 106,
   "도서/문구": 106,
+  "도서/음반": 106,
+  가공식품: 51,
   other: 106,
   기타: 106,
 };
@@ -209,6 +224,30 @@ const uploadImagesToFirebaseStorage = async (imageFiles) => {
   );
 };
 
+const buildLocalUploadPaths = (imageFiles) =>
+  imageFiles.map(
+    (file) => `/uploads/${file.filename || file.path.split(/[\\/]/).pop()}`,
+  );
+
+const isRecoverableImageStorageError = (error) => {
+  const status = error?.status || error?.response?.status || error?.http_code;
+  const code = error?.code || error?.errno;
+  const responseText =
+    typeof error?.response?.data === "string"
+      ? error.response.data
+      : JSON.stringify(error?.response?.data || {});
+  const message = `${error?.message || ""} ${responseText}`.toLowerCase();
+
+  return (
+    code === "FIREBASE_STORAGE_CONFIG_INVALID" ||
+    ["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "ETIMEDOUT", "ENOTFOUND"].includes(code) ||
+    [401, 403, 404, 408, 429, 500, 502, 503, 504].includes(status) ||
+    (message.includes("bucket") && (message.includes("not") || message.includes("invalid"))) ||
+    message.includes("cloudinary") ||
+    message.includes("firebase")
+  );
+};
+
 const removeLocalUploadedFiles = async (imageFiles) => {
   await Promise.all(
     imageFiles.map(async (file) => {
@@ -231,35 +270,60 @@ const removeLocalUploadedFiles = async (imageFiles) => {
   );
 };
 
-const uploadPostImages = async (imageFiles) => {
+const uploadPostImages = async (imageFiles, options = {}) => {
   if (!imageFiles.length) {
     return [];
   }
 
   if (isCloudinaryConfigured()) {
-    const uploadedImages = await Promise.all(
-      imageFiles.map((file) =>
-        cloudinary.uploader.upload(file.path, {
-          folder: "give-app/posts",
-          resource_type: "image",
-        }),
-      ),
-    );
+    try {
+      const uploadedImages = await Promise.all(
+        imageFiles.map((file) =>
+          cloudinary.uploader.upload(file.path, {
+            folder: "give-app/posts",
+            resource_type: "image",
+          }),
+        ),
+      );
 
-    return uploadedImages.map((image) => image.secure_url);
+      return uploadedImages.map((image) => image.secure_url);
+    } catch (error) {
+      if (!isRecoverableImageStorageError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        "Cloudinary image upload failed. Falling back to local upload paths for this post.",
+        error.message,
+      );
+      options.onLocalFallback?.();
+      return buildLocalUploadPaths(imageFiles);
+    }
   }
 
   if (isFirebaseStorageConfigured()) {
-    return uploadImagesToFirebaseStorage(imageFiles);
+    try {
+      return await uploadImagesToFirebaseStorage(imageFiles);
+    } catch (error) {
+      if (!isRecoverableImageStorageError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        "Firebase Storage image upload failed. Falling back to local upload paths for this post.",
+        error.message,
+      );
+      options.onLocalFallback?.();
+      return buildLocalUploadPaths(imageFiles);
+    }
   }
 
   if (!isCloudinaryConfigured()) {
     console.warn(
       "Cloudinary is not configured. Falling back to local upload paths.",
     );
-    return imageFiles.map(
-      (file) => `/uploads/${file.filename || file.path.split(/[\\/]/).pop()}`,
-    );
+    options.onLocalFallback?.();
+    return buildLocalUploadPaths(imageFiles);
   }
 };
 
@@ -304,7 +368,7 @@ const logAiRequestError = ({ url, attempt, startedAt, error }) => {
   });
 };
 
-const callAiPostGeneration = async (imageFiles) => {
+const callAiPostGeneration = async (imageFiles, hints = {}) => {
   if (!imageFiles.length) {
     throw new Error("이미지 파일이 필요합니다.");
   }
@@ -324,6 +388,14 @@ const callAiPostGeneration = async (imageFiles) => {
           contentType: imageFile.mimetype,
         });
       });
+      const itemNameHint = firstTextValue(
+        hints.itemName,
+        hints.item_name,
+        hints.title,
+      );
+      if (itemNameHint) {
+        form.append("item_name", itemNameHint);
+      }
 
       const startedAt = Date.now();
       try {
@@ -375,8 +447,8 @@ const isAiConnectionError = (error) =>
 const isAiTimeoutError = (error) =>
   error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
 
-const analyzeImagesWithAI = async (imageFiles) => {
-  const aiResult = await callAiPostGeneration(imageFiles);
+const analyzeImagesWithAI = async (imageFiles, hints = {}) => {
+  const aiResult = await callAiPostGeneration(imageFiles, hints);
   const suggestedTitle = firstTextValue(
     aiResult.suggested_title,
     aiResult.title,
@@ -445,6 +517,18 @@ const deleteIfTableExists = async (connection, sql, params) => {
     if (error?.code !== "ER_NO_SUCH_TABLE") {
       throw error;
     }
+  }
+};
+
+const rollbackQuietly = async (connection) => {
+  if (!connection) {
+    return;
+  }
+
+  try {
+    await connection.rollback();
+  } catch (error) {
+    console.warn("Database rollback failed:", error.message);
   }
 };
 
@@ -606,7 +690,11 @@ const analyzeImage = async (req, res) => {
   }
 
   try {
-    const analysisResult = await analyzeImagesWithAI(imageFiles);
+    const analysisResult = await analyzeImagesWithAI(imageFiles, {
+      itemName: req.body.item_name,
+      title: req.body.title,
+      description: req.body.description,
+    });
     const analysisResults = analysisResult.analyzed_images;
     const problematicImages = analysisResults.filter(
       (image) => image.is_dangerous || image.is_same_item === false,
@@ -674,8 +762,18 @@ const analyzeImage = async (req, res) => {
     }
 
     if (error.response) {
+      const status = error.response.status;
+      const aiMessage =
+        error.response.data?.detail ||
+        error.response.data?.message ||
+        `AI 서버 요청이 실패했습니다. (HTTP ${status})`;
+
+      if ([400, 413, 422, 429].includes(status)) {
+        return res.status(status).json({ message: aiMessage });
+      }
+
       return res.status(502).json({
-        message: `AI 서버 요청이 실패했습니다. (HTTP ${error.response.status})`,
+        message: `AI 서버 요청이 실패했습니다. (HTTP ${status})`,
       });
     }
 
@@ -689,11 +787,20 @@ const analyzeImage = async (req, res) => {
 };
 
 const createPost = async (req, res) => {
-  const connection = await db.getConnection();
+  const imageFiles = getUploadedImages(req);
+  let connection;
+  let transactionStarted = false;
+  let committed = false;
+  let usedLocalUploadFallback = false;
 
   try {
+    connection = await db.getConnection();
+
     const { title, content, item_name, item_condition, product_id, category } =
       req.body;
+    const titleText = firstTextValue(title);
+    const contentText = typeof content === "string" ? content.trim() : "";
+    const itemNameText = firstTextValue(item_name, titleText);
     const createdFromValue = String(
       req.body.createdFrom || req.body.created_from || "app",
     )
@@ -702,9 +809,21 @@ const createPost = async (req, res) => {
     const createdFrom = createdFromValue === "web" ? "web" : "app";
     const member_id = req.user.member_id || req.user.id;
     const role_id = Number(req.user.role_id);
-    const imageFiles = getUploadedImages(req);
     let uploadedImageUrls = [];
     const normalizedItemCondition = normalizeItemCondition(item_condition);
+
+    if (!titleText) {
+      return res.status(400).json({ message: "게시글 제목을 입력해주세요." });
+    }
+
+    if (titleText.length > 120) {
+      return res.status(400).json({ message: "게시글 제목은 120자 이하로 입력해주세요." });
+    }
+
+    if (contentText.length > 3000) {
+      return res.status(400).json({ message: "게시글 내용은 3000자 이하로 입력해주세요." });
+    }
+
     const normalizedProductId = await resolveProductId(
       connection,
       product_id,
@@ -725,6 +844,7 @@ const createPost = async (req, res) => {
     }
 
     await connection.beginTransaction();
+    transactionStarted = true;
 
     const [memberRows] = await connection.query(
       `SELECT dong_name, latitude, longitude
@@ -740,13 +860,17 @@ const createPost = async (req, res) => {
     const { dong_name, latitude, longitude } = memberRows[0];
     let postId;
     let postType;
-    uploadedImageUrls = await uploadPostImages(imageFiles);
+    uploadedImageUrls = await uploadPostImages(imageFiles, {
+      onLocalFallback: () => {
+        usedLocalUploadFallback = true;
+      },
+    });
 
     if (isDonate) {
       const [postResult] = await connection.query(
         `INSERT INTO ITEM_DONATE (member_id, title, content, dong_name, latitude, longitude, status)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [member_id, title, content, dong_name, latitude, longitude, "open"],
+        [member_id, titleText, contentText, dong_name, latitude, longitude, "open"],
       );
 
       postId = postResult.insertId;
@@ -763,7 +887,7 @@ const createPost = async (req, res) => {
       await connection.query(
         `INSERT INTO ITEM (donate_id, product_id, item_name, item_condition)
          VALUES (?, ?, ?, ?)`,
-        [postId, normalizedProductId, item_name, normalizedItemCondition],
+        [postId, normalizedProductId, itemNameText, normalizedItemCondition],
       );
     } else if (isRequest) {
       const [postResult] = await connection.query(
@@ -771,8 +895,8 @@ const createPost = async (req, res) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           member_id,
-          title,
-          content || null,
+          titleText,
+          contentText || null,
           dong_name,
           latitude,
           longitude,
@@ -795,11 +919,12 @@ const createPost = async (req, res) => {
       await connection.query(
         `INSERT INTO ITEM (request_id, product_id, item_name, item_condition)
          VALUES (?, ?, ?, ?)`,
-        [postId, normalizedProductId, item_name, normalizedItemCondition],
+        [postId, normalizedProductId, itemNameText, normalizedItemCondition],
       );
     }
 
     await connection.commit();
+    committed = true;
 
     const responseImageUrls = uploadedImageUrls.map((imageUrl) =>
       normalizeUploadUrl(req, imageUrl),
@@ -807,8 +932,16 @@ const createPost = async (req, res) => {
 
     return res.status(201).json({
       message: "게시글이 성공적으로 등록되었습니다.",
+      id: `${postType}_${postId}`,
       post_id: postId,
+      postId,
+      recordId: postId,
       post_type: postType,
+      postType: postType,
+      type: postType,
+      member_id,
+      memberId: member_id,
+      author: { id: member_id },
       created_from: postType === "request" ? createdFrom : "app",
       createdFrom: postType === "request" ? createdFrom : "app",
       image_count: responseImageUrls.length,
@@ -820,16 +953,24 @@ const createPost = async (req, res) => {
       imageUrl: responseImageUrls[0] || null,
     });
   } catch (error) {
-    await connection.rollback();
+    if (transactionStarted && !committed) {
+      await rollbackQuietly(connection);
+    }
     console.error("게시글 등록 오류:", error);
     return res.status(500).json({
       message: error.message || "게시글 등록에 실패했습니다.",
     });
   } finally {
-    if (isCloudinaryConfigured() || isFirebaseStorageConfigured()) {
-      await removeLocalUploadedFiles(getUploadedImages(req));
+    const shouldPreserveLocalFallbackFiles = usedLocalUploadFallback && committed;
+    if (
+      (isCloudinaryConfigured() || isFirebaseStorageConfigured()) &&
+      !shouldPreserveLocalFallbackFiles
+    ) {
+      await removeLocalUploadedFiles(imageFiles);
     }
-    connection.release();
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
@@ -901,18 +1042,22 @@ const createPickupRequest = async (req, res) => {
   const donateId = req.params.id;
   const requesterId = req.user.member_id || req.user.id;
   const { date, time, memo } = req.body;
-  const connection = await db.getConnection();
 
   if (!date || !time) {
-    connection.release();
     return res.status(400).json({
       success: false,
       message: "Pickup date and time are required.",
     });
   }
 
+  let connection;
+  let transactionStarted = false;
+  let committed = false;
+
   try {
+    connection = await db.getConnection();
     await connection.beginTransaction();
+    transactionStarted = true;
 
     const [donationRows] = await connection.query(
       `SELECT donate_id, member_id, title, status
@@ -924,7 +1069,6 @@ const createPickupRequest = async (req, res) => {
     const donation = donationRows[0];
 
     if (!donation) {
-      await connection.rollback();
       return res.status(404).json({
         success: false,
         message: "Donation post was not found.",
@@ -932,18 +1076,58 @@ const createPickupRequest = async (req, res) => {
     }
 
     if (Number(donation.member_id) === Number(requesterId)) {
-      await connection.rollback();
       return res.status(409).json({
         success: false,
         message: "You cannot request pickup for your own donation post.",
       });
     }
 
-    if (donation.status !== DONATION_REQUESTABLE_STATUS) {
-      await connection.rollback();
+    const [activePickupRows] = await connection.query(
+      `SELECT pickup_id, requester_id, request_status
+       FROM PICKUP_REQUEST
+       WHERE donate_id = ?
+         AND request_status IN ('pending', 'approved')
+       FOR UPDATE`,
+      [donation.donate_id],
+    );
+    const existingPickupForRequester = activePickupRows.find(
+      (row) => Number(row.requester_id) === Number(requesterId),
+    );
+
+    if (existingPickupForRequester) {
+      return res.status(200).json({
+        success: true,
+        message: "이미 진행 중인 수령 요청이 있습니다.",
+        data: {
+          pickupRequestId: existingPickupForRequester.pickup_id,
+          pickup_request_id: existingPickupForRequester.pickup_id,
+          donateId: donation.donate_id,
+          donate_id: donation.donate_id,
+          status: donation.status,
+          requestStatus: existingPickupForRequester.request_status,
+          request_status: existingPickupForRequester.request_status,
+          alreadyExists: true,
+          already_exists: true,
+        },
+      });
+    }
+
+    if (activePickupRows.length > 0) {
       return res.status(409).json({
         success: false,
-        message: "This donation post is not open for pickup requests.",
+        message: "이미 다른 사용자의 수령 요청이 진행 중입니다.",
+        data: {
+          donateId: donation.donate_id,
+          donate_id: donation.donate_id,
+          status: donation.status,
+        },
+      });
+    }
+
+    if (!DONATION_PICKUP_REQUESTABLE_STATUSES.has(donation.status)) {
+      return res.status(409).json({
+        success: false,
+        message: "현재 수령 요청을 할 수 있는 나눔글 상태가 아닙니다.",
         data: {
           donateId: donation.donate_id,
           donate_id: donation.donate_id,
@@ -959,12 +1143,19 @@ const createPickupRequest = async (req, res) => {
       [requesterId, donation.donate_id, "pending", date, time, memo || null],
     );
 
-    await connection.query(
-      `UPDATE ITEM_DONATE
-       SET status = ?, updated_at = NOW()
-       WHERE donate_id = ?`,
-      [DONATION_RESERVED_STATUS, donation.donate_id],
-    );
+    const nextDonationStatus =
+      donation.status === DONATION_STORED_STATUS
+        ? DONATION_STORED_STATUS
+        : DONATION_RESERVED_STATUS;
+
+    if (nextDonationStatus !== donation.status) {
+      await connection.query(
+        `UPDATE ITEM_DONATE
+         SET status = ?, updated_at = NOW()
+         WHERE donate_id = ?`,
+        [nextDonationStatus, donation.donate_id],
+      );
+    }
 
     await connection.query(
       `INSERT INTO NOTIFICATION
@@ -972,14 +1163,15 @@ const createPickupRequest = async (req, res) => {
        VALUES (?, ?, ?, ?, ?, FALSE, NOW())`,
       [
         donation.member_id,
-        "donate",
-        donation.donate_id,
+        "pickup",
+        pickupResult.insertId,
         "pickup_request",
-        "비대면 수령 요청이 도착했습니다.",
+        `‘${donation.title || "나눔 물품"}’ 물품 수령 요청이 도착했습니다. 앱에서 수락해야 보관함을 열 수 있습니다.`,
       ],
     );
 
     await connection.commit();
+    committed = true;
 
     return res.status(201).json({
       success: true,
@@ -989,18 +1181,22 @@ const createPickupRequest = async (req, res) => {
         pickup_request_id: pickupResult.insertId,
         donateId: donation.donate_id,
         donate_id: donation.donate_id,
-        status: DONATION_RESERVED_STATUS,
+        status: nextDonationStatus,
       },
     });
   } catch (error) {
-    await connection.rollback();
     console.error("Pickup request creation error:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to create pickup request.",
     });
   } finally {
-    connection.release();
+    if (transactionStarted && !committed) {
+      await rollbackQuietly(connection);
+    }
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
@@ -1032,10 +1228,13 @@ const updatePost = async (req, res) => {
       .json({ message: "type은 donate 또는 request여야 합니다." });
   }
 
-  const connection = await db.getConnection();
+  let connection;
+  let transactionStarted = false;
   let committed = false;
   try {
+    connection = await db.getConnection();
     await connection.beginTransaction();
+    transactionStarted = true;
     const tableName = postType === "donate" ? "ITEM_DONATE" : "ITEM_REQUEST";
     const idColumn = postType === "donate" ? "donate_id" : "request_id";
 
@@ -1127,7 +1326,12 @@ const updatePost = async (req, res) => {
     console.error("게시글 수정 오류:", error);
     return res.status(500).json({ message: "게시글 수정에 실패했습니다." });
   } finally {
-    try { if (!committed) await connection.rollback(); } finally { connection.release(); }
+    if (transactionStarted && !committed) {
+      await rollbackQuietly(connection);
+    }
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
@@ -1142,15 +1346,18 @@ const deletePost = async (req, res) => {
       .json({ message: "type은 donate 또는 request여야 합니다." });
   }
 
-  const connection = await db.getConnection();
+  let connection;
+  let transactionStarted = false;
   let committed = false;
   try {
+    connection = await db.getConnection();
     const tableName = postType === "donate" ? "ITEM_DONATE" : "ITEM_REQUEST";
     const idColumn = postType === "donate" ? "donate_id" : "request_id";
     const imageTableName =
       postType === "donate" ? "ITEM_DONATE_IMAGE" : "ITEM_REQUEST_IMAGE";
 
     await connection.beginTransaction();
+    transactionStarted = true;
 
     const [checkRows] = await connection.query(
       `SELECT member_id FROM ${tableName} WHERE ${idColumn} = ? FOR UPDATE`,
@@ -1184,6 +1391,11 @@ const deletePost = async (req, res) => {
         "DELETE FROM ITEM_DONATE_LIKE WHERE donate_id = ?",
         [postId],
       );
+      await deleteIfTableExists(
+        connection,
+        "DELETE FROM DYNAMIC_QR WHERE donate_id = ?",
+        [postId],
+      );
     } else {
       await deleteIfTableExists(
         connection,
@@ -1209,7 +1421,12 @@ const deletePost = async (req, res) => {
     console.error("게시글 삭제 오류:", error);
     return res.status(500).json({ message: "게시글 삭제에 실패했습니다." });
   } finally {
-    try { if (!committed) await connection.rollback(); } finally { connection.release(); }
+    if (transactionStarted && !committed) {
+      await rollbackQuietly(connection);
+    }
+    if (connection) {
+      connection.release();
+    }
   }
 };
 

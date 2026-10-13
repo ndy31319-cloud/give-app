@@ -2,6 +2,7 @@ const DEFAULT_API_BASE_URL =
   process.env.NODE_ENV === 'development' ? '' : 'https://give-app.onrender.com';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || DEFAULT_API_BASE_URL;
+const DEFAULT_REQUEST_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 20000);
 
 export const KIOSK_DEFAULT_LOCATION = {
   dongName: '안양동',
@@ -39,25 +40,58 @@ export function hasAuthToken() {
 
 async function request(path, options = {}) {
   const token = getToken();
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutMs = Number.isFinite(DEFAULT_REQUEST_TIMEOUT_MS) && DEFAULT_REQUEST_TIMEOUT_MS > 0
+    ? DEFAULT_REQUEST_TIMEOUT_MS
+    : 20000;
+  const timeout = controller
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : null;
   const headers = {
     ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || controller?.signal,
+    });
+  } catch (error) {
+    const isTimeout = error?.name === 'AbortError';
+    const normalizedError = new Error(
+      isTimeout
+        ? '서버 응답 시간이 초과되었습니다. 네트워크와 백엔드 상태를 확인해 주세요.'
+        : '서버에 연결할 수 없습니다. 네트워크와 API 주소를 확인해 주세요.',
+    );
+    normalizedError.code = isTimeout ? 'TIMEOUT' : 'NETWORK';
+    normalizedError.status = 0;
+    throw normalizedError;
+  } finally {
+    if (timeout) {
+      window.clearTimeout(timeout);
+    }
+  }
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
 
   if (!response.ok) {
-    const error = new Error(data?.message || data?.error || 'API 요청에 실패했습니다.');
+    const error = new Error(
+      data?.message || data?.error || `서버가 ${response.status} 오류를 반환했습니다.`,
+    );
+    error.code = data?.code || data?.errorCode || `HTTP_${response.status}`;
+    error.errorCode = error.code;
     error.status = response.status;
     error.data = data;
-    error.errorCode = data?.errorCode;
     throw error;
   }
 
@@ -202,6 +236,24 @@ export async function fetchDonationOfferNotices() {
 
 export async function fetchMyPosts() {
   return request('/api/members/me/posts');
+}
+
+export async function fetchLockerPickupItems() {
+  return request('/api/device/locker/pickup/items');
+}
+
+export async function openLockerForPickup(payload) {
+  return request('/api/device/locker/pickup/open', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function completeLockerPickup(payload) {
+  return request('/api/device/locker/pickup/complete', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function fetchMyLikes() {

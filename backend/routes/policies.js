@@ -90,6 +90,8 @@ const logAiRequestError = ({ url, attempt, startedAt, error }) => {
   });
 };
 
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
 const toPolicyResponse = (policy) => ({
   id: String(policy.policy_id ?? policy.id),
   title: policy.policy_name ?? policy.title ?? "",
@@ -333,6 +335,8 @@ const callAiChatbot = async (payload) => {
   const requestPayload = {
     user_message: payload.message,
     member_id: payload.user?.member_id ?? null,
+    user: payload.user ?? null,
+    policies: Array.isArray(payload.policies) ? payload.policies : [],
     conversation_history: Array.isArray(payload.conversationHistory)
       ? payload.conversationHistory.map((message) => ({
           role: message.role === "bot" ? "assistant" : message.role,
@@ -355,6 +359,12 @@ const callAiChatbot = async (payload) => {
           proxy: false,
           timeout: AI_REQUEST_TIMEOUT_MS,
         });
+
+        if (!isObject(response.data)) {
+          const error = new Error("AI 챗봇 응답 형식이 올바르지 않습니다.");
+          error.statusCode = 502;
+          throw error;
+        }
 
         return response.data;
       } catch (error) {
@@ -445,12 +455,21 @@ router.post("/chatbot", authenticateToken, async (req, res) => {
       policies: policyContext,
     });
     const responseText =
-      aiResult.response ||
-      aiResult.answer ||
-      aiResult.reply ||
-      aiResult.ai_response ||
-      aiResult.message ||
-      "";
+      String(
+        aiResult.response ||
+          aiResult.answer ||
+          aiResult.reply ||
+          aiResult.ai_response ||
+          aiResult.message ||
+          "",
+      ).trim();
+
+    if (!responseText) {
+      return res.status(502).json({
+        message: "AI 챗봇 서버가 빈 답변을 반환했습니다. 잠시 후 다시 시도해주세요.",
+      });
+    }
+
     const suggestedPolicies = normalizeSuggestedPolicies(
       aiResult.suggestedPolicies ||
         aiResult.suggested_policies ||
@@ -482,7 +501,13 @@ router.post("/chatbot", authenticateToken, async (req, res) => {
 
     if (isConnectionError) {
       return res.status(503).json({
-        message: "AI 챗봇 서버에 연결할 수 없습니다.",
+        message: error.message || "AI 챗봇 서버에 연결할 수 없습니다.",
+      });
+    }
+
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        message: error.message || "AI 챗봇 요청을 처리하지 못했습니다.",
       });
     }
 

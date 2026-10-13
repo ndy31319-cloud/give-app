@@ -17,8 +17,13 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 24,
     backgroundColor: colors.background,
   },
+  splashLogo: {
+    width: 230,
+    height: 230,
+    marginBottom: 20,
+  },
   splashTitle: {
-    fontSize: 42,
+    fontSize: 32,
     fontWeight: '800',
     color: colors.text,
   },
@@ -38,12 +43,19 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   logoCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.brand,
+    backgroundColor: '#FFFDF4',
+    borderWidth: 1,
+    borderColor: '#D8DFC0',
+  },
+  loginLogoImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
   },
   loginTitle: {
     fontSize: 30,

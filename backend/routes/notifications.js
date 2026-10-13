@@ -90,7 +90,7 @@ router.get("/", async (req, res) => {
       console.error("Notification list error:", error);
       return res.status(500).json({
         success: false,
-        message: "?뚮┝ 紐⑸줉??遺덈윭?ㅼ? 紐삵뻽?듬땲??",
+        message: "알림 목록을 불러오지 못했습니다.",
       });
     }
 
@@ -149,7 +149,7 @@ router.get("/settings/me", async (req, res) => {
       console.error("Notification settings load error:", error);
       return res.status(500).json({
         success: false,
-        message: "?뚮┝ ?ㅼ젙??遺덈윭?ㅼ? 紐삵뻽?듬땲??",
+        message: "알림 설정을 불러오지 못했습니다.",
       });
     }
 

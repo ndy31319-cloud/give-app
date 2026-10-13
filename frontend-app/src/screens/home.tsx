@@ -3,6 +3,7 @@ import {
   Alert,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -21,7 +22,7 @@ import { PostCard } from "@/src/components/common/PostCard";
 import { PostPhotoGallery } from "@/src/components/common/PostPhotoGallery";
 import { LoadingDots } from "@/src/components/common/LoadingDots";
 import { useAppContext } from "@/src/context/AppContext";
-import { catalogAPI, postAPI } from "@/src/services/api";
+import { catalogAPI, notificationAPI, postAPI } from "@/src/services/api";
 import { colors } from "@/src/theme/colors";
 import { styles } from "@/src/screens/home.styles";
 import {
@@ -55,7 +56,30 @@ const activePostStatuses = new Set([
   "pickup_pending",
 ]);
 
+type LockerPickupRequestForPost = {
+  pickupId?: string;
+  pickup_id?: string;
+  status?: string;
+  requestStatus?: string;
+  request_status?: string;
+  requestedAt?: string;
+  requested_at?: string;
+  title?: string;
+} | null;
+
 const MAX_POST_IMAGES = 5;
+
+function getLockerPickupRequestId(item: LockerPickupRequestForPost) {
+  return item?.pickupId || item?.pickup_id || null;
+}
+
+function getLockerPickupRequestStatus(item: LockerPickupRequestForPost) {
+  return item?.requestStatus || item?.request_status || item?.status || null;
+}
+
+function normalizePostRouteId(value: unknown) {
+  return String(value ?? "").replace(/^(donate|request)[_-]/i, "");
+}
 
 function isBeneficiaryUser(
   user?: {
@@ -317,17 +341,27 @@ function sortCategoriesForDisplay(categories: ProductCategoryRecord[]) {
 
 const aiCategoryAliases: Record<string, string[]> = {
   food: ["식품"],
+  가공식품: ["식품", "생활용품"],
   clothing: ["의류"],
   clothes: ["의류"],
+  "의류/잡화": ["의류"],
   household: ["생활용품"],
   kitchen: ["생활용품"],
+  "생활/주방용품": ["생활용품"],
+  "위생/생필품": ["생활용품"],
   furniture: ["주거용품", "가구"],
+  "가구/인테리어": ["주거용품", "가구"],
   electronics: ["가전/디지털", "디지털"],
   digital: ["가전/디지털", "디지털"],
+  "디지털/소형가전": ["가전/디지털", "디지털"],
   books: ["도서/문구", "기타"],
   book: ["도서/문구", "기타"],
+  "도서/음반": ["도서/문구", "기타"],
+  "문구/학용품": ["도서/문구", "기타"],
   baby: ["아동용품", "기타"],
+  "유아동/장난감": ["아동용품", "생활용품", "기타"],
   health: ["건강용품"],
+  "건강/의료기구": ["건강용품", "생활용품", "기타"],
   hobby: ["취미/여가용품", "기타"],
   other: ["기타"],
 };
@@ -497,9 +531,10 @@ async function pickImage(source: "camera" | "gallery") {
 }
 
 export function HomeScreen() {
-  const { user, posts } = useAppContext();
+  const { user, posts, refreshPosts, refreshNotifications } = useAppContext();
   const [statusFilter, setStatusFilter] = useState<HomeStatusFilter>("active");
   const isGeneralMember = user?.roleCode === "USER";
+  const [refreshing, setRefreshing] = useState(false);
   const allowedHomePostType = user
     ? isBeneficiaryUser(user)
       ? "share"
@@ -523,7 +558,6 @@ export function HomeScreen() {
       if (allowedHomePostType !== "all" && post.type !== allowedHomePostType)
         return false;
       if (!user) return true;
-      if (isGeneralMember && isKioskRequest) return true;
       return (
         filterPostsByRadius([post], user.location, user.location.radiusKm)
           .length > 0
@@ -535,6 +569,17 @@ export function HomeScreen() {
       posts: visiblePosts,
     };
   }, [allowedHomePostType, isGeneralMember, posts, statusFilter, user]);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+
+    setRefreshing(true);
+    try {
+      await Promise.all([refreshPosts(), refreshNotifications()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <AppScreen>
@@ -579,6 +624,16 @@ export function HomeScreen() {
           style={styles.feedScroll}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          alwaysBounceVertical
+          overScrollMode="always"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.brand]}
+              tintColor={colors.brand}
+            />
+          }
         >
           <View style={styles.feedFilterBar}>
             {[
@@ -651,12 +706,37 @@ export function HomeScreen() {
 
 export function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { posts, removePost, startChatWithPost, user, authToken } = useAppContext();
+  const {
+    authToken,
+    posts,
+    refreshNotifications,
+    removePost,
+    startChatWithPost,
+    user,
+  } = useAppContext();
   const [isStartingChat, setIsStartingChat] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSendingOffer, setIsSendingOffer] = useState(false);
   const [offeredRequestIds, setOfferedRequestIds] = useState<string[]>([]);
-  const post = posts.find((item) => item.id === id);
+  const [pickupRequest, setPickupRequest] =
+    useState<LockerPickupRequestForPost>(null);
+  const [isLoadingPickupRequest, setIsLoadingPickupRequest] = useState(false);
+  const [isApprovingPickupRequest, setIsApprovingPickupRequest] =
+    useState(false);
+  const routePostId = String(id ?? "");
+  const routeRecordId = normalizePostRouteId(routePostId);
+  const post = posts.find((item) => {
+    const itemId = String(item.id ?? "");
+    const itemRecordId = String(item.recordId ?? "");
+    return (
+      itemId === routePostId ||
+      itemRecordId === routePostId ||
+      itemId === routeRecordId ||
+      itemRecordId === routeRecordId ||
+      normalizePostRouteId(itemId) === routeRecordId ||
+      normalizePostRouteId(itemRecordId) === routeRecordId
+    );
+  });
   const isMyPost = Boolean(
     user && post && String(post.author.id) === String(user.id),
   );
@@ -668,7 +748,71 @@ export function PostDetailScreen() {
     !isMyPost,
   );
   const offerSent = Boolean(post && offeredRequestIds.includes(post.recordId));
+  const pickupRequestId = getLockerPickupRequestId(pickupRequest);
+  const pickupRequestStatus = String(
+    getLockerPickupRequestStatus(pickupRequest) ?? "",
+  )
+    .trim()
+    .toLowerCase();
+  const postStatus = String(post?.status ?? "").trim().toLowerCase();
+  const shouldShowPickupApprovalAction =
+    post?.type === "share" &&
+    isMyPost &&
+    ["reserved", "stored", "pickup_pending"].includes(postStatus) &&
+    !["completed", "picked_up", "canceled", "cancelled"].includes(
+      pickupRequestStatus,
+    );
+  const canApprovePickupRequest =
+    shouldShowPickupApprovalAction ||
+    (isMyPost &&
+      post?.type === "share" &&
+      pickupRequestStatus === "pending" &&
+      Boolean(pickupRequestId));
+  const isPickupRequestApproved = pickupRequestStatus === "approved";
+  const shouldShowPendingPickupNotice =
+    canApprovePickupRequest && !isPickupRequestApproved;
+  const postDonationId =
+    post?.type === "share"
+      ? normalizePostRouteId(post.recordId || post.id)
+      : "";
   const statusLabel = post ? getPostStatusLabel(post.status) : "";
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPickupRequest() {
+      if (!postDonationId || !authToken || post?.type !== "share") {
+        setPickupRequest(null);
+        setIsLoadingPickupRequest(false);
+        return;
+      }
+
+      setIsLoadingPickupRequest(true);
+      const result = await notificationAPI.getLockerPickupRequestByDonation(
+        postDonationId,
+        authToken,
+      );
+
+      if (ignore) {
+        return;
+      }
+
+      setIsLoadingPickupRequest(false);
+
+      if (result.error) {
+        setPickupRequest(null);
+        return;
+      }
+
+      setPickupRequest(result.data.item);
+    }
+
+    void loadPickupRequest();
+
+    return () => {
+      ignore = true;
+    };
+  }, [authToken, post?.type, postDonationId]);
 
   async function handleSendKioskOffer() {
     if (!post || isSendingOffer || offerSent || post.status !== "open") return;
@@ -748,6 +892,52 @@ export function PostDetailScreen() {
         onPress: deleteCurrentPost,
       },
     ]);
+  }
+
+  async function handleApprovePickupRequest() {
+    if ((!pickupRequestId && !postDonationId) || isApprovingPickupRequest) {
+      return;
+    }
+
+    setIsApprovingPickupRequest(true);
+    const result = pickupRequestId
+      ? await notificationAPI.approveLockerPickupRequest(
+          pickupRequestId,
+          authToken ?? undefined,
+        )
+      : await notificationAPI.approveLockerPickupRequestByDonation(
+          postDonationId,
+          authToken ?? undefined,
+        );
+    setIsApprovingPickupRequest(false);
+
+    if (result.error || !result.data?.success) {
+      Alert.alert("수락 실패", result.error ?? "잠시 후 다시 시도해주세요.");
+      return;
+    }
+
+    const approvedItem =
+      result.data?.item && typeof result.data.item === "object"
+        ? (result.data.item as LockerPickupRequestForPost)
+        : null;
+
+    setPickupRequest((current) =>
+      approvedItem
+        ? approvedItem
+        : current
+        ? {
+            ...current,
+            status: "approved",
+            requestStatus: "approved",
+            request_status: "approved",
+          }
+        : current,
+    );
+    await refreshNotifications();
+    Alert.alert(
+      "수락 완료",
+      "이제 수령자가 키오스크에서 물품을 가져갈 수 있습니다.",
+    );
   }
 
   if (!post) {
@@ -881,18 +1071,64 @@ export function PostDetailScreen() {
             </Text>
           </View>
         ) : null}
+
+        {post.type === "share" && isLoadingPickupRequest ? (
+          <View style={styles.warningCard}>
+            <Ionicons name="sync-outline" size={18} color={colors.warning} />
+            <Text style={styles.warningText}>
+              보관함 수령 요청을 확인하고 있습니다.
+            </Text>
+          </View>
+        ) : null}
+
+        {shouldShowPendingPickupNotice ? (
+          <View style={styles.warningCard}>
+            <Ionicons name="notifications" size={18} color={colors.warning} />
+            <Text style={styles.warningText}>
+              예약된 수령 요청이 있습니다. 수락하면 수령자가 다음 단계로 진행할 수 있어요.
+            </Text>
+          </View>
+        ) : null}
+
+        {post.type === "share" && isPickupRequestApproved ? (
+          <View style={styles.warningCard}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
+            <Text style={styles.warningText}>
+              물품 수령을 수락했습니다. 수령자가 키오스크에서 보관함을 열 수 있어요.
+            </Text>
+          </View>
+        ) : null}
       </View>
 
-      {isMyPost ? (
+      {isMyPost || canApprovePickupRequest ? (
         <View style={styles.bottomActions}>
-          <AppButton
-            label={isDeleting ? "삭제 중" : "게시글 삭제"}
-            variant="danger"
-            loading={isDeleting}
-            disabled={isDeleting}
-            onPress={handleDeletePost}
-            style={{ flex: 1 }}
-          />
+          {canApprovePickupRequest ? (
+            <AppButton
+              label={
+                isApprovingPickupRequest
+                  ? "수락 중"
+                  : isPickupRequestApproved
+                    ? "수락 상태 확인"
+                    : pickupRequestId
+                    ? "물품 수령 수락"
+                    : "예약 수락"
+              }
+              loading={isApprovingPickupRequest}
+              disabled={isApprovingPickupRequest || isDeleting}
+              onPress={handleApprovePickupRequest}
+              style={{ flex: 1 }}
+            />
+          ) : null}
+          {isMyPost ? (
+            <AppButton
+              label={isDeleting ? "삭제 중" : "게시글 삭제"}
+              variant="danger"
+              loading={isDeleting}
+              disabled={isDeleting}
+              onPress={handleDeletePost}
+              style={{ flex: 1 }}
+            />
+          ) : null}
         </View>
       ) : isKioskRequest ? (
         <View style={styles.bottomActions}>
@@ -966,6 +1202,7 @@ export function WriteFormScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [imageConfirmed, setImageConfirmed] = useState(false);
+  const [manualImageConfirmation, setManualImageConfirmation] = useState(false);
   const [imageAnalysisError, setImageAnalysisError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: "",
@@ -1002,6 +1239,20 @@ export function WriteFormScreen() {
     router.replace("/(tabs)");
   };
 
+  const confirmImagesManually = (message: string) => {
+    setManualImageConfirmation(true);
+    setImageConfirmed(true);
+    setImageAnalysisError(message);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.image;
+      return next;
+    });
+  };
+
+  const canProceedWithoutAi = (errorCode?: string) =>
+    !["HTTP_400", "HTTP_413", "HTTP_422"].includes(errorCode ?? "");
+
   const analyzeImage = async (images: UploadableImage[]) => {
     if (!images.length) {
       return;
@@ -1010,31 +1261,47 @@ export function WriteFormScreen() {
     setSelectedImages(images);
     setAiAnalysis(null);
     setImageConfirmed(false);
+    setManualImageConfirmation(false);
     setImageAnalysisError(null);
     setChecking(true);
     let result;
     try {
       result = await postAPI.checkHarmfulItem(
         images,
-        {},
+        { title: formData.title, description: formData.description },
         authToken ?? undefined,
       );
     } catch {
       setChecking(false);
-      setImageAnalysisError("AI 검사 중 오류가 발생했습니다. 다시 시도해주세요.");
-      showUnexpectedError("AI 판독 중 오류가 발생했습니다");
+      confirmImagesManually(
+        "AI 검사 중 오류가 발생해 직접 확인 모드로 전환했습니다. 사진과 내용을 확인한 뒤 게시글을 작성해주세요.",
+      );
+      Alert.alert(
+        "AI 판독 실패",
+        "AI 검사 중 오류가 발생해 직접 작성으로 진행할 수 있게 열어두었습니다.",
+      );
       return;
     }
     setChecking(false);
 
     if (!result.data) {
-      setImageAnalysisError(
-        result.error ?? "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.",
-      );
+      const message =
+        result.error ?? "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.";
+      if (canProceedWithoutAi(result.errorCode)) {
+        confirmImagesManually(
+          `${message} 직접 확인 후 게시글을 작성할 수 있습니다.`,
+        );
+        Alert.alert(
+          "AI 판독 실패",
+          "AI가 사진을 판독하지 못해 직접 작성 모드로 전환했습니다. 사진과 내용을 확인한 뒤 등록해주세요.",
+        );
+        return;
+      }
+
+      setImageAnalysisError(message);
       Alert.alert(
         "AI 판독 실패",
-        result.error ??
-          "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        message,
       );
       return;
     }
@@ -1066,6 +1333,7 @@ export function WriteFormScreen() {
     setSkipImage(false);
     setAiAnalysis(analysis);
     setImageAnalysisError(null);
+    setManualImageConfirmation(false);
     setImageConfirmed(false);
   };
 
@@ -1111,6 +1379,7 @@ export function WriteFormScreen() {
     setAiAnalysis(null);
     setImageAnalysisError(null);
     setImageConfirmed(false);
+    setManualImageConfirmation(false);
     setSkipImage(true);
     setErrors((prev) => {
       const next = { ...prev };
@@ -1124,6 +1393,7 @@ export function WriteFormScreen() {
     setImageConfirmed(false);
     setAiAnalysis(null);
     setImageAnalysisError(null);
+    setManualImageConfirmation(false);
 
     if (!remainingImages.length) {
       setSelectedImages([]);
@@ -1414,14 +1684,18 @@ export function WriteFormScreen() {
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={styles.aiSuggestionTitle}>
                   {imageConfirmed
-                    ? "AI 사진 검사 확인 완료"
+                    ? manualImageConfirmation
+                      ? "사진 직접 확인 완료"
+                      : "AI 사진 검사 확인 완료"
                     : aiAnalysis
                       ? "AI 사진 검사 완료"
                       : "AI 사진 검사 필요"}
                 </Text>
                 <Text style={styles.sectionDescription}>
                   {imageConfirmed
-                    ? "검사를 통과한 사진으로 게시글을 작성할 수 있습니다."
+                    ? manualImageConfirmation
+                      ? "AI 서버 연결 없이 사진을 직접 확인하고 게시글을 작성합니다."
+                      : "검사를 통과한 사진으로 게시글을 작성할 수 있습니다."
                     : imageAnalysisError ??
                       (aiAnalysis
                         ? "검사 결과를 확인한 뒤 사진 등록을 확정해주세요."
@@ -1451,6 +1725,22 @@ export function WriteFormScreen() {
                   });
                 }}
               />
+              {!aiAnalysis && imageAnalysisError && !imageConfirmed ? (
+                <AppButton
+                  label="AI 없이 직접 작성"
+                  variant="secondary"
+                  disabled={checking}
+                  onPress={() => {
+                    setManualImageConfirmation(true);
+                    setImageConfirmed(true);
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.image;
+                      return next;
+                    });
+                  }}
+                />
+              ) : null}
             </View>
           ) : null}
           {errors.image && selectedImages.length ? (

@@ -59,12 +59,6 @@ function EasyMainScreen() {
   const getPostId = (item) => item.post_id || item.postId || item.recordId || item.id;
   const getPostType = (item) => item.post_type || item.postType || item.type || 'donate';
   const getItemTitle = (item) => item.title || item.name || '이름 없는 물품';
-  const getItemDescription = (item) => (
-    item.description ||
-    item.content ||
-    item.detail ||
-    '상품설명이 없습니다.'
-  );
 
   const isDonatePost = (item) => {
     const postType = getPostType(item);
@@ -204,11 +198,6 @@ function EasyMainScreen() {
                     <h3 className="text-[48px] font-bold text-black leading-tight break-keep">
                       {getItemTitle(item)}
                     </h3>
-                    <div className="easy-main-card-note bg-[#f7f7f4] p-5 rounded-[24px]">
-                      <p className="text-[34px] text-gray-700 font-bold">
-                        {getItemDescription(item)}
-                      </p>
-                    </div>
                   </div>
                   <button
                     type="button"

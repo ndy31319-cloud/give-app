@@ -98,7 +98,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
     if (memberRows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "?뚯썝 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.",
+        message: "회원 정보를 찾을 수 없습니다.",
       });
     }
 
@@ -155,16 +155,16 @@ router.get("/summary", authenticateToken, async (req, res) => {
           : null,
         device: {
           status: "idle",
-          message: "?붾컮?댁뒪媛 ?湲?以묒엯?덈떎.",
+          message: "디바이스가 대기 중입니다.",
         },
       },
-      message: "留덉씠?섏씠吏 ?붿빟 議고쉶???깃났?덉뒿?덈떎.",
+      message: "마이페이지 요약 조회에 성공했습니다.",
     });
   } catch (error) {
     console.error("Mypage summary error:", error);
     return res.status(500).json({
       success: false,
-      message: "留덉씠?섏씠吏 ?붿빟??遺덈윭?ㅼ? 紐삵뻽?듬땲??",
+      message: "마이페이지 요약을 불러오지 못했습니다.",
     });
   }
 });

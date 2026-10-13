@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
+  Easing,
+  Image,
   Linking,
   Pressable,
   Text,
@@ -40,6 +43,8 @@ const vulnerableTypes = [
   { id: 'youth', label: '아동/청소년' },
   { id: 'other', label: '기타' },
 ];
+
+const appLogoSource = require('../../assets/images/give-logo-splash.png');
 
 function splitPhone(phone = '') {
   const digits = phone.replace(/\D/g, '').slice(0, 11);
@@ -273,21 +278,62 @@ function SignupForm({
 
 export function SplashScreen() {
   const { isAuthenticated } = useAppContext();
+  const logoScale = useRef(new Animated.Value(0.92)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(logoScale, {
+          toValue: 1.08,
+          duration: 650,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoScale, {
+          toValue: 0.96,
+          duration: 650,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    Animated.timing(logoOpacity, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+    pulseAnimation.start();
+
     const timer = setTimeout(() => {
       router.replace(isAuthenticated ? '/(tabs)' : '/login');
     }, 1600);
 
-    return () => clearTimeout(timer);
-  }, [isAuthenticated]);
+    return () => {
+      clearTimeout(timer);
+      pulseAnimation.stop();
+      logoScale.stopAnimation();
+      logoOpacity.stopAnimation();
+    };
+  }, [isAuthenticated, logoOpacity, logoScale]);
 
   return (
     <AppScreen>
       <View style={styles.splash}>
-        <Text style={styles.splashTitle}>
-          <Text style={{ color: colors.brand }}>Give</Text>,기부
-        </Text>
+        <Animated.Image
+          source={appLogoSource}
+          resizeMode="contain"
+          style={[
+            styles.splashLogo,
+            {
+              opacity: logoOpacity,
+              transform: [{ scale: logoScale }],
+            },
+          ]}
+        />
+        <Text style={styles.splashTitle}>Give 기부</Text>
         <Text style={styles.splashSubtitle}>따뜻한 나눔, 함께하는 세상</Text>
       </View>
     </AppScreen>
@@ -332,7 +378,7 @@ export function LoginScreen() {
     <AppScreen scroll contentContainerStyle={styles.loginContent}>
       <View style={styles.loginHero}>
         <View style={styles.logoCircle}>
-          <Ionicons name="heart" size={34} color="#fff" />
+          <Image source={appLogoSource} resizeMode="contain" style={styles.loginLogoImage} />
         </View>
         <Text style={styles.loginTitle}>Give, 기부</Text>
         <Text style={styles.loginSubtitle}>따뜻한 나눔, 함께하는 세상</Text>

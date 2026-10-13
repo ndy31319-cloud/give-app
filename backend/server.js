@@ -3,26 +3,43 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
+const multer = require("multer");
 const db = require("./db");
 
 const app = express();
 app.set("trust proxy", 1);
-const allowedOrigins = [
+const configuredOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:8081",
   "http://127.0.0.1:8081",
+  "http://localhost:8082",
+  "http://127.0.0.1:8082",
   ...(process.env.CORS_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
 ];
 
+const isAllowedOrigin = (origin) =>
+  !origin ||
+  configuredOrigins.includes(origin) ||
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        return callback(null, true);
+      }
+
+      const error = new Error(`CORS origin is not allowed: ${origin}`);
+      error.statusCode = 403;
+      error.code = "CORS_ORIGIN_NOT_ALLOWED";
+      return callback(error);
+    },
     credentials: true,
   }),
 );
@@ -68,6 +85,52 @@ setInterval(maintainTrades, 30000).unref();
 // ==========================================
 app.get("/", (req, res) => {
   res.send("서버 연결 성공");
+});
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    code: "NOT_FOUND",
+    message: "요청한 API를 찾을 수 없습니다.",
+  });
+});
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  const isJsonParseError = error?.type === "entity.parse.failed";
+  const isUploadError = error instanceof multer.MulterError;
+  const status = isJsonParseError
+    ? 400
+    : isUploadError
+      ? 400
+    : error.statusCode || error.status || 500;
+  const code = isJsonParseError
+    ? "INVALID_JSON"
+    : isUploadError
+      ? error.code || "UPLOAD_ERROR"
+    : error.code || (status >= 500 ? "INTERNAL_SERVER_ERROR" : `HTTP_${status}`);
+  const message = isJsonParseError
+    ? "요청 JSON 형식이 올바르지 않습니다."
+    : isUploadError && error.code === "LIMIT_FILE_SIZE"
+      ? "첨부 파일 용량이 너무 큽니다."
+    : isUploadError
+      ? "첨부 파일을 처리하지 못했습니다."
+    : status >= 500
+      ? "서버 처리 중 오류가 발생했습니다."
+      : error.message || "요청 처리에 실패했습니다.";
+
+  if (status >= 500) {
+    console.error("Unhandled server error:", error);
+  }
+
+  return res.status(status).json({
+    success: false,
+    code,
+    message,
+  });
 });
 
 // ==========================================

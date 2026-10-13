@@ -25,10 +25,12 @@ load_dotenv(override=True)
 
 DB_URL = os.getenv("DB_URL")
 try:
+    if not DB_URL:
+        raise ValueError("DB_URL이 설정되지 않았습니다.")
     db_engine = create_engine(DB_URL, connect_args={"ssl": {}})
-    logger.info("✅ Aiven DB 엔진 초기화 완료!")
+    logger.info("Aiven DB 엔진 초기화 완료!")
 except Exception as e:
-    logger.error(f"❌ DB 연결 세팅 실패: {e}")
+    logger.error(f"DB 연결 세팅 실패: {e}")
     db_engine = None
 
 # -------------------------------------------------------------------
@@ -236,6 +238,9 @@ async def process_chat(request: ChatRequest):
     }
 
     try:
+        if not CLOVA_API_URL or not CLOVA_STUDIO_API_KEY:
+            raise HTTPException(status_code=503, detail="AI 챗봇 서버 설정이 완료되지 않았습니다.")
+
         async with httpx.AsyncClient() as client:
             response = await client.post(CLOVA_API_URL, headers=headers, json=payload, timeout=20.0)
             
@@ -243,12 +248,28 @@ async def process_chat(request: ChatRequest):
                 logger.error(f"CLOVA 통신 에러: {response.status_code} - {response.text}")
                 raise HTTPException(status_code=503, detail="AI 서버 통신 중 오류가 발생했습니다.")
                 
-            res_json = response.json()
-            ai_answer = normalize_chatbot_text(res_json['result']['message']['content'])
+            try:
+                res_json = response.json()
+                raw_answer = res_json["result"]["message"]["content"]
+            except (ValueError, KeyError, TypeError) as parse_error:
+                logger.error(f"CLOVA 응답 파싱 실패: {parse_error}")
+                raise HTTPException(status_code=502, detail="AI 응답 형식이 올바르지 않습니다.")
 
+            ai_answer = normalize_chatbot_text(raw_answer)
+            if not ai_answer:
+                raise HTTPException(status_code=502, detail="AI 서버가 빈 답변을 반환했습니다.")
+
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        logger.error("CLOVA 서버 응답 시간 초과")
+        raise HTTPException(status_code=504, detail="AI 응답 시간이 초과되었습니다.")
+    except httpx.HTTPError as e:
+        logger.error(f"CLOVA 서버 통신 실패: {e}")
+        raise HTTPException(status_code=503, detail="AI 서버에 연결할 수 없습니다.")
     except Exception as e:
         error_msg = str(e)
-        print(f"\n🚨 [챗봇 API] CLOVA 서버 통신 에러: {error_msg}\n")
+        logger.error(f"챗봇 API 처리 실패: {error_msg}")
         raise HTTPException(status_code=500, detail="AI 응답 생성 중 오류가 발생했습니다.")
 
     # [Step 4 & 기능 3] DB에 현재 대화 저장 (사용자 질문 + AI 답변)

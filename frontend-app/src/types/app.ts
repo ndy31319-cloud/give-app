@@ -468,6 +468,9 @@ export interface NotificationItem {
   type: NotificationType;
   relatedType?: NotificationRelatedType;
   relatedId?: string;
+  pickupRequestId?: string | null;
+  pickupRequestStatus?: 'pending' | 'approved' | 'rejected' | 'canceled' | 'expired' | 'completed' | null;
+  donateId?: string | null;
   notificationTypeCode?: NotificationTypeCode;
   title: string;
   message: string;

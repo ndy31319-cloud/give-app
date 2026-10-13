@@ -9,7 +9,7 @@ export function getPostStatusLabel(status: PostStatus) {
     case 'storage_requested':
       return '';
     case 'stored':
-      return '';
+      return '나눔 완료';
     case 'pickup_pending':
       return '수령 대기';
     case 'completed':

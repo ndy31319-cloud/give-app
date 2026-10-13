@@ -10,6 +10,7 @@ import {
 
 import {
   ChatMessage,
+  ChatAttachment,
   ChatRoom,
   CreatePostInput,
   DeviceSimulationState,
@@ -19,6 +20,7 @@ import {
   NotificationItem,
   Post,
   SignupDraft,
+  TradeRequest,
   UpdatePostInput,
   User,
 } from "@/src/types/app";
@@ -36,8 +38,6 @@ import {
 } from "@/src/services/firebaseChat";
 import { tradeAPI } from "@/src/services/tradeApi";
 import { sendChatAttachment } from "@/src/services/chatAttachments";
-import { ChatAttachment } from "@/src/types/app";
-import { TradeRequest } from "@/src/types/app";
 
 const initialDeviceSimulationState: DeviceSimulationState = {
   step: "idle",
@@ -49,12 +49,33 @@ const initialDeviceSimulationState: DeviceSimulationState = {
   lastUpdatedAt: new Date().toISOString(),
 };
 
+const AUTH_TOKEN_STORAGE_KEY = "givegive_access_token";
+const AUTH_USER_STORAGE_KEY = "givegive_user";
+
+function readStoredAuth() {
+  if (typeof globalThis.localStorage === "undefined") {
+    return { token: null as string | null, user: null as User | null };
+  }
+
+  try {
+    const token = globalThis.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    const rawUser = globalThis.localStorage.getItem(AUTH_USER_STORAGE_KEY);
+    return {
+      token,
+      user: rawUser ? (JSON.parse(rawUser) as User) : null,
+    };
+  } catch {
+    return { token: null as string | null, user: null as User | null };
+  }
+}
+
 interface AppContextValue {
   user: User | null;
   authToken: string | null;
   isAuthenticated: boolean;
   signupDraft: SignupDraft;
   posts: Post[];
+  refreshPosts: () => Promise<string | null>;
   notifications: NotificationItem[];
   unreadNotificationCount: number;
   refreshNotifications: () => Promise<{ error: string | null }>;
@@ -109,8 +130,9 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [authToken, setAuthToken] = useState<string | null>(null);
+  const storedAuth = useRef(readStoredAuth()).current;
+  const [user, setUser] = useState<User | null>(storedAuth.user);
+  const [authToken, setAuthToken] = useState<string | null>(storedAuth.token);
   const [signupDraft, setSignupDraft] = useState<SignupDraft>({});
   const [posts, setPosts] = useState<Post[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -137,6 +159,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [deviceSimulation, setDeviceSimulation] =
     useState<DeviceSimulationState>(initialDeviceSimulationState);
   const deviceTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const refreshPosts = useCallback(async () => {
+    const result = await postAPI.listAll(authToken ?? undefined);
+    if (result.error) {
+      return result.error;
+    }
+    setPosts(result.data ?? []);
+    return null;
+  }, [authToken]);
 
   useEffect(() => {
     return () => {
@@ -322,6 +353,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setUser(result.data.user);
     setAuthToken(result.data.token);
+    if (typeof globalThis.localStorage !== "undefined") {
+      globalThis.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, result.data.token);
+      globalThis.localStorage.setItem(
+        AUTH_USER_STORAGE_KEY,
+        JSON.stringify(result.data.user),
+      );
+    }
     return { error: null };
   }
 
@@ -344,6 +382,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       neighborhoods: [location],
     });
     setAuthToken(result.data.token);
+    if (typeof globalThis.localStorage !== "undefined") {
+      const nextUser = {
+        ...result.data.user,
+        dongName: location.dongName,
+        location,
+        neighborhoods: [location],
+      };
+      globalThis.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, result.data.token);
+      globalThis.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(nextUser));
+    }
     setSignupDraft({});
     return { error: null };
   }
@@ -352,6 +400,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearDeviceTimers();
     setUser(null);
     setAuthToken(null);
+    if (typeof globalThis.localStorage !== "undefined") {
+      globalThis.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      globalThis.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    }
     setActiveQrSession(null);
     setDeviceSimulation(initialDeviceSimulationState);
   }
@@ -749,7 +801,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function issueDynamicQr(
     purpose: DynamicQrPurpose = "donation_access",
-    ttlSeconds = 30,
+    ttlSeconds = 60,
     donateId?: string | number | null,
   ) {
     if (!user) {
@@ -951,6 +1003,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isAuthenticated: Boolean(user),
         signupDraft,
         posts,
+        refreshPosts,
         notifications,
         unreadNotificationCount,
         refreshNotifications,

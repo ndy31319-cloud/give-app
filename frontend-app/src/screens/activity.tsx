@@ -60,6 +60,7 @@ export function MyActivityScreen() {
   useEffect(() => { setPostFilter(null); }, [user?.id, isBeneficiary]);
 
   useFocusEffect(useCallback(() => {
+    void revision;
     let active = true;
     setData(null);
     setError(null);

@@ -392,8 +392,12 @@ router.get("/me/posts", authenticateToken, async (req, res) => {
 
     const [rows] = await db.query(sql, [member_id, member_id]);
     const posts = rows.map((row) => ({
+      id: `${row.post_type}_${row.post_id}`,
       post_id: row.post_id,
       postId: row.post_id,
+      recordId: row.post_id,
+      member_id,
+      memberId: member_id,
       post_type: row.post_type,
       postType: row.post_type,
       title: row.title,

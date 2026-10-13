@@ -27,6 +27,7 @@ export function InquiryListScreen() {
   const version = useRef(0);
   const busy = useRef(false);
   useFocusEffect(useCallback(() => {
+    void revision;
     const current = ++version.current; setData(null); setError(null); busy.current = false;
     if (!authToken || !permitted) { setLoading(false); return; }
     setLoading(true);
@@ -100,6 +101,7 @@ export function InquiryDetailScreen() {
   const [revision, setRevision] = useState(0); const [answer, setAnswer] = useState(''); const [busy, setBusy] = useState(false);
   const lock = useRef(false); const version = useRef(0);
   useFocusEffect(useCallback(() => {
+    void revision;
     const current = ++version.current; setData(null); setError(null); setAnswer('');
     if (!authToken) { setError('로그인 후 이용해주세요.'); return; }
     void inquiryAPI.detail(String(id), authToken).then(result => { if (current === version.current) { setData(result.data); setError(result.error); } });

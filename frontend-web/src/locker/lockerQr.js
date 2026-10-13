@@ -1,4 +1,19 @@
 const QR_TOKEN_PART_COUNT = 7;
+const LOCKER_DISPLAY_CODE_PATTERN = /^WF-\d{4}-\d{4}$/;
+
+function normalizeLockerDisplayCode(value) {
+  const input = String(value || '').trim();
+  const upperInput = input.toUpperCase();
+  const digits = input.replace(/\D/g, '');
+
+  if (LOCKER_DISPLAY_CODE_PATTERN.test(upperInput)) {
+    return upperInput;
+  }
+
+  return digits.length === 8
+    ? `WF-${digits.slice(0, 4)}-${digits.slice(4, 8)}`
+    : input;
+}
 
 function extractToken(rawPayload) {
   const raw = String(rawPayload || '').trim();
@@ -6,16 +21,24 @@ function extractToken(rawPayload) {
 
   try {
     const json = JSON.parse(raw);
-    if (typeof json?.token === 'string') return json.token.trim();
+    if (typeof json?.token === 'string') return normalizeLockerDisplayCode(json.token);
+    if (typeof json?.displayCode === 'string') return normalizeLockerDisplayCode(json.displayCode);
+    if (typeof json?.display_code === 'string') return normalizeLockerDisplayCode(json.display_code);
   } catch {
     // QR은 일반적으로 원문 토큰이므로 JSON이 아니어도 정상입니다.
   }
 
   try {
     const url = new URL(raw);
-    return (url.searchParams.get('token') || url.searchParams.get('qrToken') || '').trim();
+    return normalizeLockerDisplayCode(
+      url.searchParams.get('token') ||
+      url.searchParams.get('qrToken') ||
+      url.searchParams.get('displayCode') ||
+      url.searchParams.get('display_code') ||
+      '',
+    );
   } catch {
-    return raw;
+    return normalizeLockerDisplayCode(raw);
   }
 }
 
@@ -23,6 +46,14 @@ export function inspectLockerQrPayload(rawPayload, now = Date.now()) {
   const token = extractToken(rawPayload);
   if (!token) {
     return { valid: false, token: '', message: 'QR 값을 읽지 못했습니다. 다시 비춰주세요.' };
+  }
+
+  if (LOCKER_DISPLAY_CODE_PATTERN.test(token)) {
+    return {
+      valid: true,
+      token,
+      message: '보관함 입고 QR 인증번호를 정상적으로 인식했습니다. 서버에서 사용 가능 여부를 확인합니다.',
+    };
   }
 
   const parts = token.split('|');

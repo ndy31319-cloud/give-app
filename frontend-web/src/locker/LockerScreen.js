@@ -30,6 +30,45 @@ function stepIndex(step) {
   return stepItems.findIndex((item) => item.id === step);
 }
 
+function getErrorMessage(error, fallback) {
+  if (error instanceof Error && error.message) {
+    if (error.code === 'QR_NOT_FOUND') {
+      return `QR 검증 실패: ${error.message}`;
+    }
+    if (error.code === 'QR_EXPIRED' || error.code === 'QR_ALREADY_USED') {
+      return `QR 상태 오류: ${error.message}`;
+    }
+    if (error.code === 'QR_WRONG_PURPOSE') {
+      return `QR 종류 오류: ${error.message}`;
+    }
+    if (error.code === 'KIOSK_AUTH_FAILED') {
+      return `키오스크 설정 오류: ${error.message}`;
+    }
+    if (error.code === 'QR_DB_ERROR' || error.code === 'DONATION_LOOKUP_FAILED') {
+      return `서버/DB 오류: ${error.message}`;
+    }
+    if (error.code === 'QR_CONSUME_FAILED') {
+      return `입고 처리 오류: ${error.message}`;
+    }
+    if (error.code === 'TIMEOUT') {
+      return `응답 시간 초과: ${error.message}`;
+    }
+    if (error.code === 'NETWORK') {
+      return `네트워크 오류: ${error.message}`;
+    }
+    if (error.name === 'TypeError' && /fetch|network|failed to fetch/i.test(error.message)) {
+      return '네트워크 오류: Render 백엔드에 연결할 수 없습니다. 인터넷 연결과 API 주소를 확인해 주세요.';
+    }
+    return error.message;
+  }
+
+  if (typeof error === 'string' && error.trim()) {
+    return error;
+  }
+
+  return fallback;
+}
+
 function statusLabel(step) {
   if (step === 'completed') return '완료';
   if (step === 'error') return '오류';
@@ -37,12 +76,56 @@ function statusLabel(step) {
   return '진행 중';
 }
 
+function formatLockerCode(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
+  if (!digits) return '';
+  if (digits.length <= 4) return `WF-${digits}`;
+  return `WF-${digits.slice(0, 4)}-${digits.slice(4)}`;
+}
+
+function isLockerCode(value) {
+  return /^WF-\d{4}-\d{4}$/.test(value);
+}
+
+function hasLockerCodeDigits(value) {
+  return String(value || '').replace(/\D/g, '').length === 8;
+}
+
+function getLockerCodeExample() {
+  return `WF-${new Date().getFullYear()}-0001`;
+}
+
+function getCameraErrorMessage(error) {
+  const name = error?.name || '';
+  const message = error?.message || '';
+
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    return '카메라 권한이 거부되었습니다. iPad 설정 또는 Safari 주소창의 권한 설정에서 카메라를 허용해 주세요.';
+  }
+
+  if (name === 'NotFoundError' || /Requested device not found/i.test(message)) {
+    return '사용 가능한 카메라를 찾지 못했습니다. 다른 브라우저 탭에서 카메라를 사용 중인지 확인해 주세요.';
+  }
+
+  if (name === 'NotReadableError' || /Could not start video source/i.test(message)) {
+    return '카메라를 시작하지 못했습니다. 다른 앱에서 카메라를 사용 중이면 종료한 뒤 다시 시도해 주세요.';
+  }
+
+  if (name === 'OverconstrainedError' || /constraint/i.test(message)) {
+    return '후면 카메라 조건으로 시작하지 못했습니다. 다른 카메라 방식으로 다시 시도해 주세요.';
+  }
+
+  return message || '카메라 권한을 확인하거나 HTTPS 주소에서 다시 시도해 주세요.';
+}
+
 function LockerScreen() {
   const navigate = useNavigate();
   const scannerRef = useRef(null);
   const scanningRef = useRef(false);
+  const scanHintTimerRef = useRef(null);
   const [scanning, setScanning] = useState(false);
   const [working, setWorking] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   const [status, setStatus] = useState(initialStatus);
 
   const activeIndex = stepIndex(status.step);
@@ -61,6 +144,10 @@ function LockerScreen() {
   const stopScanner = async () => {
     const scanner = scannerRef.current;
     scanningRef.current = false;
+    if (scanHintTimerRef.current) {
+      window.clearTimeout(scanHintTimerRef.current);
+      scanHintTimerRef.current = null;
+    }
     setScanning(false);
 
     if (!scanner) return;
@@ -87,8 +174,79 @@ function LockerScreen() {
       if (scannerRef.current?.isScanning) {
         scannerRef.current.stop().catch(() => {});
       }
+      if (scanHintTimerRef.current) {
+        window.clearTimeout(scanHintTimerRef.current);
+      }
     };
   }, []);
+
+  const startScannerWithFallback = async (scanner) => {
+    const config = {
+      fps: 10,
+      qrbox: { width: 360, height: 360 },
+      aspectRatio: 1,
+    };
+    const onScanSuccess = (decodedText) => {
+      if (!scanningRef.current) return;
+      scanningRef.current = false;
+      void stopScanner().then(() => handleValidate(decodedText));
+    };
+    const onScanFailure = () => {};
+    let lastError = null;
+
+    try {
+      const permissionStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+      permissionStream.getTracks().forEach((track) => track.stop());
+    } catch (error) {
+      throw error;
+    }
+
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      const frontCamera =
+        cameras.find((camera) => /front|user|facetime|전면/i.test(camera.label || '')) ||
+        cameras[0];
+
+      if (frontCamera?.id) {
+        try {
+          await scanner.start(
+            { deviceId: { exact: frontCamera.id } },
+            config,
+            onScanSuccess,
+            onScanFailure,
+          );
+          return;
+        } catch (error) {
+          lastError = error;
+          console.warn('QR scanner deviceId start failed:', error);
+        }
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn('QR camera listing failed:', error);
+    }
+
+    const fallbackConstraints = [
+      { facingMode: { exact: 'user' } },
+      { facingMode: 'user' },
+      { facingMode: 'environment' },
+    ];
+
+    for (const constraint of fallbackConstraints) {
+      try {
+        await scanner.start(constraint, config, onScanSuccess, onScanFailure);
+        return;
+      } catch (error) {
+        lastError = error;
+        console.warn('QR scanner fallback start failed:', error);
+      }
+    }
+
+    throw lastError || new Error('카메라를 시작하지 못했습니다.');
+  };
 
   const handleValidate = async (rawToken) => {
     const inspection = inspectLockerQrPayload(rawToken);
@@ -126,7 +284,7 @@ function LockerScreen() {
 
       setStatus({
         step: 'locker_open',
-        token,
+        token: session.token || token,
         lockerOpen: true,
         itemDetected: false,
         message: '인증이 완료되어 보관함 잠금이 해제되었습니다.',
@@ -152,7 +310,7 @@ function LockerScreen() {
         step: 'error',
         token,
         scannedTokenLabel: maskLockerQrToken(token),
-        message: getLockerQrErrorMessage(error),
+        message: getErrorMessage(error, getLockerQrErrorMessage(error)),
       });
     } finally {
       setWorking(false);
@@ -191,29 +349,21 @@ function LockerScreen() {
       scanningRef.current = true;
       setScanning(true);
 
-      await scanner.start(
-        { facingMode: 'user' },
-        {
-          fps: 10,
-          qrbox: { width: 360, height: 360 },
-          aspectRatio: 1,
-        },
-        async (decodedText) => {
-          if (!scanningRef.current) return;
-          await stopScanner();
-          await handleValidate(decodedText);
-        },
-        () => {}
-      );
+      await startScannerWithFallback(scanner);
+      scanHintTimerRef.current = window.setTimeout(() => {
+        if (scanningRef.current) {
+          setStatus((prev) => ({
+            ...prev,
+            message: 'QR 판독 실패: QR이 흐리거나 화면에서 너무 멀 수 있습니다. 밝은 곳에서 QR 전체를 카메라 안에 맞춰 주세요.',
+          }));
+        }
+      }, 5000);
     } catch (error) {
       await stopScanner();
-      const message = /permission|notallowed/i.test(error?.message || '')
-        ? '카메라 권한이 필요합니다. 브라우저 설정에서 카메라를 허용해주세요.'
-        : error?.message || '카메라를 시작하지 못했습니다. 카메라 권한을 확인해주세요.';
       setStatus({
         ...initialStatus,
         step: 'error',
-        message,
+        message: `카메라 시작 오류: ${getCameraErrorMessage(error)}`,
       });
     }
   };
@@ -222,12 +372,35 @@ function LockerScreen() {
     await stopScanner();
     setStatus({
       ...initialStatus,
-      message: 'QR 스캔을 중지했습니다. 다시 시작하면 새 QR을 인식할 수 있습니다.',
+      message: '스캔을 중지했습니다. QR 아래 인증번호를 직접 입력할 수 있습니다.',
     });
+  };
+
+  const handleManualCodeSubmit = async (event) => {
+    event.preventDefault();
+    const code = formatLockerCode(manualCode);
+
+    if (!isLockerCode(code)) {
+      setStatus({
+        ...initialStatus,
+        step: 'error',
+        message: `인증번호 8자리를 입력해주세요. 예: ${getLockerCodeExample()}`,
+      });
+      return;
+    }
+
+    await stopScanner();
+    await handleValidate(code);
   };
 
   const handleItemDetected = async () => {
     if (!canDetectItem) return;
+
+    if (status.token === 'test-locker-qr') {
+      window.alert('물품 보관이 완료되었습니다.');
+      navigate('/locker', { replace: true });
+      return;
+    }
 
     setWorking(true);
     setStatus((prev) => ({
@@ -256,13 +429,15 @@ function LockerScreen() {
         session,
         donation: data.donation || prev.donation,
         donor: data.donor || prev.donor,
-        message: '물품보관함 입고 처리가 완료되었습니다.',
+        message: '물품 보관이 완료되었습니다.',
       }));
+      window.alert('물품 보관이 완료되었습니다.');
+      navigate('/locker', { replace: true });
     } catch (error) {
       setStatus((prev) => ({
         ...prev,
         step: 'error',
-        message: error.message || '완료 처리 중 문제가 발생했습니다.',
+        message: getErrorMessage(error, '완료 처리 중 문제가 발생했습니다.'),
       }));
     } finally {
       setWorking(false);
@@ -271,6 +446,7 @@ function LockerScreen() {
 
   const handleReset = () => {
     stopScanner();
+    setManualCode('');
     setStatus(initialStatus);
   };
 
@@ -359,6 +535,37 @@ function LockerScreen() {
               스캔 중지
             </button>
           </div>
+
+          <form onSubmit={handleManualCodeSubmit} className="mt-8 border-t border-[#e5e7df] pt-8">
+            <label htmlFor="locker-manual-code" className="block text-[26px] font-black text-[#191f1b] mb-3">
+              QR이 인식되지 않나요?
+            </label>
+            <p className="text-[22px] text-[#66706a] mb-5">
+              앱 QR 아래의 인증번호를 직접 입력하세요. 숫자 8자리만 입력해도 자동으로 변환됩니다.
+            </p>
+            <div className="flex gap-4">
+              <input
+                id="locker-manual-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={manualCode}
+                onChange={(event) => setManualCode(formatLockerCode(event.target.value))}
+                placeholder={getLockerCodeExample()}
+                maxLength={12}
+                disabled={working}
+                className="min-w-0 flex-1 h-[92px] rounded-[24px] border-2 border-[#d8ddd4] bg-white px-6 text-[30px] font-black tracking-[0.04em] outline-none focus:border-[#2f7d4f] disabled:bg-[#f1f3ee]"
+                aria-label="보관함 QR 인증번호"
+              />
+              <button
+                type="submit"
+                disabled={working || !hasLockerCodeDigits(manualCode)}
+                className="h-[92px] shrink-0 rounded-[24px] bg-[#191f1b] px-8 text-[28px] font-black text-white disabled:bg-[#c9cec4] disabled:opacity-60"
+              >
+                인증번호 확인
+              </button>
+            </div>
+          </form>
         </section>
         ) : null}
 

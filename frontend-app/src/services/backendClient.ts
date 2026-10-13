@@ -20,9 +20,12 @@ export interface ApiEnvelope<T> {
   success?: boolean;
   message?: string;
   error?: string;
+  code?: string;
   errorCode?: string;
   data?: T;
 }
+
+const DEFAULT_REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS || 15000);
 
 export const backendConfig = {
   baseUrl: process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') ?? '',
@@ -59,6 +62,21 @@ export function isBackendEnabled() {
   return Boolean(backendConfig.baseUrl) && !backendConfig.useMockOnly;
 }
 
+function getRequestTimeoutMs() {
+  return Number.isFinite(DEFAULT_REQUEST_TIMEOUT_MS) && DEFAULT_REQUEST_TIMEOUT_MS > 0
+    ? DEFAULT_REQUEST_TIMEOUT_MS
+    : 15000;
+}
+
+function getBackendUnavailableMessage(reason: 'timeout' | 'network') {
+  const target = backendConfig.baseUrl || '설정되지 않은 API 주소';
+  if (reason === 'timeout') {
+    return `백엔드 서버 응답이 지연되고 있습니다. API 주소(${target})와 서버 상태를 확인해주세요.`;
+  }
+
+  return `백엔드 서버에 연결할 수 없습니다. API 주소(${target})와 네트워크 상태를 확인해주세요.`;
+}
+
 export function buildAuthHeaders(token?: string, headers?: Record<string, string>) {
   return {
     Accept: 'application/json',
@@ -72,15 +90,26 @@ export async function requestEnvelope<T>(path: string, init?: RequestInit) {
     return { data: null as T | null, error: null as string | null };
   }
 
+  const controller =
+    !init?.signal && typeof AbortController !== 'undefined'
+      ? new AbortController()
+      : null;
+  const timeout = controller
+    ? setTimeout(() => controller.abort(), getRequestTimeoutMs())
+    : null;
+
   try {
-    const response = await fetch(`${backendConfig.baseUrl}${path}`, init);
+    const response = await fetch(`${backendConfig.baseUrl}${path}`, {
+      ...init,
+      signal: init?.signal ?? controller?.signal,
+    });
     const raw = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
 
     if (!response.ok) {
       return {
         data: null as T | null,
         error: raw?.message ?? raw?.error ?? `HTTP ${response.status}`,
-        errorCode: raw?.errorCode,
+        errorCode: raw?.errorCode ?? raw?.code ?? `HTTP_${response.status}`,
       };
     }
 
@@ -88,7 +117,7 @@ export async function requestEnvelope<T>(path: string, init?: RequestInit) {
       return {
         data: null as T | null,
         error: raw.message ?? raw.error ?? '요청 처리에 실패했습니다.',
-        errorCode: raw.errorCode,
+        errorCode: raw.errorCode ?? raw.code,
       };
     }
 
@@ -96,11 +125,17 @@ export async function requestEnvelope<T>(path: string, init?: RequestInit) {
       data: (raw && 'data' in raw ? raw.data : raw) as T | null,
       error: null,
     };
-  } catch {
+  } catch (error) {
+    const isAbortError = error instanceof Error && error.name === 'AbortError';
     return {
       data: null as T | null,
-      error: '백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.',
+      error: getBackendUnavailableMessage(isAbortError ? 'timeout' : 'network'),
+      errorCode: isAbortError ? 'TIMEOUT' : 'NETWORK',
     };
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 
@@ -109,21 +144,33 @@ export async function pingBackend() {
     return { ok: true, error: null as string | null };
   }
 
+  const controller =
+    typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = controller
+    ? setTimeout(() => controller.abort(), getRequestTimeoutMs())
+    : null;
+
   try {
     const response = await fetch(`${backendConfig.baseUrl}${backendConfig.endpoints.posts}`, {
       method: 'GET',
       headers: buildAuthHeaders(),
+      signal: controller?.signal,
     });
 
     return {
       ok: response.ok,
       error: response.ok ? null : `HTTP ${response.status}`,
     };
-  } catch {
+  } catch (error) {
+    const isAbortError = error instanceof Error && error.name === 'AbortError';
     return {
       ok: false,
-      error: '백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.',
+      error: getBackendUnavailableMessage(isAbortError ? 'timeout' : 'network'),
     };
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 
@@ -424,6 +471,15 @@ export function mapBackendNotification(raw: any): NotificationItem {
     type: raw?.type === 'chat' ? 'chat' : raw?.type === 'share' ? 'share' : 'system',
     relatedType: raw?.relatedType,
     relatedId: raw?.relatedId,
+    pickupRequestId:
+      raw?.pickupRequestId !== undefined || raw?.pickup_request_id !== undefined
+        ? String(raw?.pickupRequestId ?? raw?.pickup_request_id)
+        : null,
+    pickupRequestStatus: raw?.pickupRequestStatus ?? raw?.pickup_request_status ?? null,
+    donateId:
+      raw?.donateId !== undefined || raw?.donate_id !== undefined
+        ? String(raw?.donateId ?? raw?.donate_id)
+        : null,
     notificationTypeCode: raw?.notificationTypeCode ?? raw?.notificationType,
     title: raw?.title ?? '알림',
     message: raw?.message ?? '',

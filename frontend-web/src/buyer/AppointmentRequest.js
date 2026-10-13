@@ -18,6 +18,8 @@ function AppointmentRequest() {
   const listPath = isEasyMode ? '/easy-main' : '/buyer-main';
   const [item, setItem] = useState(null);
   const [isLoading, setIsLoading] = useState(Boolean(postId));
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successPopupOpen, setSuccessPopupOpen] = useState(false);
   const [appointment, setAppointment] = useState({
     date: getDefaultDate(),
     time: '15:00',
@@ -78,8 +80,17 @@ function AppointmentRequest() {
     }));
   };
 
+  const handleSuccessConfirm = () => {
+    setSuccessPopupOpen(false);
+    navigate(listPath, { replace: true });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (isSubmitting || successPopupOpen) {
+      return;
+    }
 
     if (!postId) {
       alert('요청할 나눔글을 찾을 수 없습니다.');
@@ -98,16 +109,18 @@ function AppointmentRequest() {
     }
 
     try {
+      setIsSubmitting(true);
       await createPickupRequest(postId, {
         date: appointment.date,
         time: appointment.time,
         memo: appointment.memo,
       });
 
-      alert('비대면 수령 요청을 보냈습니다.');
-      navigate(listPath, { replace: true });
+      setSuccessPopupOpen(true);
     } catch (error) {
       alert(error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -202,12 +215,45 @@ function AppointmentRequest() {
 
           <button
             type="submit"
-            className="mt-7 w-full rounded-[28px] bg-[#2f7d4f] py-6 text-[34px] font-black text-white shadow-lg active:scale-[0.98]"
+            disabled={isSubmitting || successPopupOpen}
+            className="mt-7 w-full rounded-[28px] bg-[#2f7d4f] py-6 text-[34px] font-black text-white shadow-lg active:scale-[0.98] disabled:bg-[#c9cec4] disabled:shadow-none"
           >
-            물품 수령 요청하기
+            {isSubmitting ? '요청 중' : '물품 수령 요청하기'}
           </button>
         </form>
       </section>
+
+      {successPopupOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-8">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pickup-request-success-title"
+            className="w-full max-w-[680px] rounded-[32px] border border-[#dfe7dd] bg-white p-8 text-center shadow-[0_24px_80px_rgba(0,0,0,0.25)]"
+          >
+            <div className="mx-auto mb-7 flex h-28 w-28 items-center justify-center rounded-full bg-[#DCFCE7] text-[64px] font-black text-[#25673f]">
+              ✓
+            </div>
+            <p className="mb-4 text-[24px] font-black text-[#25673f]">요청 완료</p>
+            <h2
+              id="pickup-request-success-title"
+              className="mb-6 text-[44px] font-black leading-tight text-[#191f1b] word-keep"
+            >
+              물품 수령 요청이 완료되었습니다.
+            </h2>
+            <p className="mx-auto mb-8 max-w-[560px] text-[24px] font-bold leading-snug text-[#66706a] word-keep">
+              확인을 누르면 물품 목록으로 돌아갑니다.
+            </p>
+            <button
+              type="button"
+              onClick={handleSuccessConfirm}
+              className="w-full rounded-[24px] bg-[#2f7d4f] py-5 text-[30px] font-black text-white shadow-lg active:scale-[0.98]"
+            >
+              확인
+            </button>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

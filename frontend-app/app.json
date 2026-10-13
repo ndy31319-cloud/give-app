@@ -4,18 +4,34 @@
     "slug": "give-rn",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/give-logo-icon.png",
     "scheme": "rnapp",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/give-logo-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFDF4"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "icon": "./assets/images/give-logo-icon.png",
+      "splash": {
+        "image": "./assets/images/give-logo-splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FFFDF4"
+      }
     },
     "android": {
+      "icon": "./assets/images/give-logo-icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FFFDF4",
+        "foregroundImage": "./assets/images/give-logo-adaptive.png",
+        "monochromeImage": "./assets/images/give-logo-adaptive.png"
+      },
+      "splash": {
+        "image": "./assets/images/give-logo-splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FFFDF4"
       },
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
@@ -36,10 +52,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/give-logo-splash.png",
+          "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#FFFDF4",
           "dark": {
             "backgroundColor": "#000000"
           }

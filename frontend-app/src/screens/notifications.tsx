@@ -36,6 +36,7 @@ export function NotificationsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const requestVersion = useRef(0);
   const busy = useRef(false);
@@ -66,7 +67,7 @@ export function NotificationsScreen() {
   }, [load, refreshNotifications]));
 
   async function openNotification(item: NotificationItem) {
-    if (openingLock.current || allReadLock.current) return;
+    if (openingLock.current || allReadLock.current || approving) return;
     openingLock.current = true; setOpening(item.id);
     try {
       const read = await markNotificationRead(item.id);
@@ -81,6 +82,30 @@ export function NotificationsScreen() {
       else if (item.target?.type === 'inquiry') router.push(`/inquiry-detail?id=${item.target.inquiryId}`);
       else Alert.alert(item.title, `${item.message}\n\n연결된 거래나 게시글이 더 이상 없을 수 있습니다.`);
     } finally { openingLock.current = false; setOpening(null); }
+  }
+  async function approvePickupRequest(item: NotificationItem) {
+    const pickupRequestId = item.pickupRequestId || (item.relatedType === 'pickup' ? item.relatedId : null);
+    if (!authToken || !pickupRequestId || approving) return;
+
+    setApproving(pickupRequestId);
+    try {
+      const result = await notificationAPI.approveLockerPickupRequest(pickupRequestId, authToken);
+      if (result.error || !result.data?.success) {
+        Alert.alert('수락 실패', result.error || '잠시 후 다시 시도해주세요.');
+        return;
+      }
+
+      setItems(previous => previous.map(row => (
+        row.pickupRequestId === pickupRequestId || (row.relatedType === 'pickup' && row.relatedId === pickupRequestId)
+          ? { ...row, pickupRequestStatus: 'approved', isRead: true }
+          : row
+      )));
+      await markNotificationRead(item.id);
+      await refreshNotifications();
+      Alert.alert('수락 완료', '이제 수령자가 키오스크에서 물품을 가져갈 수 있습니다.');
+    } finally {
+      setApproving(null);
+    }
   }
   async function readAll() {
     if (allReadLock.current || openingLock.current || !items.length || !authToken) return;
@@ -129,9 +154,12 @@ export function NotificationsScreen() {
       renderItem={({ item, index }) => {
         const group = dayLabel(item.createdAt);
         const showDay = index === 0 || dayLabel(items[index - 1].createdAt) !== group;
+        const pickupRequestId = item.pickupRequestId || (item.relatedType === 'pickup' ? item.relatedId : null);
+        const canApprovePickup = item.notificationTypeCode === 'pickup_request' && item.pickupRequestStatus === 'pending' && Boolean(pickupRequestId);
+        const approvingThis = Boolean(pickupRequestId) && approving === pickupRequestId;
         return <View>
           {showDay && <Text style={styles.day}>{group}</Text>}
-          <Pressable accessibilityRole="button" disabled={opening !== null || markingAll} onPress={() => void openNotification(item)}
+          <Pressable accessibilityRole="button" disabled={opening !== null || markingAll || approving !== null} onPress={() => void openNotification(item)}
             style={({ pressed }) => [styles.card, !item.isRead && styles.unread, pressed && { opacity: 0.75 }]}>
             <View style={[styles.icon, !item.isRead && { backgroundColor: colors.brandSoft }]}>
               <Ionicons name={noticeIcon(item.notificationTypeCode)} size={23} color={item.isRead ? colors.textMuted : colors.brand} />
@@ -140,6 +168,23 @@ export function NotificationsScreen() {
               <View style={styles.row}><Text style={[styles.cardTitle, item.isRead && { color: colors.textMuted }]}>{item.title}</Text>{!item.isRead && <View style={styles.dot} />}</View>
               <Text style={styles.message}>{item.message}</Text>
               <Text style={styles.time}>{item.timeLabel}</Text>
+              {canApprovePickup ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="물품 수령 수락"
+                  disabled={approvingThis || opening !== null || markingAll}
+                  onPress={() => void approvePickupRequest(item)}
+                  style={({ pressed }) => [
+                    styles.approveButton,
+                    (approvingThis || opening !== null || markingAll) && styles.approveButtonDisabled,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  {approvingThis ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.approveButtonText}>물품 수령 수락</Text>}
+                </Pressable>
+              ) : item.notificationTypeCode === 'pickup_request' && item.pickupRequestStatus === 'approved' ? (
+                <Text style={styles.approvedText}>수락 완료: 키오스크에서 수령할 수 있어요.</Text>
+              ) : null}
             </View>
             {opening === item.id ? <ActivityIndicator size="small" color={colors.brand} /> : item.target ? <Ionicons name="chevron-forward" size={16} color={colors.textLight} /> : null}
           </Pressable>
@@ -161,6 +206,10 @@ const styles = StyleSheet.create({
   unread: { borderColor: '#cfe6d7', backgroundColor: '#f5fbf7' }, icon: { width: 43, height: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.surfaceMuted },
   body: { flex: 1, gap: 6 }, row: { flexDirection: 'row', alignItems: 'center', gap: 6 }, cardTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.text },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brand }, message: { fontSize: 13, lineHeight: 20, color: colors.textMuted }, time: { fontSize: 11, color: colors.textLight },
+  approveButton: { marginTop: 4, alignSelf: 'flex-start', minHeight: 38, minWidth: 136, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: radius.pill, backgroundColor: colors.brand },
+  approveButtonDisabled: { backgroundColor: colors.borderStrong },
+  approveButtonText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  approvedText: { marginTop: 4, color: colors.brand, fontSize: 12, fontWeight: '800' },
   empty: { marginTop: 24, padding: 20, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 14 },
   emptyIcon: { padding: 12, borderRadius: 16, backgroundColor: colors.brandSoft }, emptyTitle: { fontSize: 15, fontWeight: '700', color: colors.text }, emptyText: { marginTop: 7, fontSize: 13, lineHeight: 20, color: colors.textMuted },
   more: { alignItems: 'center', padding: 18 }, error: { margin: 20, color: colors.danger, fontSize: 13 },

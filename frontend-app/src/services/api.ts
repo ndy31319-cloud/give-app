@@ -60,6 +60,7 @@ import {
 import {
   backendConfig,
   buildAuthHeaders,
+  isBackendEnabled,
   mapBackendChatMessage,
   mapBackendChatRoom,
   mapBackendDynamicQrSession,
@@ -78,6 +79,7 @@ import { formatDate } from "@/src/utils/time";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ApiResult<T> = Promise<{ data: T; error: string | null; errorCode?: string }>;
+const AI_IMAGE_REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_AI_IMAGE_TIMEOUT_MS || 45000);
 
 const knownProductCategoryIds = new Set([
   "가구",
@@ -295,42 +297,24 @@ function sleep(ms: number) {
 }
 
 const dynamicQrSessionStore: DynamicQrSession[] = [];
-const defaultDynamicQrTtlSeconds = 30;
+const defaultDynamicQrTtlSeconds = 60;
 
 function isoNow() {
   return new Date().toISOString();
 }
 
-function hashString(value: string) {
-  let hash = 2166136261;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return (hash >>> 0).toString(16).toUpperCase().padStart(8, "0");
-}
-
 function buildDynamicQrDisplayCode(
-  memberId: string,
-  purpose: DynamicQrPurpose,
   issuedAtMs: number,
 ) {
-  const seed = hashString(`${memberId}:${purpose}:${issuedAtMs}`).slice(0, 12);
-  return `GIVE-${seed.slice(0, 4)}-${seed.slice(4, 8)}-${seed.slice(8, 12)}`;
+  const year = new Date(issuedAtMs).getFullYear();
+  const sequence = String((dynamicQrSessionStore.length % 9999) + 1).padStart(4, "0");
+  return `WF-${year}-${sequence}`;
 }
 
 function buildDynamicQrToken(
-  memberId: string,
-  purpose: DynamicQrPurpose,
   issuedAtMs: number,
-  expiresAtMs: number,
 ) {
-  const seed = hashString(
-    `${memberId}:${purpose}:${issuedAtMs}:${expiresAtMs}:${Math.random()}`,
-  );
-  return `give|${purpose}|${memberId}|${issuedAtMs}|${expiresAtMs}|${seed}`;
+  return buildDynamicQrDisplayCode(issuedAtMs);
 }
 
 function cloneDynamicQrSession(session: DynamicQrSession) {
@@ -822,7 +806,7 @@ export const dynamicQrAPI = {
     );
 
     if (backendResult.error) {
-      return { data: null, error: backendResult.error };
+      return { data: null, error: backendResult.error, errorCode: backendResult.errorCode };
     }
 
     if (backendResult.data) {
@@ -858,8 +842,8 @@ export const dynamicQrAPI = {
       memberId,
       donateId: donateId !== undefined && donateId !== null ? String(donateId) : null,
       purpose,
-      token: buildDynamicQrToken(memberId, purpose, issuedAtMs, expiresAtMs),
-      displayCode: buildDynamicQrDisplayCode(memberId, purpose, issuedAtMs),
+      token: buildDynamicQrToken(issuedAtMs),
+      displayCode: buildDynamicQrDisplayCode(issuedAtMs),
       issuedAt: new Date(issuedAtMs).toISOString(),
       expiresAt: new Date(expiresAtMs).toISOString(),
       status: "active",
@@ -887,7 +871,7 @@ export const dynamicQrAPI = {
     );
 
     if (backendResult.error) {
-      return { data: null, error: backendResult.error };
+      return { data: null, error: backendResult.error, errorCode: backendResult.errorCode };
     }
 
     if (backendResult.data) {
@@ -1781,6 +1765,79 @@ export const pickupRequestAPI = {
 };
 
 export const notificationAPI = {
+  async getLockerPickupRequestByDonation(
+    donateId: string,
+    authToken?: string,
+  ): ApiResult<{
+    item: {
+      pickupId?: string;
+      pickup_id?: string;
+      status?: string;
+      requestStatus?: string;
+      request_status?: string;
+      requestedAt?: string;
+      requested_at?: string;
+      title?: string;
+    } | null;
+  }> {
+    const response = await requestEnvelope<{
+      item: {
+        pickupId?: string;
+        pickup_id?: string;
+        status?: string;
+        requestStatus?: string;
+        request_status?: string;
+        requestedAt?: string;
+        requested_at?: string;
+        title?: string;
+      } | null;
+    }>(
+      `/api/device/locker/pickup/requests/by-donation/${encodeURIComponent(donateId)}`,
+      { headers: buildAuthHeaders(authToken) },
+    );
+    return {
+      data: response.data || { item: null },
+      error: response.error,
+      errorCode: response.errorCode,
+    };
+  },
+
+  async approveLockerPickupRequest(
+    pickupRequestId: string,
+    authToken?: string,
+  ): ApiResult<{ success?: boolean; item?: unknown }> {
+    const response = await requestEnvelope<{ item?: unknown }>(
+      `/api/device/locker/pickup/requests/${encodeURIComponent(pickupRequestId)}/approve`,
+      {
+        method: "POST",
+        headers: buildAuthHeaders(authToken, { "Content-Type": "application/json" }),
+      },
+    );
+    return {
+      data: response.data ? { success: true, ...response.data } : { success: false },
+      error: response.error || (!response.data ? "수령 요청 수락에 실패했습니다." : null),
+      errorCode: response.errorCode,
+    };
+  },
+
+  async approveLockerPickupRequestByDonation(
+    donateId: string,
+    authToken?: string,
+  ): ApiResult<{ success?: boolean; item?: unknown }> {
+    const response = await requestEnvelope<{ item?: unknown }>(
+      `/api/device/locker/pickup/requests/by-donation/${encodeURIComponent(donateId)}/approve`,
+      {
+        method: "POST",
+        headers: buildAuthHeaders(authToken, { "Content-Type": "application/json" }),
+      },
+    );
+    return {
+      data: response.data ? { success: true, ...response.data } : { success: false },
+      error: response.error || (!response.data ? "예약 수락에 실패했습니다." : null),
+      errorCode: response.errorCode,
+    };
+  },
+
   async feed(authToken?: string, before?: string, unread = false): ApiResult<NotificationFeed> {
     const query = new URLSearchParams();
     if (before) query.set('before', before);
@@ -1893,7 +1950,7 @@ export const mypageAPI = {
               ttlSeconds: Number(
                 response.data.activeQr.ttlSeconds ??
                   response.data.activeQr.ttl_seconds ??
-                  30,
+                  60,
               ),
             })
           : null,
@@ -2329,34 +2386,57 @@ export const postAPI = {
         error: "분석할 이미지가 없습니다.",
       };
     }
+
+    if (!isBackendEnabled()) {
+      return { data: inferFromFilename(images[0]), error: null as string | null };
+    }
+
     images.forEach((item) => {
       formData.append("images", toBackendFilePart(item));
     });
     formData.append("title", extras?.title ?? "");
     formData.append("description", extras?.description ?? "");
 
+    const controller =
+      typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeout =
+      controller && Number.isFinite(AI_IMAGE_REQUEST_TIMEOUT_MS) && AI_IMAGE_REQUEST_TIMEOUT_MS > 0
+        ? setTimeout(() => controller.abort(), AI_IMAGE_REQUEST_TIMEOUT_MS)
+        : null;
     const response = await fetch(
       `${backendConfig.baseUrl}${backendConfig.endpoints.harmfulCheck}`,
       {
         method: "POST",
         headers: token ? buildAuthHeaders(token) : undefined,
         body: formData,
+        signal: controller?.signal,
       },
     )
       .then(async (fetchResponse) => {
         const raw = await fetchResponse.json().catch(() => null);
         return {
           data: raw,
+          status: fetchResponse.status,
+          errorCode: fetchResponse.ok ? undefined : `HTTP_${fetchResponse.status}`,
           error: fetchResponse.ok
             ? null
             : (raw?.message ?? raw?.error ?? `HTTP ${fetchResponse.status}`),
         };
       })
-      .catch(() => ({
-        data: null,
-        error:
-          "백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.",
-      }));
+      .catch((error) => {
+        const isTimeout = error instanceof Error && error.name === "AbortError";
+        return {
+          data: null,
+          status: 0,
+          errorCode: isTimeout ? "TIMEOUT" : "NETWORK",
+          error: isTimeout
+            ? "AI 사진 판독 응답 시간이 초과되었습니다. 잠시 후 다시 시도하거나 직접 작성해주세요."
+            : "백엔드 서버에 연결할 수 없습니다. 서버 실행 상태와 API 주소를 확인해주세요.",
+        };
+      });
+    if (timeout) {
+      clearTimeout(timeout);
+    }
 
     const hasHarmfulResult =
       Array.isArray(response.data?.problematic_images) &&
@@ -2366,6 +2446,7 @@ export const postAPI = {
       return {
         data: null as ImageAnalysisResult | null,
         error: response.error,
+        errorCode: response.errorCode,
       };
     }
 
@@ -2503,6 +2584,27 @@ export const postAPI = {
     }
 
     return { data: [], error: null as string | null };
+  },
+
+  async listMine(authToken?: string) {
+    const response = await requestEnvelope<{ posts?: any[] }>(
+      `${backendConfig.endpoints.memberMe}/posts`,
+      { headers: buildAuthHeaders(authToken) },
+    );
+
+    if (response.error) {
+      return { data: [], error: response.error as string | null };
+    }
+
+    const posts = Array.isArray(response.data)
+      ? response.data
+      : Array.isArray(response.data?.posts)
+        ? response.data.posts
+        : [];
+    return {
+      data: posts.map((post) => mapBackendPost(post, findLocationByDongName("역삼동"))),
+      error: null as string | null,
+    };
   },
 
   async deletePost(post: Post, authToken?: string) {

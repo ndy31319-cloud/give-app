@@ -46,6 +46,11 @@ export function subscribeToChatMessages(
   onMessages: (messages: ChatMessage[]) => void,
   onError?: (error: Error) => void,
 ) {
+  if (!isFirebaseChatConfigured()) {
+    onError?.(new Error('Firebase chat is not configured.'));
+    return () => {};
+  }
+
   const messagesQuery = query(
     collection(getFirebaseDb(), 'chatRooms', chatRoomId, 'messages'),
     orderBy('createdAt', 'asc'),

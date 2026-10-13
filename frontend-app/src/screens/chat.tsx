@@ -29,6 +29,7 @@ import { AppScreen } from "@/src/components/common/AppScreen";
 import { AppTextField } from "@/src/components/common/AppTextField";
 import { useAppContext } from "@/src/context/AppContext";
 import { reviewAPI } from "@/src/services/api";
+import { backendConfig, buildAuthHeaders, requestEnvelope } from "@/src/services/backendClient";
 import { loadReviewStatus, ReviewStatus } from '@/src/services/reviewApi';
 import { MemberReputation } from '@/src/components/common/MemberReputation';
 import { colors, radius, spacing } from "@/src/theme/colors";
@@ -729,23 +730,20 @@ export function ChatRoomScreen() {
                     setIsLeaving(true);
 
                     try {
-                      const response = await fetch(
-                        `${process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "")}/api/chats/rooms/${chatRoom.id}`,
+                      if (!backendConfig.baseUrl || backendConfig.useMockOnly) {
+                        Alert.alert('나가기 실패', '백엔드 연결 설정을 확인해주세요.');
+                        return;
+                      }
+
+                      const result = await requestEnvelope(
+                        `${backendConfig.endpoints.chats}/rooms/${encodeURIComponent(chatRoom.id)}`,
                         {
                           method: "DELETE",
-                          headers: authToken
-                            ? {
-                                Authorization: `Bearer ${authToken}`,
-                                Accept: "application/json",
-                              }
-                            : {
-                                Accept: "application/json",
-                              },
+                          headers: buildAuthHeaders(authToken ?? undefined),
                         },
                       );
-                      if (!response.ok) {
-                        const body = await response.json().catch(() => null);
-                        Alert.alert('나가기 실패', body?.message || '잠시 후 다시 시도해주세요.');
+                      if (result.error) {
+                        Alert.alert('나가기 실패', result.error || '잠시 후 다시 시도해주세요.');
                         return;
                       }
                     } catch {

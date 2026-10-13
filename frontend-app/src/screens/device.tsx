@@ -8,16 +8,17 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 
 import { AppButton } from '@/src/components/common/AppButton';
 import { AppHeader } from '@/src/components/common/AppHeader';
 import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { useAppContext } from '@/src/context/AppContext';
+import { postAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { DeviceSimulationStep, DynamicQrSession, Post } from '@/src/types/app';
 import {
-  createPseudoQrMatrix,
   getEffectiveQrStatus,
   getQrPurposeLabel,
   getQrStatusLabel,
@@ -90,22 +91,9 @@ function simulationTone(step: DeviceSimulationStep) {
 }
 
 function DynamicQrMatrix({ value }: { value: string }) {
-  const matrix = useMemo(() => createPseudoQrMatrix(value, 25), [value]);
-
   return (
     <View style={styles.qrCardFrame}>
-      <View style={styles.qrMatrix}>
-        {matrix.map((row, rowIndex) => (
-          <View key={`row-${rowIndex}`} style={styles.qrRow}>
-            {row.map((cell, cellIndex) => (
-              <View
-                key={`cell-${rowIndex}-${cellIndex}`}
-                style={[styles.qrCell, cell ? styles.qrCellOn : styles.qrCellOff]}
-              />
-            ))}
-          </View>
-        ))}
-      </View>
+      <QRCode value={value} size={220} color={colors.text} backgroundColor={colors.surface} />
     </View>
   );
 }
@@ -200,6 +188,8 @@ export function DeviceSimulatorScreen() {
   const {
     user,
     posts,
+    authToken,
+    refreshPosts,
     activeQrSession,
     deviceSimulation,
     issueDynamicQr,
@@ -212,28 +202,69 @@ export function DeviceSimulatorScreen() {
   const [working, setWorking] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [selectedDonateId, setSelectedDonateId] = useState<string | null>(null);
+  const [myPosts, setMyPosts] = useState<Post[] | null>(null);
+  const [myPostsError, setMyPostsError] = useState<string | null>(null);
+  const [reloadMyPostsKey, setReloadMyPostsKey] = useState(0);
 
   const activeStatus = getEffectiveQrStatus(activeQrSession);
   const activeStepIndex = deviceStepOrder.indexOf(deviceSimulation.step);
+  const ownedPosts = useMemo(() => {
+    const candidates = [...(myPosts ?? []), ...posts];
+    const seen = new Set<string>();
+
+    return candidates.filter((post) => {
+      const recordId = String(post.recordId ?? post.id);
+      if (seen.has(recordId)) return false;
+      seen.add(recordId);
+
+      return (
+        (post.type === 'share' || post.type === undefined) &&
+        (myPosts?.includes(post) ||
+          String(post.author?.id) === String(user?.id))
+      );
+    });
+  }, [myPosts, posts, user?.id]);
   const myDonationPosts = useMemo(
-    () =>
-      posts.filter(
+    () => {
+      return ownedPosts.filter(
         (post) =>
           post.type === 'share' &&
-          post.author.id === user?.id &&
           !['completed', 'canceled', 'stored'].includes(post.status),
-      ),
-    [posts, user?.id],
+      );
+    },
+    [ownedPosts],
   );
+  const hasStoredDonationPosts = ownedPosts.some((post) => post.status === 'stored');
   const selectedPost = myDonationPosts.find((post) => String(post.recordId) === selectedDonateId);
 
   useEffect(() => {
+    refreshPosts();
+
+    let isMounted = true;
+    const loadMyPosts = async () => {
+      const result = await postAPI.listMine(authToken ?? undefined);
+      if (!isMounted) return;
+
+      if (result.error) {
+        setMyPostsError(result.error);
+        setMyPosts(null);
+        return;
+      }
+
+      setMyPostsError(null);
+      setMyPosts(result.data);
+    };
+    loadMyPosts();
+
     const timer = setInterval(() => {
       setNow(Date.now());
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, []);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [authToken, refreshPosts, reloadMyPostsKey]);
 
 
   const handleStartWithToken = async (token: string) => {
@@ -263,7 +294,7 @@ export function DeviceSimulatorScreen() {
     }
 
     setIssuing(true);
-    const issueResult = await issueDynamicQr('donation_storage', 30, selectedPost.recordId);
+    const issueResult = await issueDynamicQr('donation_storage', 60, selectedPost.recordId);
     setIssuing(false);
 
     if (issueResult.error) {
@@ -290,7 +321,7 @@ export function DeviceSimulatorScreen() {
           <View style={{ flex: 1, gap: 6 }}>
             <Text style={styles.heroTitle}>QR 인증부터 완료 처리까지 테스트</Text>
             <Text style={styles.heroText}>
-              30초 만료 QR 발급부터 QR 인식, 서버 검증, 잠금 해제, 물품 투입, 데이터 갱신까지 한 화면에서 검증할 수 있습니다.
+              1분 만료 QR 발급부터 QR 인식, 서버 검증, 잠금 해제, 물품 투입, 데이터 갱신까지 한 화면에서 검증할 수 있습니다.
             </Text>
           </View>
         </View>
@@ -305,11 +336,28 @@ export function DeviceSimulatorScreen() {
             </Text>
           </View>
 
-          {myDonationPosts.length === 0 ? (
+          {myPostsError ? (
             <View style={styles.emptyPostState}>
-              <Text style={styles.emptyTitle}>선택할 나눔글이 없습니다</Text>
+              <Text style={styles.emptyTitle}>나눔글을 불러오지 못했습니다</Text>
+              <Text style={styles.emptyText}>{myPostsError}</Text>
+              <AppButton
+                label="나눔글 다시 불러오기"
+                onPress={() => {
+                  setMyPostsError(null);
+                  setMyPosts(null);
+                  setReloadMyPostsKey((key) => key + 1);
+                }}
+              />
+            </View>
+          ) : myDonationPosts.length === 0 ? (
+            <View style={styles.emptyPostState}>
+              <Text style={styles.emptyTitle}>
+                {hasStoredDonationPosts ? '이미 보관 완료된 나눔글입니다' : '선택할 나눔글이 없습니다'}
+              </Text>
               <Text style={styles.emptyText}>
-                본인이 작성했고 아직 보관 완료되지 않은 나눔해요 게시글이 필요합니다.
+                {hasStoredDonationPosts
+                  ? '보관 완료된 게시글은 중복 입고할 수 없습니다. 새 나눔글을 등록하거나 다른 미보관 게시글을 선택해주세요.'
+                  : '본인이 작성했고 아직 보관 완료되지 않은 나눔해요 게시글이 필요합니다.'}
               </Text>
             </View>
           ) : (
@@ -320,7 +368,13 @@ export function DeviceSimulatorScreen() {
                 return (
                   <Pressable
                     key={post.id}
-                    onPress={() => setSelectedDonateId(String(post.recordId))}
+                    onPress={() =>
+                      setSelectedDonateId((currentId) =>
+                        currentId === String(post.recordId)
+                          ? null
+                          : String(post.recordId),
+                      )
+                    }
                     style={[styles.postSelectCard, isSelected && styles.postSelectCardActive]}
                   >
                     <View style={{ flex: 1, gap: 4 }}>
@@ -821,4 +875,3 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 });
-

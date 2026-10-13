@@ -12,6 +12,7 @@ export function MemberReputation({ memberId }: { memberId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   useFocusEffect(useCallback(() => {
+    void retry;
     let active = true; setData(null); setError(null);
     void loadReputation(memberId, authToken ?? undefined).then(result => { if (active) { setData(result.data); setError(result.error); } });
     return () => { active = false; };
