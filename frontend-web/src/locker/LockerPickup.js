@@ -219,10 +219,10 @@ function LockerPickup() {
 
   return (
     <main
-      className="min-h-screen bg-[#f7f7f4] p-8 flex items-center justify-center"
+      className="locker-pickup-screen h-screen bg-[#f7f7f4] p-8 flex items-center justify-center"
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
-      <section className="w-full max-w-[820px] rounded-[28px] bg-white border border-[#e5e7df] p-6 text-center shadow-sm">
+      <section className="locker-pickup-card w-full max-w-[820px] rounded-[28px] bg-white border border-[#e5e7df] p-6 text-center shadow-sm">
         <button
           type="button"
           onClick={() => navigate('/locker')}
@@ -252,7 +252,7 @@ function LockerPickup() {
           </p>
         ) : null}
 
-        <div className="mb-7 space-y-4 rounded-[22px] bg-[#f1f3ee] p-6 text-left">
+        <div className="locker-pickup-list-panel mb-5 space-y-4 rounded-[22px] bg-[#f1f3ee] p-6 text-left">
           {isLoading ? (
             <p className="text-[26px] font-black text-[#66706a]">물품을 확인하는 중입니다...</p>
           ) : showPendingState ? (
@@ -325,7 +325,7 @@ function LockerPickup() {
         <button
           type="button"
           onClick={() => navigate('/locker')}
-          className="w-full rounded-[22px] bg-[#f1f3ee] py-5 text-[26px] font-black text-[#191f1b] active:scale-[0.98]"
+          className="locker-pickup-return-button w-full rounded-[22px] bg-[#f1f3ee] py-5 text-[26px] font-black text-[#191f1b] active:scale-[0.98]"
         >
           돌아가기
         </button>

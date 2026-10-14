@@ -8,7 +8,16 @@ function loadHandler(query) {
   const routes = [];
   const auth = () => {};
   const router = { get() {}, post() {}, delete: (...args) => routes.push(args) };
-  const dependencies = { axios: {}, express: { Router: () => router }, '../middlewares/authMiddleware': auth, '../db': { query } };
+  const dependencies = {
+    axios: {},
+    express: { Router: () => router },
+    '../middlewares/authMiddleware': auth,
+    '../db': { query },
+    '../lib/aiServerUrls': {
+      resolveAiEndpointUrls: () => [],
+      splitConfiguredUrls: () => [],
+    },
+  };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../routes/policies.js'), 'utf8'), {
     require: name => { assert.ok(name in dependencies, name); return dependencies[name]; },
     module: { exports: {} }, process: { env: {} }, console: { error() {} },

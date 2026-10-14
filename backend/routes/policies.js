@@ -2,61 +2,25 @@ const axios = require("axios");
 const express = require("express");
 const authenticateToken = require("../middlewares/authMiddleware");
 const db = require("../db");
+const {
+  resolveAiEndpointUrls,
+  splitConfiguredUrls,
+} = require("../lib/aiServerUrls");
 
 const router = express.Router();
 let memberColumnsCache = null;
 const AI_REQUEST_TIMEOUT_MS = 30000;
 const AI_RETRY_DELAY_MS = 1000;
 
-const normalizeAiBaseUrl = (rawUrl) => {
-  let normalizedUrl = String(rawUrl || "").trim().replace(/\/+$/, "");
-
-  if (normalizedUrl.endsWith("/docs")) {
-    normalizedUrl = normalizedUrl.slice(0, -"/docs".length);
-  }
-
-  return normalizedUrl;
-};
-
-const splitConfiguredUrls = (value) =>
-  String(value || "")
-    .split(",")
-    .map((url) => url.trim())
-    .filter(Boolean);
-
-const uniqueUrls = (urls) => [...new Set(urls.filter(Boolean))];
-
 const resolveAiChatbotApiUrls = () => {
   const explicitUrls = splitConfiguredUrls(process.env.AI_CHATBOT_URL);
-  const primaryUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_PRIMARY);
-  const legacyUrls = splitConfiguredUrls(process.env.AI_SERVER_URL);
-  const fallbackUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_FALLBACK);
-  const baseUrls = [
-    ...(primaryUrls.length ? primaryUrls : legacyUrls),
-    ...fallbackUrls,
-  ];
-  const configuredUrls = explicitUrls.length
-    ? [...explicitUrls, ...fallbackUrls]
-    : baseUrls;
-  const urls = uniqueUrls(
-    configuredUrls.map((rawUrl) => {
-      const normalizedUrl = normalizeAiBaseUrl(rawUrl);
 
-      if (normalizedUrl.endsWith("/api/chat")) {
-        return `${normalizedUrl}/`;
-      }
-
-      return `${normalizedUrl}/api/chat/`;
-    }),
-  );
-
-  if (!urls.length) {
-    const error = new Error("AI 서버 URL이 설정되어 있지 않습니다.");
-    error.statusCode = 503;
-    throw error;
-  }
-
-  return urls;
+  return resolveAiEndpointUrls({
+    endpointPath: "/api/chat/",
+    explicitUrls,
+    missingMessage:
+      "AI 서버 URL이 설정되어 있지 않습니다. 로컬 AI 서버를 Render 백엔드에서 사용하려면 ngrok 또는 Cloudflare Tunnel 공개 주소를 AI_SERVER_URL에 설정해주세요.",
+  });
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

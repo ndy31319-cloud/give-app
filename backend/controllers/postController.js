@@ -5,6 +5,9 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const db = require("../db");
+const {
+  resolveAiEndpointUrls,
+} = require("../lib/aiServerUrls");
 const { getStorageBucket } = require("../lib/firebaseAdmin");
 const { buildUploadUrl } = require("../lib/uploadUrl");
 
@@ -79,43 +82,12 @@ const normalizeItemCondition = (value) => {
   return "상태 무관";
 };
 
-const splitConfiguredUrls = (value) =>
-  String(value || "")
-    .split(",")
-    .map((url) => url.trim())
-    .filter(Boolean);
-
 const resolveAiPostGenerationApiUrls = () => {
-  const primaryUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_PRIMARY);
-  const legacyUrls = splitConfiguredUrls(process.env.AI_SERVER_URL);
-  const fallbackUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_FALLBACK);
-  const configuredUrls = [
-    ...(primaryUrls.length ? primaryUrls : legacyUrls),
-    ...fallbackUrls,
-  ];
-  const urls = configuredUrls.map((rawUrl) => {
-    const trimmedUrl = String(rawUrl || "").trim();
-    let normalizedUrl = trimmedUrl.replace(/\/+$/, "");
-
-    if (normalizedUrl.endsWith("/api/post/generate-post")) {
-      return normalizedUrl;
-    }
-
-    if (normalizedUrl.endsWith("/docs")) {
-      normalizedUrl = normalizedUrl.slice(0, -"/docs".length);
-    }
-
-    return `${normalizedUrl}/api/post/generate-post`;
+  return resolveAiEndpointUrls({
+    endpointPath: "/api/post/generate-post",
+    missingMessage:
+      "AI 서버가 아직 연결되지 않았습니다. 로컬 AI 서버를 Render 백엔드에서 사용하려면 ngrok 또는 Cloudflare Tunnel 공개 주소를 AI_SERVER_URL에 설정해주세요.",
   });
-
-  const uniqueResolvedUrls = [...new Set(urls.filter(Boolean))];
-  if (!uniqueResolvedUrls.length) {
-    const error = new Error("AI 서버가 아직 연결되지 않았습니다.");
-    error.statusCode = 503;
-    throw error;
-  }
-
-  return uniqueResolvedUrls;
 };
 
 const parseNumericId = (value) => {
