@@ -77,22 +77,35 @@ function statusLabel(step) {
 }
 
 function formatLockerCode(value) {
-  const digits = String(value || '').replace(/\D/g, '').slice(0, 8);
-  if (!digits) return '';
-  if (digits.length <= 4) return `WF-${digits}`;
-  return `WF-${digits.slice(0, 4)}-${digits.slice(4)}`;
+  const rawValue = String(value || '').trim();
+
+  if (/^(gq_|give\||https?:\/\/|\{)/i.test(rawValue)) {
+    return rawValue;
+  }
+
+  const compactValue = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const codeBody = compactValue.startsWith('WF') ? compactValue.slice(2) : compactValue;
+  const limitedBody = codeBody.slice(0, 8);
+
+  if (!limitedBody) return '';
+  if (limitedBody.length <= 4) return `WF-${limitedBody}`;
+  return `WF-${limitedBody.slice(0, 4)}-${limitedBody.slice(4)}`;
 }
 
 function isLockerCode(value) {
-  return /^WF-\d{4}-\d{4}$/.test(value);
+  return /^WF-\d{4}-[A-Z0-9]{4}$/.test(value);
 }
 
-function hasLockerCodeDigits(value) {
-  return String(value || '').replace(/\D/g, '').length === 8;
+function hasManualCredential(value) {
+  const rawValue = String(value || '').trim();
+  const compactValue = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const codeBody = compactValue.startsWith('WF') ? compactValue.slice(2) : compactValue;
+
+  return codeBody.length >= 8 || /^(gq_|give\||https?:\/\/|\{)/i.test(rawValue);
 }
 
 function getLockerCodeExample() {
-  return `WF-${new Date().getFullYear()}-0001`;
+  return `WF-${new Date().getFullYear()}-A7K9`;
 }
 
 function getCameraErrorMessage(error) {
@@ -379,12 +392,13 @@ function LockerScreen() {
   const handleManualCodeSubmit = async (event) => {
     event.preventDefault();
     const code = formatLockerCode(manualCode);
+    const inspection = inspectLockerQrPayload(code);
 
-    if (!isLockerCode(code)) {
+    if (!inspection.valid || (!isLockerCode(code) && !/^(gq_|give\||https?:\/\/|\{)/i.test(code))) {
       setStatus({
         ...initialStatus,
         step: 'error',
-        message: `인증번호 8자리를 입력해주세요. 예: ${getLockerCodeExample()}`,
+        message: `앱 QR 아래의 인증번호를 입력해주세요. 예: ${getLockerCodeExample()}`,
       });
       return;
     }
@@ -541,25 +555,26 @@ function LockerScreen() {
               QR이 인식되지 않나요?
             </label>
             <p className="text-[22px] text-[#66706a] mb-5">
-              앱 QR 아래의 인증번호를 직접 입력하세요. 숫자 8자리만 입력해도 자동으로 변환됩니다.
+              앱 QR 아래의 인증번호를 직접 입력하세요. 하이픈 없이 입력해도 자동으로 변환됩니다.
             </p>
             <div className="flex gap-4">
               <input
                 id="locker-manual-code"
                 type="text"
-                inputMode="numeric"
+                inputMode="text"
                 autoComplete="one-time-code"
+                autoCapitalize="characters"
                 value={manualCode}
                 onChange={(event) => setManualCode(formatLockerCode(event.target.value))}
                 placeholder={getLockerCodeExample()}
-                maxLength={12}
+                maxLength={96}
                 disabled={working}
                 className="min-w-0 flex-1 h-[92px] rounded-[24px] border-2 border-[#d8ddd4] bg-white px-6 text-[30px] font-black tracking-[0.04em] outline-none focus:border-[#2f7d4f] disabled:bg-[#f1f3ee]"
                 aria-label="보관함 QR 인증번호"
               />
               <button
                 type="submit"
-                disabled={working || !hasLockerCodeDigits(manualCode)}
+                disabled={working || !hasManualCredential(manualCode)}
                 className="h-[92px] shrink-0 rounded-[24px] bg-[#191f1b] px-8 text-[28px] font-black text-white disabled:bg-[#c9cec4] disabled:opacity-60"
               >
                 인증번호 확인

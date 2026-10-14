@@ -113,7 +113,11 @@ function PostDetail() {
                 </h1>
                 <span className="post-detail-status">신청가능</span>
               </div>
-              <p className="post-detail-description text-[28px] text-gray-600 leading-relaxed">
+              <p
+                className="post-detail-description text-[28px] text-gray-600 leading-relaxed"
+                tabIndex={0}
+                aria-label="물품 설명"
+              >
                 {item.description || item.content}
               </p>
               <div className="post-detail-category">

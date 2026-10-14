@@ -307,14 +307,24 @@ function buildDynamicQrDisplayCode(
   issuedAtMs: number,
 ) {
   const year = new Date(issuedAtMs).getFullYear();
-  const sequence = String((dynamicQrSessionStore.length % 9999) + 1).padStart(4, "0");
-  return `WF-${year}-${sequence}`;
+  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let suffix = "";
+
+  for (let index = 0; index < 4; index += 1) {
+    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return `WF-${year}-${suffix}`;
 }
 
 function buildDynamicQrToken(
   issuedAtMs: number,
 ) {
-  return buildDynamicQrDisplayCode(issuedAtMs);
+  const randomPart = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+    .replace(/[^a-z0-9]/gi, "")
+    .padEnd(24, "0")
+    .slice(0, 24);
+  return `gq_mock_${issuedAtMs}_${randomPart}`;
 }
 
 function cloneDynamicQrSession(session: DynamicQrSession) {

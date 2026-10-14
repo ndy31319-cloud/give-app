@@ -144,63 +144,53 @@ const getLockerState = (lockerId) =>
   lockerStatesById.get(normalizeLockerId(lockerId)) ||
   updateLockerState(lockerId, {});
 
-const formatQrCredential = (year, sequence) =>
-  `WF-${String(year).padStart(4, "0")}-${String(sequence).padStart(4, "0")}`;
+const lockerCodeAlphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
-const parseQrCredentialSequence = (value, year) => {
-  const match = String(value || "").trim().toUpperCase().match(/^WF-(\d{4})-(\d{4})$/);
-  if (!match || Number(match[1]) !== Number(year)) {
-    return null;
+const buildLockerSecretToken = () => `gq_${crypto.randomBytes(24).toString("base64url")}`;
+
+const buildLockerDisplayCode = () => {
+  const year = new Date().getFullYear();
+  let suffix = "";
+
+  for (let index = 0; index < 4; index += 1) {
+    suffix += lockerCodeAlphabet[crypto.randomInt(lockerCodeAlphabet.length)];
   }
 
-  return Number(match[2]);
+  return `WF-${year}-${suffix}`;
 };
 
-const buildNextQrCredential = async () => {
-  const year = new Date().getFullYear();
-  const prefix = `WF-${year}-`;
-  const [recentRows] = await db.query(
-    `SELECT token, display_code
-     FROM DYNAMIC_QR
-     WHERE token LIKE ? OR display_code LIKE ?
-     ORDER BY qr_id DESC
-     LIMIT 100`,
-    [`${prefix}%`, `${prefix}%`],
-  );
-  const maxSequence = recentRows.reduce((max, row) => {
-    const tokenSequence = parseQrCredentialSequence(row.token, year);
-    const displaySequence = parseQrCredentialSequence(row.display_code, year);
-    return Math.max(max, tokenSequence || 0, displaySequence || 0);
-  }, 0);
-
-  for (let offset = 1; offset <= 20; offset += 1) {
-    const candidate = formatQrCredential(year, ((maxSequence + offset - 1) % 9999) + 1);
+const buildQrCredentials = async () => {
+  for (let attempt = 1; attempt <= 20; attempt += 1) {
+    const token = buildLockerSecretToken();
+    const displayCode = buildLockerDisplayCode();
     const [existingRows] = await db.query(
       `SELECT qr_id
        FROM DYNAMIC_QR
        WHERE token = ? OR display_code = ?
        LIMIT 1`,
-      [candidate, candidate],
+      [token, displayCode],
     );
 
     if (!existingRows.length) {
-      return candidate;
+      return { token, displayCode };
     }
   }
 
-  throw new Error("QR credential sequence exhausted.");
+  throw new Error("QR credential generation exhausted.");
 };
 
 const normalizeDisplayCode = (value) => {
   const rawValue = String(value || "").trim().toUpperCase();
-  const digits = rawValue.replace(/\D/g, "");
+  const compactValue = rawValue.replace(/[^A-Z0-9]/g, "");
 
-  if (/^WF-\d{4}-\d{4}$/.test(rawValue)) {
+  if (/^WF-\d{4}-[A-Z0-9]{4}$/.test(rawValue)) {
     return rawValue;
   }
 
-  return /^\d{8}$/.test(digits)
-    ? `WF-${digits.slice(0, 4)}-${digits.slice(4, 8)}`
+  const codeBody = compactValue.startsWith("WF") ? compactValue.slice(2) : compactValue;
+
+  return /^[A-Z0-9]{8}$/.test(codeBody)
+    ? `WF-${codeBody.slice(0, 4)}-${codeBody.slice(4, 8)}`
     : null;
 };
 
@@ -430,14 +420,14 @@ router.post("/qr/issue", authenticateToken, async (req, res) => {
       }
     }
 
-    const qrCredential = await buildNextQrCredential();
+    const qrCredential = await buildQrCredentials();
     session = {
       id: `qr_${issuedAtMs}`,
       memberId,
       donateId,
       purpose,
-      token: qrCredential,
-      displayCode: qrCredential,
+      token: qrCredential.token,
+      displayCode: qrCredential.displayCode,
       issuedAt: toIsoString(issuedAtMs),
       expiresAt: toIsoString(expiresAtMs),
       status: "active",

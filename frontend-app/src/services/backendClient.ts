@@ -492,10 +492,11 @@ export function mapBackendDynamicQrSession(
   raw: any,
   fallback: { memberId: string; purpose: DynamicQrPurpose; ttlSeconds: number },
 ): DynamicQrSession {
-  const issuedAt = raw?.issuedAt ?? new Date().toISOString();
+  const issuedAt = raw?.issuedAt ?? raw?.issued_at ?? new Date().toISOString();
   const expiresAt =
     raw?.expiresAt ??
-    new Date(new Date(issuedAt).getTime() + (raw?.ttlSeconds ?? fallback.ttlSeconds) * 1000).toISOString();
+    raw?.expires_at ??
+    new Date(new Date(issuedAt).getTime() + (raw?.ttlSeconds ?? raw?.ttl_seconds ?? fallback.ttlSeconds) * 1000).toISOString();
 
   return {
     id: String(raw?.id ?? `dynamic_qr_${Date.now()}`),
@@ -506,11 +507,11 @@ export function mapBackendDynamicQrSession(
         : null,
     purpose: raw?.purpose ?? fallback.purpose,
     token: raw?.token ?? '',
-    displayCode: raw?.displayCode ?? raw?.code ?? '',
+    displayCode: raw?.displayCode ?? raw?.display_code ?? raw?.code ?? '',
     issuedAt,
     expiresAt,
     status: raw?.status ?? 'active',
-    ttlSeconds: Number(raw?.ttlSeconds ?? fallback.ttlSeconds),
-    usedAt: raw?.usedAt ?? null,
+    ttlSeconds: Number(raw?.ttlSeconds ?? raw?.ttl_seconds ?? fallback.ttlSeconds),
+    usedAt: raw?.usedAt ?? raw?.used_at ?? null,
   };
 }

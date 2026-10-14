@@ -1,10 +1,15 @@
 const db = require('../db');
 async function migrate() {
   const [[row]] = await db.query('SHOW CREATE TABLE NOTIFICATION');
-  if (row['Create Table'].includes('chk_notification_type') && !row['Create Table'].includes("'pickup_expired'")) {
+  const createTable = row['Create Table'];
+  if (
+    createTable.includes('chk_notification_type') &&
+    (!createTable.includes("'pickup_expired'") ||
+      !createTable.includes("'wanted_donation_offer'"))
+  ) {
     await db.query(`ALTER TABLE NOTIFICATION DROP CHECK chk_notification_type,
       ADD CONSTRAINT chk_notification_type CHECK (notification_type IN
-      ('chat','request','pickup_request','pickup_approved','pickup_completed','admin','pickup_rejected','pickup_canceled','pickup_expired'))`);
+      ('chat','request','pickup_request','pickup_approved','pickup_completed','admin','pickup_rejected','pickup_canceled','pickup_expired','wanted_donation_offer'))`);
   }
   console.log('Notification types migrated; existing notifications preserved.');
 }

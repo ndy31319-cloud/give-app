@@ -2,7 +2,7 @@ const DEFAULT_API_BASE_URL =
   process.env.NODE_ENV === 'development' ? '' : 'https://give-app.onrender.com';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || DEFAULT_API_BASE_URL;
-const DEFAULT_REQUEST_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 20000);
+const DEFAULT_REQUEST_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 60000);
 
 export const KIOSK_DEFAULT_LOCATION = {
   dongName: '안양동',

@@ -9,15 +9,22 @@ test('보관함 QR 토큰을 인식한다', () => {
 });
 
 test('DB display code 형식의 보관함 QR을 인식한다', () => {
-  const result = inspectLockerQrPayload('WF-2026-0001', 1761000000000);
+  const result = inspectLockerQrPayload('WF-2026-A7K9', 1761000000000);
   expect(result.valid).toBe(true);
-  expect(result.token).toBe('WF-2026-0001');
+  expect(result.token).toBe('WF-2026-A7K9');
 });
 
-test('숫자 8자리 QR 값은 DB display code로 보정한다', () => {
-  const result = inspectLockerQrPayload('20260001', 1761000000000);
+test('하이픈 없는 인증번호는 DB display code로 보정한다', () => {
+  const result = inspectLockerQrPayload('2026A7K9', 1761000000000);
   expect(result.valid).toBe(true);
-  expect(result.token).toBe('WF-2026-0001');
+  expect(result.token).toBe('WF-2026-A7K9');
+});
+
+test('랜덤 비밀 토큰 형식의 보관함 QR을 인식한다', () => {
+  const secretToken = 'gq_abcdefghijklmnopqrstuvwxyzABCDEF';
+  const result = inspectLockerQrPayload(secretToken, 1761000000000);
+  expect(result.valid).toBe(true);
+  expect(result.token).toBe(secretToken);
 });
 
 test('다른 목적의 QR은 보관함 입고 QR로 거절한다', () => {

@@ -3,6 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createPickupRequest, fetchPost, getPostImageUrl, hasAuthToken } from '../api/client';
 import PostImage from './PostImage';
 
+const EASY_MEMO_TEMPLATES = [
+  '오늘 중으로 받을 수 있으면 좋겠어요.',
+  '오후 3시 이후에 받고 싶어요.',
+  '시간은 후원자님이 가능한 때로 맞출게요.',
+  '보관함에 넣어주시면 제가 찾아갈게요.',
+  '물품 상태는 괜찮습니다. 감사히 받을게요.',
+  '연락이 어려우면 키오스크 알림으로 확인할게요.',
+];
+
 function getDefaultDate() {
   const date = new Date();
   date.setDate(date.getDate() + 7);
@@ -20,6 +29,8 @@ function AppointmentRequest() {
   const [isLoading, setIsLoading] = useState(Boolean(postId));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successPopupOpen, setSuccessPopupOpen] = useState(false);
+  const [descriptionPopupOpen, setDescriptionPopupOpen] = useState(false);
+  const [memoPopupOpen, setMemoPopupOpen] = useState(false);
   const [appointment, setAppointment] = useState({
     date: getDefaultDate(),
     time: '15:00',
@@ -72,6 +83,10 @@ function AppointmentRequest() {
     },
     [item],
   );
+  const itemDescription =
+    displayItem.description ||
+    displayItem.content ||
+    '후원자가 확인하면 보관함 수령 일정이 정해집니다.';
 
   const handleChange = (field) => (event) => {
     setAppointment((current) => ({
@@ -83,6 +98,14 @@ function AppointmentRequest() {
   const handleSuccessConfirm = () => {
     setSuccessPopupOpen(false);
     navigate(listPath, { replace: true });
+  };
+
+  const selectMemoTemplate = (memo) => {
+    setAppointment((current) => ({
+      ...current,
+      memo,
+    }));
+    setMemoPopupOpen(false);
   };
 
   const handleSubmit = async (event) => {
@@ -134,7 +157,7 @@ function AppointmentRequest() {
 
   return (
     <main
-      className="appointment-screen bg-[#f7f7f4] h-screen overflow-hidden p-8"
+      className={`appointment-screen ${isEasyMode ? 'appointment-screen-easy' : ''} bg-[#f7f7f4] h-screen overflow-hidden p-8`}
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <section className="appointment-card mx-auto grid h-full w-full max-w-[1360px] grid-cols-[0.95fr_1.2fr] gap-8 rounded-[36px] bg-white p-8 shadow-sm border border-gray-100">
@@ -158,9 +181,19 @@ function AppointmentRequest() {
             <h1 className="mb-4 text-[38px] font-black leading-tight text-[#111827] word-keep">
               {displayItem.title}
             </h1>
-            <p className="appointment-description mb-6 text-[22px] font-bold leading-snug text-gray-500 word-keep">
-              {displayItem.description || displayItem.content || '후원자가 확인하면 보관함 수령 일정이 정해집니다.'}
-            </p>
+            {isEasyMode ? (
+              <button
+                type="button"
+                onClick={() => setDescriptionPopupOpen(true)}
+                className="appointment-description appointment-description-button mb-6 text-left text-[22px] font-bold leading-snug text-gray-500 word-keep"
+              >
+                {itemDescription}
+              </button>
+            ) : (
+              <p className="appointment-description mb-6 text-[22px] font-bold leading-snug text-gray-500 word-keep">
+                {itemDescription}
+              </p>
+            )}
             <div className="appointment-category rounded-[22px] bg-white p-5">
               <p className="text-[18px] font-bold text-gray-500">카테고리</p>
               <p className="mt-2 text-[26px] font-black text-[#222]">{displayItem.category || '나눔 물품'}</p>
@@ -202,15 +235,30 @@ function AppointmentRequest() {
                 className="rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[26px] font-bold outline-none focus:border-[#2f7d4f]"
               />
             </label>
-            <label className="col-span-2 flex min-w-0 flex-col gap-3 text-[22px] font-black text-[#222]">
-              요청 메모
-              <textarea
-                value={appointment.memo}
-                onChange={handleChange('memo')}
-                placeholder="예: 가능하면 오후 3시 이후에 수령하고 싶어요"
-                className="min-h-[150px] resize-none rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[24px] font-bold outline-none focus:border-[#2f7d4f]"
-              />
-            </label>
+            {isEasyMode ? (
+              <div className="col-span-2 flex min-w-0 flex-col gap-3 text-[22px] font-black text-[#222]">
+                <span>요청 메모</span>
+                <button
+                  type="button"
+                  onClick={() => setMemoPopupOpen(true)}
+                  className={`appointment-memo-select min-h-[150px] rounded-[22px] border-2 bg-white px-5 py-5 text-left text-[24px] font-bold outline-none active:scale-[0.99] ${
+                    appointment.memo ? 'border-[#2f7d4f] text-[#111827]' : 'border-gray-100 text-gray-500'
+                  }`}
+                >
+                  {appointment.memo || '요청 메모를 눌러 문장을 고르세요'}
+                </button>
+              </div>
+            ) : (
+              <label className="col-span-2 flex min-w-0 flex-col gap-3 text-[22px] font-black text-[#222]">
+                요청 메모
+                <textarea
+                  value={appointment.memo}
+                  onChange={handleChange('memo')}
+                  placeholder="예: 가능하면 오후 3시 이후에 수령하고 싶어요"
+                  className="min-h-[150px] resize-none rounded-[22px] border-2 border-gray-100 bg-white px-5 py-5 text-[24px] font-bold outline-none focus:border-[#2f7d4f]"
+                />
+              </label>
+            )}
           </div>
 
           <button
@@ -251,6 +299,74 @@ function AppointmentRequest() {
             >
               확인
             </button>
+          </section>
+        </div>
+      ) : null}
+
+      {descriptionPopupOpen ? (
+        <div className="easy-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="easy-description-title"
+            className="easy-description-modal w-full max-w-[920px] rounded-[28px] bg-white p-7 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+          >
+            <h2 id="easy-description-title" className="mb-4 text-[48px] font-black leading-tight text-[#111827] word-keep">
+              {displayItem.title}
+            </h2>
+            <div className="easy-description-modal-body rounded-[22px] border-4 border-[#e5e7df] bg-[#f7f7f4] p-5 text-[42px] font-black leading-snug text-[#191f1b] word-keep">
+              {itemDescription}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDescriptionPopupOpen(false)}
+              className="mt-6 w-full rounded-[24px] bg-[#2f7d4f] py-5 text-[40px] font-black text-white active:scale-[0.98]"
+            >
+              닫기
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {memoPopupOpen ? (
+        <div className="easy-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="easy-memo-title"
+            className="easy-memo-modal w-full max-w-[980px] rounded-[28px] bg-white p-7 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+          >
+            <h2 id="easy-memo-title" className="mb-5 text-[50px] font-black leading-tight text-[#111827]">
+              요청 메모 선택
+            </h2>
+            <div className="easy-memo-options grid gap-4">
+              {EASY_MEMO_TEMPLATES.map((memo) => (
+                <button
+                  key={memo}
+                  type="button"
+                  onClick={() => selectMemoTemplate(memo)}
+                  className="rounded-[22px] border-4 border-[#dfe7dd] bg-[#f7f7f4] px-5 py-5 text-left text-[38px] font-black leading-snug text-[#191f1b] active:bg-[#e9f5ee]"
+                >
+                  {memo}
+                </button>
+              ))}
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => selectMemoTemplate('')}
+                className="rounded-[24px] bg-[#f1f3ee] py-5 text-[34px] font-black text-[#191f1b] active:scale-[0.98]"
+              >
+                메모 없음
+              </button>
+              <button
+                type="button"
+                onClick={() => setMemoPopupOpen(false)}
+                className="rounded-[24px] bg-[#2f7d4f] py-5 text-[34px] font-black text-white active:scale-[0.98]"
+              >
+                닫기
+              </button>
+            </div>
           </section>
         </div>
       ) : null}

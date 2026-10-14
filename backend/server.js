@@ -17,6 +17,7 @@ const configuredOrigins = [
   "http://127.0.0.1:8081",
   "http://localhost:8082",
   "http://127.0.0.1:8082",
+  "https://give-web-kiosk.onrender.com",
   ...(process.env.CORS_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())
@@ -26,7 +27,8 @@ const configuredOrigins = [
 const isAllowedOrigin = (origin) =>
   !origin ||
   configuredOrigins.includes(origin) ||
-  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+  /^https?:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
 
 app.use(
   cors({

@@ -1,17 +1,20 @@
 const QR_TOKEN_PART_COUNT = 7;
-const LOCKER_DISPLAY_CODE_PATTERN = /^WF-\d{4}-\d{4}$/;
+const LOCKER_DISPLAY_CODE_PATTERN = /^WF-\d{4}-[A-Z0-9]{4}$/;
+const LOCKER_SECRET_TOKEN_PATTERN = /^gq_[A-Za-z0-9_-]{24,}$/;
 
 function normalizeLockerDisplayCode(value) {
   const input = String(value || '').trim();
   const upperInput = input.toUpperCase();
-  const digits = input.replace(/\D/g, '');
+  const compactInput = upperInput.replace(/[^A-Z0-9]/g, '');
 
   if (LOCKER_DISPLAY_CODE_PATTERN.test(upperInput)) {
     return upperInput;
   }
 
-  return digits.length === 8
-    ? `WF-${digits.slice(0, 4)}-${digits.slice(4, 8)}`
+  const codeBody = compactInput.startsWith('WF') ? compactInput.slice(2) : compactInput;
+
+  return codeBody.length === 8
+    ? `WF-${codeBody.slice(0, 4)}-${codeBody.slice(4, 8)}`
     : input;
 }
 
@@ -53,6 +56,14 @@ export function inspectLockerQrPayload(rawPayload, now = Date.now()) {
       valid: true,
       token,
       message: '보관함 입고 QR 인증번호를 정상적으로 인식했습니다. 서버에서 사용 가능 여부를 확인합니다.',
+    };
+  }
+
+  if (LOCKER_SECRET_TOKEN_PATTERN.test(token)) {
+    return {
+      valid: true,
+      token,
+      message: '보관함 입고 QR 비밀 토큰을 정상적으로 인식했습니다. 서버에서 사용 가능 여부를 확인합니다.',
     };
   }
 
