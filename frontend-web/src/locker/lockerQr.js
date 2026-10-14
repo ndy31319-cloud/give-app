@@ -13,9 +13,15 @@ function normalizeLockerDisplayCode(value) {
 
   const codeBody = compactInput.startsWith('WF') ? compactInput.slice(2) : compactInput;
 
-  return codeBody.length === 8
-    ? `WF-${codeBody.slice(0, 4)}-${codeBody.slice(4, 8)}`
-    : input;
+  if (codeBody.length === 8) {
+    return `WF-${codeBody.slice(0, 4)}-${codeBody.slice(4, 8)}`;
+  }
+
+  if (!compactInput.startsWith('WF') && /^[A-Z0-9]{4}$/.test(codeBody)) {
+    return `WF-${new Date().getFullYear()}-${codeBody}`;
+  }
+
+  return input;
 }
 
 function extractToken(rawPayload) {
@@ -119,6 +125,9 @@ export function getLockerQrErrorMessage(error) {
   }
   if (/failed to fetch|networkerror|network request failed/i.test(original)) {
     return '서버에 연결하지 못했습니다. 네트워크 연결을 확인한 뒤 다시 시도해주세요.';
+  }
+  if (error?.code === 'INVALID_JSON_RESPONSE') {
+    return 'API 주소가 백엔드가 아닌 화면 서버를 보고 있습니다. 키오스크 API 주소 설정을 확인해주세요.';
   }
   return 'QR 인증 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
 }

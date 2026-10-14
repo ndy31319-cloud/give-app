@@ -826,7 +826,10 @@ export function PostDetailScreen() {
         return;
       }
       setOfferedRequestIds((current) => [...current, post.recordId]);
-      Alert.alert("나눔 의사 전달 완료", "요청자에게 알림을 보냈어요. 3일 후 방문해 확인해주세요.");
+      Alert.alert(
+        result.data?.alreadyExists ? "이미 전달된 나눔 의사입니다" : "나눔 의사 전달 완료",
+        "보관함 QR 발급 화면에서 이 물품을 선택해 입고용 QR을 발급할 수 있어요.",
+      );
     };
 
     if (Platform.OS === "web") {

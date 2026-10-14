@@ -317,16 +317,6 @@ function buildDynamicQrDisplayCode(
   return `WF-${year}-${suffix}`;
 }
 
-function buildDynamicQrToken(
-  issuedAtMs: number,
-) {
-  const randomPart = `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
-    .replace(/[^a-z0-9]/gi, "")
-    .padEnd(24, "0")
-    .slice(0, 24);
-  return `gq_mock_${issuedAtMs}_${randomPart}`;
-}
-
 function cloneDynamicQrSession(session: DynamicQrSession) {
   return { ...session };
 }
@@ -847,13 +837,14 @@ export const dynamicQrAPI = {
 
     const issuedAtMs = Date.now();
     const expiresAtMs = issuedAtMs + ttlSeconds * 1000;
+    const displayCode = buildDynamicQrDisplayCode(issuedAtMs);
     const createdSession: DynamicQrSession = {
       id: `dynamic_qr_${issuedAtMs}`,
       memberId,
       donateId: donateId !== undefined && donateId !== null ? String(donateId) : null,
       purpose,
-      token: buildDynamicQrToken(issuedAtMs),
-      displayCode: buildDynamicQrDisplayCode(issuedAtMs),
+      token: displayCode,
+      displayCode,
       issuedAt: new Date(issuedAtMs).toISOString(),
       expiresAt: new Date(expiresAtMs).toISOString(),
       status: "active",
@@ -2212,13 +2203,22 @@ export const postAPI = {
 
   async sendKioskDonationOffer(requestId: string | number, authToken?: string) {
     if (!authToken || !backendConfig.baseUrl || backendConfig.useMockOnly) {
-      return { error: "로그인 및 서버 연결이 필요합니다." };
+      return { data: null, error: "로그인 및 서버 연결이 필요합니다." };
     }
-    const response = await requestEnvelope<{ requestId: number }>(
+    const response = await requestEnvelope<{
+      requestId: number;
+      donateId?: number;
+      pickupRequestId?: number;
+      alreadyExists?: boolean;
+    }>(
       `/api/wanted/${encodeURIComponent(String(requestId))}/donation-offer`,
       { method: "POST", headers: buildAuthHeaders(authToken) },
     );
-    return { error: response.error };
+    return {
+      data: response.data ?? null,
+      error: response.error,
+      errorCode: response.errorCode,
+    };
   },
 
   async createPost(

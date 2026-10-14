@@ -47,14 +47,26 @@ function getErrorMessage(error, fallback) {
     if (error.code === 'QR_DB_ERROR' || error.code === 'DONATION_LOOKUP_FAILED') {
       return `서버/DB 오류: ${error.message}`;
     }
+    if (error.code === 'DONATION_NOT_FOUND') {
+      return `게시글 연결 오류: ${error.message}`;
+    }
     if (error.code === 'QR_CONSUME_FAILED') {
       return `입고 처리 오류: ${error.message}`;
+    }
+    if (error.code === 'INVALID_JSON_RESPONSE') {
+      return `API 주소 오류: ${error.message}`;
+    }
+    if (error.code === 'HTTP_404') {
+      return `API 경로 오류: ${error.message}`;
+    }
+    if (/^HTTP_5\d\d$/.test(error.code || '')) {
+      return `백엔드 서버 오류: ${error.message}`;
     }
     if (error.code === 'TIMEOUT') {
       return `응답 시간 초과: ${error.message}`;
     }
     if (error.code === 'NETWORK') {
-      return `네트워크 오류: ${error.message}`;
+      return `네트워크 연결 실패: ${error.message}`;
     }
     if (error.name === 'TypeError' && /fetch|network|failed to fetch/i.test(error.message)) {
       return '네트워크 오류: Render 백엔드에 연결할 수 없습니다. 인터넷 연결과 API 주소를 확인해 주세요.';
@@ -84,6 +96,17 @@ function formatLockerCode(value) {
   }
 
   const compactValue = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const currentYear = String(new Date().getFullYear());
+  if (!compactValue.startsWith('WF')) {
+    if (compactValue.length < 4) return compactValue;
+    if (compactValue.length === 4) {
+      return compactValue === currentYear
+        ? `WF-${compactValue}`
+        : `WF-${currentYear}-${compactValue}`;
+    }
+    return `WF-${compactValue.slice(0, 4)}-${compactValue.slice(4, 8)}`;
+  }
+
   const codeBody = compactValue.startsWith('WF') ? compactValue.slice(2) : compactValue;
   const limitedBody = codeBody.slice(0, 8);
 
@@ -101,7 +124,11 @@ function hasManualCredential(value) {
   const compactValue = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const codeBody = compactValue.startsWith('WF') ? compactValue.slice(2) : compactValue;
 
-  return codeBody.length >= 8 || /^(gq_|give\||https?:\/\/|\{)/i.test(rawValue);
+  return (
+    codeBody.length >= 8 ||
+    (!compactValue.startsWith('WF') && /^[A-Z0-9]{4}$/.test(codeBody)) ||
+    /^(gq_|give\||https?:\/\/|\{)/i.test(rawValue)
+  );
 }
 
 function getLockerCodeExample() {
@@ -404,6 +431,7 @@ function LockerScreen() {
     }
 
     await stopScanner();
+    setManualCode(code);
     await handleValidate(code);
   };
 

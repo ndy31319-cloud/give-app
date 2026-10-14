@@ -9,7 +9,8 @@ const ROLE_VULNERABLE = 3;
 const DEFAULT_PRODUCT_ID = 51;
 const DEFAULT_ITEM_CONDITION = "상태 무관";
 const DONATION_OFFER_VISIT_GUIDE =
-  "3일 후에 방문해 확인해주세요. 그때 물품이 없으면 사정으로 인해 나눔이 어려운 것으로 이해해주세요.";
+  "후원자가 보관함에 물품을 넣으면 키오스크의 물품 찾기에서 받을 수 있습니다.";
+const DONATION_OFFER_PICKUP_MEMO_PREFIX = "요청글 나눔 의사 자동 연결";
 
 const parsePositiveInteger = (value) => {
   const normalizedValue = String(value || "").trim();
@@ -34,6 +35,19 @@ const normalizeNullableText = (value) => {
 const normalizeCreatedFrom = (value) => {
   const normalizedValue = String(value || "web").trim().toLowerCase();
   return normalizedValue === "app" ? "app" : "web";
+};
+
+const buildDonationOfferPickupMemo = (requestId) =>
+  `${DONATION_OFFER_PICKUP_MEMO_PREFIX} #${requestId}`;
+
+const buildDonationOfferContent = (wantedPost) => {
+  const requestContent = normalizeNullableText(wantedPost.content);
+
+  if (!requestContent) {
+    return "요청글에 대한 나눔 의사로 등록된 보관함 입고용 나눔글입니다.";
+  }
+
+  return `요청글에 대한 나눔 의사로 등록된 보관함 입고용 나눔글입니다.\n\n요청 내용: ${requestContent}`;
 };
 
 router.post("/", authenticateToken, async (req, res) => {
@@ -164,9 +178,12 @@ router.post("/:id/donation-offer", authenticateToken, async (req, res) => {
     await connection.beginTransaction();
 
     const [requestRows] = await connection.query(
-      `SELECT request_id, member_id, title, status
-       FROM ITEM_REQUEST
-       WHERE request_id = ?
+      `SELECT r.request_id, r.member_id, r.title, r.content, r.status,
+              r.dong_name, r.latitude, r.longitude,
+              i.product_id, i.item_name, i.item_condition
+       FROM ITEM_REQUEST r
+       LEFT JOIN ITEM i ON i.request_id = r.request_id
+       WHERE r.request_id = ?
        FOR UPDATE`,
       [requestId],
     );
@@ -179,20 +196,64 @@ router.post("/:id/donation-offer", authenticateToken, async (req, res) => {
       throw error;
     }
 
-    if (String(wantedPost.status || "").toLowerCase() !== "open") {
-      const error = new Error("현재 나눔 의사를 보낼 수 없는 요청글입니다.");
-      error.statusCode = 409;
-      throw error;
-    }
-
     if (Number(wantedPost.member_id) === Number(donorId)) {
       const error = new Error("본인이 작성한 요청글에는 나눔 의사를 보낼 수 없습니다.");
       error.statusCode = 409;
       throw error;
     }
 
+    const pickupMemo = buildDonationOfferPickupMemo(requestId);
+    const [existingOfferRows] = await connection.query(
+      `SELECT d.donate_id, d.status, p.pickup_id, p.request_status
+       FROM PICKUP_REQUEST p
+       JOIN ITEM_DONATE d ON d.donate_id = p.donate_id
+       WHERE d.member_id = ?
+         AND p.requester_id = ?
+         AND p.memo = ?
+         AND d.status IN ('open', 'reserved', 'storage_requested', 'stored')
+         AND p.request_status IN ('pending', 'approved')
+       ORDER BY p.pickup_id DESC
+       LIMIT 1
+       FOR UPDATE`,
+      [donorId, wantedPost.member_id, pickupMemo],
+    );
+
+    if (existingOfferRows.length > 0) {
+      const existingOffer = existingOfferRows[0];
+
+      await connection.commit();
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          requestId,
+          request_id: requestId,
+          donorId,
+          donor_id: donorId,
+          donateId: existingOffer.donate_id,
+          donate_id: existingOffer.donate_id,
+          pickupRequestId: existingOffer.pickup_id,
+          pickup_request_id: existingOffer.pickup_id,
+          donationStatus: existingOffer.status,
+          donation_status: existingOffer.status,
+          requestStatus: existingOffer.request_status,
+          request_status: existingOffer.request_status,
+          alreadyExists: true,
+          already_exists: true,
+          guide: DONATION_OFFER_VISIT_GUIDE,
+        },
+        message: "이미 나눔 의사를 보낸 요청글입니다.",
+      });
+    }
+
+    if (String(wantedPost.status || "").toLowerCase() !== "open") {
+      const error = new Error("현재 나눔 의사를 보낼 수 없는 요청글입니다.");
+      error.statusCode = 409;
+      throw error;
+    }
+
     const [donorRows] = await connection.query(
-      `SELECT nickname, name
+      `SELECT nickname, name, dong_name, latitude, longitude
        FROM MEMBER
        WHERE member_id = ?
        LIMIT 1`,
@@ -200,6 +261,50 @@ router.post("/:id/donation-offer", authenticateToken, async (req, res) => {
     );
     const donorName = donorRows[0]?.nickname || donorRows[0]?.name || "이웃";
     const message = `${donorName}님이 ‘${wantedPost.title}’ 요청에 나눔 의사를 보냈어요. ${DONATION_OFFER_VISIT_GUIDE}`;
+    const donationDongName = wantedPost.dong_name || donorRows[0]?.dong_name || null;
+    const donationLatitude = wantedPost.latitude ?? donorRows[0]?.latitude ?? null;
+    const donationLongitude = wantedPost.longitude ?? donorRows[0]?.longitude ?? null;
+    const productId = wantedPost.product_id || DEFAULT_PRODUCT_ID;
+    const itemName = normalizeNullableText(wantedPost.item_name) || wantedPost.title;
+    const itemCondition =
+      normalizeNullableText(wantedPost.item_condition) || DEFAULT_ITEM_CONDITION;
+
+    const [donationResult] = await connection.query(
+      `INSERT INTO ITEM_DONATE
+        (member_id, title, content, dong_name, latitude, longitude, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'reserved')`,
+      [
+        donorId,
+        wantedPost.title,
+        buildDonationOfferContent(wantedPost),
+        donationDongName,
+        donationLatitude,
+        donationLongitude,
+      ],
+    );
+
+    const donateId = donationResult.insertId;
+
+    await connection.query(
+      `INSERT INTO ITEM
+        (donate_id, product_id, item_name, item_condition)
+       VALUES (?, ?, ?, ?)`,
+      [donateId, productId, itemName, itemCondition],
+    );
+
+    const [pickupResult] = await connection.query(
+      `INSERT INTO PICKUP_REQUEST
+        (requester_id, donate_id, request_status, requested_at, approved_at, memo, chat_synced)
+       VALUES (?, ?, 'approved', NOW(), NOW(), ?, FALSE)`,
+      [wantedPost.member_id, donateId, pickupMemo],
+    );
+
+    await connection.query(
+      `UPDATE ITEM_REQUEST
+       SET status = 'reserved', updated_at = NOW()
+       WHERE request_id = ?`,
+      [requestId],
+    );
 
     await connection.query(
       `INSERT INTO NOTIFICATION
@@ -217,9 +322,19 @@ router.post("/:id/donation-offer", authenticateToken, async (req, res) => {
         request_id: requestId,
         donorId,
         donor_id: donorId,
+        donateId,
+        donate_id: donateId,
+        pickupRequestId: pickupResult.insertId,
+        pickup_request_id: pickupResult.insertId,
+        donationStatus: "reserved",
+        donation_status: "reserved",
+        requestStatus: "approved",
+        request_status: "approved",
+        alreadyExists: false,
+        already_exists: false,
         guide: DONATION_OFFER_VISIT_GUIDE,
       },
-      message: "나눔 의사를 전달했습니다.",
+      message: "나눔 의사를 전달했고 보관함 입고용 나눔글을 만들었습니다.",
     });
   } catch (error) {
     await connection.rollback();

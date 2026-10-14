@@ -20,6 +20,13 @@ test('하이픈 없는 인증번호는 DB display code로 보정한다', () => {
   expect(result.token).toBe('WF-2026-A7K9');
 });
 
+test('뒤 4자리만 입력해도 현재 연도 display code로 보정한다', () => {
+  const year = new Date().getFullYear();
+  const result = inspectLockerQrPayload('A7K9');
+  expect(result.valid).toBe(true);
+  expect(result.token).toBe(`WF-${year}-A7K9`);
+});
+
 test('랜덤 비밀 토큰 형식의 보관함 QR을 인식한다', () => {
   const secretToken = 'gq_abcdefghijklmnopqrstuvwxyzABCDEF';
   const result = inspectLockerQrPayload(secretToken, 1761000000000);

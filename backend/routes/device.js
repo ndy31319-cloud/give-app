@@ -146,8 +146,6 @@ const getLockerState = (lockerId) =>
 
 const lockerCodeAlphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 
-const buildLockerSecretToken = () => `gq_${crypto.randomBytes(24).toString("base64url")}`;
-
 const buildLockerDisplayCode = () => {
   const year = new Date().getFullYear();
   let suffix = "";
@@ -161,8 +159,8 @@ const buildLockerDisplayCode = () => {
 
 const buildQrCredentials = async () => {
   for (let attempt = 1; attempt <= 20; attempt += 1) {
-    const token = buildLockerSecretToken();
     const displayCode = buildLockerDisplayCode();
+    const token = displayCode;
     const [existingRows] = await db.query(
       `SELECT qr_id
        FROM DYNAMIC_QR
@@ -189,9 +187,15 @@ const normalizeDisplayCode = (value) => {
 
   const codeBody = compactValue.startsWith("WF") ? compactValue.slice(2) : compactValue;
 
-  return /^[A-Z0-9]{8}$/.test(codeBody)
-    ? `WF-${codeBody.slice(0, 4)}-${codeBody.slice(4, 8)}`
-    : null;
+  if (/^[A-Z0-9]{8}$/.test(codeBody)) {
+    return `WF-${codeBody.slice(0, 4)}-${codeBody.slice(4, 8)}`;
+  }
+
+  if (!compactValue.startsWith("WF") && /^[A-Z0-9]{4}$/.test(codeBody)) {
+    return `WF-${new Date().getFullYear()}-${codeBody}`;
+  }
+
+  return null;
 };
 
 const toResponseSession = (session) => ({
@@ -807,6 +811,14 @@ router.post("/qr/storage/validate", requireKioskAccess, async (req, res) => {
       success: false,
       code: "DONATION_LOOKUP_FAILED",
       message: "QR은 읽었지만 연결된 나눔 게시글 정보를 불러오지 못했습니다. 게시글 상태와 DB 연결을 확인해 주세요.",
+    });
+  }
+
+  if (!context) {
+    return res.status(404).json({
+      success: false,
+      code: "DONATION_NOT_FOUND",
+      message: "QR은 유효하지만 연결된 나눔 게시글을 찾지 못했습니다. 앱에서 새 보관함 QR을 발급해 주세요.",
     });
   }
 

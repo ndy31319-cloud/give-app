@@ -4,6 +4,19 @@ const DEFAULT_API_BASE_URL =
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || DEFAULT_API_BASE_URL;
 const DEFAULT_REQUEST_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 60000);
 
+function resolveRequestUrl(path) {
+  const url = `${API_BASE_URL}${path}`;
+
+  try {
+    return {
+      url,
+      label: new URL(url, window.location.origin).href,
+    };
+  } catch {
+    return { url, label: url };
+  }
+}
+
 export const KIOSK_DEFAULT_LOCATION = {
   dongName: '안양동',
   latitude: 37.3798657,
@@ -41,6 +54,7 @@ export function hasAuthToken() {
 async function request(path, options = {}) {
   const token = getToken();
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const requestUrl = resolveRequestUrl(path);
   const timeoutMs = Number.isFinite(DEFAULT_REQUEST_TIMEOUT_MS) && DEFAULT_REQUEST_TIMEOUT_MS > 0
     ? DEFAULT_REQUEST_TIMEOUT_MS
     : 20000;
@@ -55,7 +69,7 @@ async function request(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(requestUrl.url, {
       ...options,
       headers,
       signal: options.signal || controller?.signal,
@@ -64,11 +78,15 @@ async function request(path, options = {}) {
     const isTimeout = error?.name === 'AbortError';
     const normalizedError = new Error(
       isTimeout
-        ? '서버 응답 시간이 초과되었습니다. 네트워크와 백엔드 상태를 확인해 주세요.'
-        : '서버에 연결할 수 없습니다. 네트워크와 API 주소를 확인해 주세요.',
+        ? `서버 응답 시간이 초과되었습니다. 요청 주소: ${requestUrl.label}`
+        : `서버에 연결할 수 없습니다. 요청 주소: ${requestUrl.label}. 인터넷 연결, CORS, API 주소 설정을 확인해 주세요.`,
     );
     normalizedError.code = isTimeout ? 'TIMEOUT' : 'NETWORK';
     normalizedError.status = 0;
+    normalizedError.targetUrl = requestUrl.label;
+    normalizedError.apiBaseUrl = API_BASE_URL || '(same-origin proxy)';
+    normalizedError.originalName = error?.name || '';
+    normalizedError.originalMessage = error?.message || '';
     throw normalizedError;
   } finally {
     if (timeout) {
@@ -78,20 +96,39 @@ async function request(path, options = {}) {
 
   const text = await response.text();
   let data = null;
+  let parseError = null;
   try {
     data = text ? JSON.parse(text) : null;
-  } catch {
+  } catch (error) {
     data = null;
+    parseError = error;
+  }
+
+  if (response.ok && text && parseError) {
+    const contentType = response.headers.get('content-type') || '';
+    const error = new Error(
+      `API가 JSON이 아닌 응답을 반환했습니다. 요청 주소: ${requestUrl.label}. ` +
+      `현재 응답 형식: ${contentType || 'unknown'}. 프론트 서버가 아니라 백엔드 API 주소를 보고 있는지 확인해 주세요.`,
+    );
+    error.code = 'INVALID_JSON_RESPONSE';
+    error.errorCode = error.code;
+    error.status = response.status;
+    error.targetUrl = requestUrl.label;
+    error.apiBaseUrl = API_BASE_URL || '(same-origin proxy)';
+    error.responsePreview = text.slice(0, 160);
+    throw error;
   }
 
   if (!response.ok) {
     const error = new Error(
-      data?.message || data?.error || `서버가 ${response.status} 오류를 반환했습니다.`,
+      `${data?.message || data?.error || `서버가 ${response.status} 오류를 반환했습니다.`} 요청 주소: ${requestUrl.label}`,
     );
     error.code = data?.code || data?.errorCode || `HTTP_${response.status}`;
     error.errorCode = error.code;
     error.status = response.status;
     error.data = data;
+    error.targetUrl = requestUrl.label;
+    error.apiBaseUrl = API_BASE_URL || '(same-origin proxy)';
     throw error;
   }
 
