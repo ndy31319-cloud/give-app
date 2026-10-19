@@ -24,31 +24,48 @@ function normalizeLockerDisplayCode(value) {
   return input;
 }
 
+function extractCredential(value) {
+  const input = String(value || '').trim();
+  if (!input) return '';
+
+  const secretToken = input.match(/gq_[A-Za-z0-9_-]{8,}/)?.[0];
+  if (secretToken) return secretToken;
+
+  const embeddedDisplayCode = input.match(/(?:^|[^A-Z0-9])WF[\s_-]?(\d{4})[\s_-]?([A-Z0-9]{4})(?![A-Z0-9])/i);
+  if (embeddedDisplayCode) {
+    return `WF-${embeddedDisplayCode[1]}-${embeddedDisplayCode[2].toUpperCase()}`;
+  }
+
+  return normalizeLockerDisplayCode(input);
+}
+
 function extractToken(rawPayload) {
   const raw = String(rawPayload || '').trim();
   if (!raw) return '';
 
   try {
     const json = JSON.parse(raw);
-    if (typeof json?.token === 'string') return normalizeLockerDisplayCode(json.token);
-    if (typeof json?.displayCode === 'string') return normalizeLockerDisplayCode(json.displayCode);
-    if (typeof json?.display_code === 'string') return normalizeLockerDisplayCode(json.display_code);
+    if (typeof json?.token === 'string') return extractCredential(json.token);
+    if (typeof json?.qrToken === 'string') return extractCredential(json.qrToken);
+    if (typeof json?.displayCode === 'string') return extractCredential(json.displayCode);
+    if (typeof json?.display_code === 'string') return extractCredential(json.display_code);
   } catch {
     // QR은 일반적으로 원문 토큰이므로 JSON이 아니어도 정상입니다.
   }
 
   try {
     const url = new URL(raw);
-    return normalizeLockerDisplayCode(
+    const credential =
       url.searchParams.get('token') ||
       url.searchParams.get('qrToken') ||
       url.searchParams.get('displayCode') ||
-      url.searchParams.get('display_code') ||
-      '',
-    );
+      url.searchParams.get('display_code');
+    if (credential) return extractCredential(credential);
   } catch {
-    return normalizeLockerDisplayCode(raw);
+    // The scanner may provide a regular token instead of a URL.
   }
+
+  return extractCredential(raw);
 }
 
 export function inspectLockerQrPayload(rawPayload, now = Date.now()) {
@@ -76,9 +93,11 @@ export function inspectLockerQrPayload(rawPayload, now = Date.now()) {
   const parts = token.split('|');
   if (parts.length !== QR_TOKEN_PART_COUNT || parts[0] !== 'give') {
     return {
-      valid: false,
+      // Format checks in the browser are only a convenience. The backend owns
+      // validity because scanners can wrap a real token in vendor-specific data.
+      valid: true,
       token,
-      message: '유효하지 않은 QR 코드입니다. 나눔 앱에서 발급한 보관함 입고 QR인지 확인해주세요.',
+      message: 'QR 값을 읽었습니다. 서버에서 보관함 입고용 QR인지 확인합니다.',
     };
   }
 

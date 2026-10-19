@@ -34,6 +34,19 @@ test('랜덤 비밀 토큰 형식의 보관함 QR을 인식한다', () => {
   expect(result.token).toBe(secretToken);
 });
 
+test('URL에 담긴 display code를 추출한다', () => {
+  const result = inspectLockerQrPayload('give://locker/storage?token=WF-2026-a7k9');
+  expect(result.valid).toBe(true);
+  expect(result.token).toBe('WF-2026-A7K9');
+});
+
+test('형식을 알 수 없는 스캐너 결과도 서버 검증으로 전달한다', () => {
+  const result = inspectLockerQrPayload('vendor://scan/payload/encoded-token');
+  expect(result.valid).toBe(true);
+  expect(result.token).toBe('vendor://scan/payload/encoded-token');
+  expect(result.message).toMatch('서버에서');
+});
+
 test('다른 목적의 QR은 보관함 입고 QR로 거절한다', () => {
   const result = inspectLockerQrPayload(validToken.replace('donation_storage', 'pickup_auth'), 1761000000000);
   expect(result.valid).toBe(false);

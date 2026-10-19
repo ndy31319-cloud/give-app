@@ -590,8 +590,10 @@ function LockerScreen() {
                 id="locker-manual-code"
                 type="text"
                 inputMode="text"
-                autoComplete="one-time-code"
+                autoComplete="off"
                 autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
                 value={manualCode}
                 onChange={(event) => setManualCode(formatLockerCode(event.target.value))}
                 placeholder={getLockerCodeExample()}

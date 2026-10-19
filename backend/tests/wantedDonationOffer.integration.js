@@ -180,4 +180,13 @@ test("wanted donation offer creates a QR-ready donation storage post", async (t)
   const manualValidateBody = await manualValidateResponse.json();
   assert.equal(manualValidateResponse.status, 200, JSON.stringify(manualValidateBody));
   assert.equal(manualValidateBody.data.qrSession.token, qrBody.data.token);
+
+  const wrappedQrValidateResponse = await fetch(`${base}/api/device/qr/storage/validate`, {
+    method: "POST",
+    headers: kioskHeaders,
+    body: JSON.stringify({ token: `give://locker/storage?token=${encodeURIComponent(qrBody.data.token)}` }),
+  });
+  const wrappedQrValidateBody = await wrappedQrValidateResponse.json();
+  assert.equal(wrappedQrValidateResponse.status, 200, JSON.stringify(wrappedQrValidateBody));
+  assert.equal(wrappedQrValidateBody.data.qrSession.token, qrBody.data.token);
 });

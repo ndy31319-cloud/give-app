@@ -198,6 +198,65 @@ const normalizeDisplayCode = (value) => {
   return null;
 };
 
+// A scanner may return a raw token, a URL/deep-link, or a JSON payload. Keep
+// the secret token intact while accepting the human-readable display code too.
+const normalizeQrCredential = (value) => {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) {
+    return "";
+  }
+
+  const candidates = [rawValue];
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    [parsed?.token, parsed?.qrToken, parsed?.displayCode, parsed?.display_code]
+      .filter((candidate) => typeof candidate === "string")
+      .forEach((candidate) => candidates.unshift(candidate.trim()));
+  } catch {
+    // Raw QR payloads are the normal case.
+  }
+
+  try {
+    const url = new URL(rawValue);
+    [
+      url.searchParams.get("token"),
+      url.searchParams.get("qrToken"),
+      url.searchParams.get("displayCode"),
+      url.searchParams.get("display_code"),
+    ]
+      .filter(Boolean)
+      .forEach((candidate) => candidates.unshift(candidate.trim()));
+  } catch {
+    // Not a URL is also a valid QR payload.
+  }
+
+  for (const candidate of candidates) {
+    const secretToken = candidate.match(/gq_[A-Za-z0-9_-]{8,}/)?.[0];
+    if (secretToken) {
+      return secretToken;
+    }
+
+    const embeddedDisplayCode = candidate.match(/(?:^|[^A-Z0-9])WF[\s_-]?(\d{4})[\s_-]?([A-Z0-9]{4})(?![A-Z0-9])/i);
+    if (embeddedDisplayCode) {
+      return `WF-${embeddedDisplayCode[1]}-${embeddedDisplayCode[2].toUpperCase()}`;
+    }
+
+    const displayCode = normalizeDisplayCode(candidate);
+    if (displayCode) {
+      return displayCode;
+    }
+  }
+
+  return rawValue;
+};
+
+const expireStaleDbQrSessions = async () => {
+  await db.query(
+    "UPDATE DYNAMIC_QR SET status = 'expired' WHERE status = 'active' AND expires_at <= NOW()",
+  );
+};
+
 const toResponseSession = (session) => ({
   id: session.id,
   memberId: session.memberId,
@@ -400,6 +459,8 @@ router.post("/qr/issue", authenticateToken, async (req, res) => {
   let session = null;
 
   try {
+    await expireStaleDbQrSessions();
+
     if (purpose === "donation_storage") {
       const [donateRows] = await db.query(
         `SELECT donate_id, member_id, status
@@ -472,8 +533,13 @@ router.post("/qr/issue", authenticateToken, async (req, res) => {
 });
 
 const loadDbQrSession = async (credential) => {
-  const token = String(credential || "").trim();
+  const token = normalizeQrCredential(credential);
+  if (!token) {
+    return null;
+  }
+
   const displayCode = normalizeDisplayCode(token);
+  await expireStaleDbQrSessions();
   const [rows] = await db.query(
     `SELECT qr_id, member_id, donate_id, purpose, token, display_code, status,
             issued_at, expires_at, used_at, ttl_seconds
