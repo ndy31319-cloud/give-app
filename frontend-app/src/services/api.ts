@@ -317,6 +317,17 @@ function buildDynamicQrDisplayCode(
   return `WF-${year}-${suffix}`;
 }
 
+function buildMockDynamicQrToken() {
+  const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-";
+  let token = "gq_";
+
+  for (let index = 0; index < 32; index += 1) {
+    token += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return token;
+}
+
 function cloneDynamicQrSession(session: DynamicQrSession) {
   return { ...session };
 }
@@ -843,7 +854,7 @@ export const dynamicQrAPI = {
       memberId,
       donateId: donateId !== undefined && donateId !== null ? String(donateId) : null,
       purpose,
-      token: displayCode,
+      token: buildMockDynamicQrToken(),
       displayCode,
       issuedAt: new Date(issuedAtMs).toISOString(),
       expiresAt: new Date(expiresAtMs).toISOString(),

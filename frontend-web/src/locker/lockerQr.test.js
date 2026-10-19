@@ -1,4 +1,4 @@
-import { inspectLockerQrPayload, maskLockerQrToken } from './lockerQr';
+import { formatLockerManualCode, inspectLockerQrPayload, maskLockerQrToken } from './lockerQr';
 
 const validToken = 'give|donation_storage|7|41|1760000000000|4760000000000|5ffb6f86-5f98-4e3c-a0a7-4f8d9b5f0fa4';
 
@@ -25,6 +25,12 @@ test('뒤 4자리만 입력해도 현재 연도 display code로 보정한다', (
   const result = inspectLockerQrPayload('A7K9');
   expect(result.valid).toBe(true);
   expect(result.token).toBe(`WF-${year}-A7K9`);
+});
+
+test('수기 입력 중 WF 접두사가 지워지지 않는다', () => {
+  expect(formatLockerManualCode('W')).toBe('W');
+  expect(formatLockerManualCode('Wf')).toBe('WF');
+  expect(formatLockerManualCode('WF-2026-A7K9')).toBe('WF-2026-A7K9');
 });
 
 test('랜덤 비밀 토큰 형식의 보관함 QR을 인식한다', () => {

@@ -2,7 +2,12 @@ import { Html5Qrcode } from 'html5-qrcode';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { consumeLockerQr, validateLockerQr } from '../api/client';
-import { getLockerQrErrorMessage, inspectLockerQrPayload, maskLockerQrToken } from './lockerQr';
+import {
+  formatLockerManualCode,
+  getLockerQrErrorMessage,
+  inspectLockerQrPayload,
+  maskLockerQrToken,
+} from './lockerQr';
 
 const initialStatus = {
   step: 'idle',
@@ -86,33 +91,6 @@ function statusLabel(step) {
   if (step === 'error') return '오류';
   if (step === 'idle') return '대기';
   return '진행 중';
-}
-
-function formatLockerCode(value) {
-  const rawValue = String(value || '').trim();
-
-  if (/^(gq_|give\||https?:\/\/|\{)/i.test(rawValue)) {
-    return rawValue;
-  }
-
-  const compactValue = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const currentYear = String(new Date().getFullYear());
-  if (!compactValue.startsWith('WF')) {
-    if (compactValue.length < 4) return compactValue;
-    if (compactValue.length === 4) {
-      return compactValue === currentYear
-        ? `WF-${compactValue}`
-        : `WF-${currentYear}-${compactValue}`;
-    }
-    return `WF-${compactValue.slice(0, 4)}-${compactValue.slice(4, 8)}`;
-  }
-
-  const codeBody = compactValue.startsWith('WF') ? compactValue.slice(2) : compactValue;
-  const limitedBody = codeBody.slice(0, 8);
-
-  if (!limitedBody) return '';
-  if (limitedBody.length <= 4) return `WF-${limitedBody}`;
-  return `WF-${limitedBody.slice(0, 4)}-${limitedBody.slice(4)}`;
 }
 
 function isLockerCode(value) {
@@ -222,9 +200,14 @@ function LockerScreen() {
 
   const startScannerWithFallback = async (scanner) => {
     const config = {
-      fps: 10,
-      qrbox: { width: 360, height: 360 },
-      aspectRatio: 1,
+      fps: 15,
+      // A fixed 360px box can consume an entire low-resolution front-camera
+      // frame on older iPads, leaving too little QR margin to decode reliably.
+      qrbox: (viewfinderWidth, viewfinderHeight) => {
+        const size = Math.max(180, Math.floor(Math.min(viewfinderWidth, viewfinderHeight, 420) * 0.8));
+        return { width: size, height: size };
+      },
+      aspectRatio: 4 / 3,
     };
     const onScanSuccess = (decodedText) => {
       if (!scanningRef.current) return;
@@ -270,7 +253,11 @@ function LockerScreen() {
     }
 
     const fallbackConstraints = [
-      { facingMode: { exact: 'user' } },
+      {
+        facingMode: { exact: 'user' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
       { facingMode: 'user' },
       { facingMode: 'environment' },
     ];
@@ -418,7 +405,7 @@ function LockerScreen() {
 
   const handleManualCodeSubmit = async (event) => {
     event.preventDefault();
-    const code = formatLockerCode(manualCode);
+    const code = formatLockerManualCode(manualCode);
     const inspection = inspectLockerQrPayload(code);
 
     if (!inspection.valid || (!isLockerCode(code) && !/^(gq_|give\||https?:\/\/|\{)/i.test(code))) {
@@ -595,7 +582,7 @@ function LockerScreen() {
                 autoCorrect="off"
                 spellCheck={false}
                 value={manualCode}
-                onChange={(event) => setManualCode(formatLockerCode(event.target.value))}
+                onChange={(event) => setManualCode(formatLockerManualCode(event.target.value))}
                 placeholder={getLockerCodeExample()}
                 maxLength={96}
                 disabled={working}

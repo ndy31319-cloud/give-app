@@ -2,6 +2,33 @@ const QR_TOKEN_PART_COUNT = 7;
 const LOCKER_DISPLAY_CODE_PATTERN = /^WF-\d{4}-[A-Z0-9]{4}$/;
 const LOCKER_SECRET_TOKEN_PATTERN = /^gq_[A-Za-z0-9_-]{24,}$/;
 
+export function formatLockerManualCode(value) {
+  const rawValue = String(value || '').trim();
+
+  if (/^(gq_|give\||https?:\/\/|\{)/i.test(rawValue)) {
+    return rawValue;
+  }
+
+  const compactValue = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const currentYear = String(new Date().getFullYear());
+  if (!compactValue.startsWith('WF')) {
+    if (compactValue.length < 4) return compactValue;
+    if (compactValue.length === 4) {
+      return compactValue === currentYear
+        ? `WF-${compactValue}`
+        : `WF-${currentYear}-${compactValue}`;
+    }
+    return `WF-${compactValue.slice(0, 4)}-${compactValue.slice(4, 8)}`;
+  }
+
+  const limitedBody = compactValue.slice(2, 10);
+  // Keep the prefix while it is being typed. Returning an empty string here
+  // used to erase "WF" as soon as the user entered the F character.
+  if (!limitedBody) return 'WF';
+  if (limitedBody.length <= 4) return `WF-${limitedBody}`;
+  return `WF-${limitedBody.slice(0, 4)}-${limitedBody.slice(4)}`;
+}
+
 function normalizeLockerDisplayCode(value) {
   const input = String(value || '').trim();
   const upperInput = input.toUpperCase();

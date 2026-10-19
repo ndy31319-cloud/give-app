@@ -154,8 +154,18 @@ test("wanted donation offer creates a QR-ready donation storage post", async (t)
   assert.equal(qrResponse.status, 201, JSON.stringify(qrBody));
   assert.equal(qrBody.data.purpose, "donation_storage");
   assert.equal(Number(qrBody.data.donateId), Number(offerBody.data.donateId));
-  assert.match(qrBody.data.token, /^WF-\d{4}-[A-Z0-9]{4}$/);
-  assert.equal(qrBody.data.token, qrBody.data.displayCode);
+  assert.match(qrBody.data.token, /^gq_[A-Za-z0-9_-]{24,}$/);
+  assert.match(qrBody.data.displayCode, /^WF-\d{4}-[A-Z0-9]{4}$/);
+  assert.notEqual(qrBody.data.token, qrBody.data.displayCode);
+
+  const [[storedQr]] = await db.query(
+    "SELECT token, display_code FROM DYNAMIC_QR WHERE qr_id = ?",
+    [qrBody.data.id],
+  );
+  assert.deepEqual(
+    { token: storedQr.token, displayCode: storedQr.display_code },
+    { token: qrBody.data.token, displayCode: qrBody.data.displayCode },
+  );
 
   const kioskHeaders = {
     "Content-Type": "application/json",
@@ -171,7 +181,7 @@ test("wanted donation offer creates a QR-ready donation storage post", async (t)
   assert.equal(validateBody.data.qrSession.token, qrBody.data.token);
   assert.equal(Number(validateBody.data.donation.donateId), Number(offerBody.data.donateId));
 
-  const suffixOnly = qrBody.data.token.split("-").at(-1);
+  const suffixOnly = qrBody.data.displayCode.split("-").at(-1);
   const manualValidateResponse = await fetch(`${base}/api/device/qr/storage/validate`, {
     method: "POST",
     headers: kioskHeaders,

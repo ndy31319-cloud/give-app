@@ -157,10 +157,12 @@ const buildLockerDisplayCode = () => {
   return `WF-${year}-${suffix}`;
 };
 
+const buildLockerSecretToken = () => `gq_${crypto.randomBytes(24).toString("base64url")}`;
+
 const buildQrCredentials = async () => {
   for (let attempt = 1; attempt <= 20; attempt += 1) {
     const displayCode = buildLockerDisplayCode();
-    const token = displayCode;
+    const token = buildLockerSecretToken();
     const [existingRows] = await db.query(
       `SELECT qr_id
        FROM DYNAMIC_QR
