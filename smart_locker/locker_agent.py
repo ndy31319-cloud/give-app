@@ -12,6 +12,29 @@ import requests
 
 
 STATE_FILE = Path(__file__).with_name(".locker_state.json")
+ENV_FILE = Path(__file__).with_name(".env")
+
+
+def load_env_file() -> None:
+    """Load local settings for manual runs without overriding systemd env vars."""
+    try:
+        for raw_line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                os.environ.setdefault(key, value)
+    except FileNotFoundError:
+        pass
+    except Exception as error:
+        print(f"[locker] failed to read .env: {error}")
+
+
+load_env_file()
 
 
 def env_bool(name: str, default: bool) -> bool:

@@ -58,6 +58,9 @@ source .venv/bin/activate
 python locker_agent.py
 ```
 
+`locker_agent.py`는 같은 폴더의 `.env`를 자동으로 읽습니다. systemd로 실행할 때는
+`EnvironmentFile` 설정이 우선합니다.
+
 노트북에서 GPIO 없이 테스트하려면:
 
 ```bash
