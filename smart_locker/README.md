@@ -69,7 +69,8 @@ MOCK_GPIO=true BACKEND_URL=http://localhost:3001 python locker_agent.py
 
 ## systemd 자동 실행 예시
 
-`/etc/systemd/system/give-locker.service`
+프로젝트의 `give-locker.service`를 복사한 뒤, 라즈베리파이 계정이 `pi`가
+아니면 `User`와 `/home/pi` 경로를 실제 계정 경로로 바꿉니다.
 
 ```ini
 [Unit]
@@ -90,6 +91,7 @@ WantedBy=multi-user.target
 ```
 
 ```bash
+sudo cp give-locker.service /etc/systemd/system/give-locker.service
 sudo systemctl daemon-reload
 sudo systemctl enable give-locker
 sudo systemctl start give-locker

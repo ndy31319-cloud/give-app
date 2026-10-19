@@ -6,7 +6,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import requests
 
@@ -64,7 +64,7 @@ class LockerState:
     doorOpen: bool = False
     redLedOn: bool = False
     occupied: bool = False
-    lastCommandId: str | None = None
+    lastCommandId: Optional[str] = None
 
 
 class MockOutput:
@@ -211,7 +211,7 @@ class LockerAgent:
         )
         response.raise_for_status()
 
-    def ack_command(self, command: dict[str, Any], success: bool, error: str | None = None) -> None:
+    def ack_command(self, command: dict[str, Any], success: bool, error: Optional[str] = None) -> None:
         payload = {
             "success": success,
             "error": error,
