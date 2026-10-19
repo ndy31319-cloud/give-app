@@ -97,18 +97,6 @@ function isLockerCode(value) {
   return /^WF-\d{4}-[A-Z0-9]{4}$/.test(value);
 }
 
-function hasManualCredential(value) {
-  const rawValue = String(value || '').trim();
-  const compactValue = rawValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const codeBody = compactValue.startsWith('WF') ? compactValue.slice(2) : compactValue;
-
-  return (
-    codeBody.length >= 8 ||
-    (!compactValue.startsWith('WF') && /^[A-Z0-9]{4}$/.test(codeBody)) ||
-    /^(gq_|give\||https?:\/\/|\{)/i.test(rawValue)
-  );
-}
-
 function getLockerCodeExample() {
   return `WF-${new Date().getFullYear()}-A7K9`;
 }
@@ -405,6 +393,15 @@ function LockerScreen() {
 
   const handleManualCodeSubmit = async (event) => {
     event.preventDefault();
+    if (!String(manualCode || '').trim()) {
+      setStatus({
+        ...initialStatus,
+        step: 'error',
+        message: `인증번호를 입력해주세요. 예: ${getLockerCodeExample()}`,
+      });
+      return;
+    }
+
     const code = formatLockerManualCode(manualCode);
     const inspection = inspectLockerQrPayload(code);
 
@@ -591,7 +588,7 @@ function LockerScreen() {
               />
               <button
                 type="submit"
-                disabled={working || !hasManualCredential(manualCode)}
+                disabled={working}
                 className="h-[92px] shrink-0 rounded-[24px] bg-[#191f1b] px-8 text-[28px] font-black text-white disabled:bg-[#c9cec4] disabled:opacity-60"
               >
                 인증번호 확인
