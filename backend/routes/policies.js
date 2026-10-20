@@ -385,7 +385,8 @@ router.delete("/chatbot/history", authenticateToken, async (req, res) => {
   }
 });
 
-router.post("/chatbot", authenticateToken, async (req, res) => {
+// Keep the previous /chat path working for already-installed Expo builds.
+router.post(["/chatbot", "/chat"], authenticateToken, async (req, res) => {
   const message = String(req.body.message || "").trim();
   const conversationHistory = Array.isArray(req.body.conversationHistory)
     ? req.body.conversationHistory
@@ -466,6 +467,13 @@ router.post("/chatbot", authenticateToken, async (req, res) => {
     if (isConnectionError) {
       return res.status(503).json({
         message: error.message || "AI 챗봇 서버에 연결할 수 없습니다.",
+      });
+    }
+
+    if (error.response?.status === 404) {
+      return res.status(503).json({
+        code: "AI_CHATBOT_ENDPOINT_NOT_FOUND",
+        message: "AI 챗봇 경로를 찾을 수 없습니다. 백엔드의 AI 서버 주소와 /api/chat 경로 설정을 확인해주세요.",
       });
     }
 
