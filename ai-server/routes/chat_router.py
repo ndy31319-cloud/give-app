@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from schemas.chat_schema import ChatRequest, ChatResponse, PolicyItem, ChatHistoryItem, ChatHistoryResponse
 from core.chat_text import normalize_chatbot_text
+from core.chat_prompt import build_policy_context, build_system_prompt, ensure_policy_link
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -73,10 +74,10 @@ def build_faiss_index():
 
         POLICIES_CACHE = [
             {
-                "policy_id": r[0], "policy_name": " ".join(r[1].split()),
-                "category": r[2], "agency": r[3], "summary": " ".join(r[4].split()),
+                "policy_id": r[0], "policy_name": " ".join(str(r[1] or "").split()),
+                "category": r[2] or "", "agency": r[3] or "", "summary": " ".join(str(r[4] or "").split()),
                 "target_criteria": r[5], "support_detail": r[6], "content": r[7],
-                "ai_search_text": r[8],
+                "ai_search_text": r[8] or "",
             } for r in rows
         ]
         texts = [p["ai_search_text"] for p in POLICIES_CACHE]
@@ -163,17 +164,8 @@ async def process_chat(request: ChatRequest):
 
     # -------------------------------------------------------------------
 
-    # 2. 걸러진 최종 정책(matched_policies)으로 AI에게 줄 텍스트 조립
-    policy_texts = []
-    for p in matched_policies:
-        policy_texts.append(
-            f"- 정책명: {p['policy_name']}\n"
-            f"  담당기관: {p['agency']}\n"
-            f"  지원대상: {p['target_criteria']}\n"
-            f"  지원내용: {p['support_detail']}"
-        )
-    
-    policies_str = "\n\n".join(policy_texts) if policy_texts else "검색된 정책 없음"
+    # 검색 레코드에 포함된 공식 URL만 모델에 전달한다.
+    policies_str = build_policy_context(matched_policies)
 
     # [Step 2 & 기능 2] DB에서 이전 대화 기록(Context) 가져오기
     past_messages = []
@@ -193,31 +185,8 @@ async def process_chat(request: ChatRequest):
         except Exception as e:
             logger.error(f"히스토리 로드 실패: {e}")
 
-    # 🔥 [핵심 추가] 파이썬 코드로 대화 내역 유무를 판단하여 AI에게 팩트 폭격!
-    if len(past_messages) == 0:
-        context_status = """
-🚨 [시스템 긴급 통제: 현재 과거 대화 내역 없음 (첫 대화)]
-사용자가 '지원 대상이 누군데?', '신청방법은?' 처럼 주어(정책명) 없이 다짜고짜 질문했다면, 검색된 [DB 정보]를 절대 읽지도, 입 밖으로 꺼내지도 마세요. 오직 "어떤 정책을 말씀하시나요? 정책 이름을 알려주시면 안내해 드릴게요!" 라고만 짧게 되물어보세요. (정책 나열 절대 금지)
-"""
-    else:
-        context_status = "✅ [시스템 상태: 과거 대화 내역 있음] 이전 대화 문맥을 파악하여 자연스럽게 이어서 답변하세요."
-
-    # [Step 3] CLOVA Studio 프롬프트 조합 및 API 호출 (🔥 v3 규격 적용)
-    system_prompt = f"""
-너는 취약계층 나눔/기부 플랫폼의 전문적이고 신뢰감을 주는 전담 사회복지사 '나눔이'야.
-따뜻하고 친절한 태도를 유지하되, 복지 정책을 안내할 때는 공공기관 직원처럼 정확하고 체계적인 어조를 사용해.
-
-{context_status}
-
-[DB에서 검색된 관련 정책 정보]
-{policies_str}
-
-[🔥 핵심 답변 원칙]
-1. 정책 안내: 검색된 [DB 정보]를 바탕으로 정확하게 안내해.
-2. 정부24 추가 안내 (필수): 답변의 마지막이나, 정책에 대해 추가적인 조언이 필요할 때는 다음 멘트를 자연스럽게 덧붙여줘. "더 다양한 맞춤형 혜택은 정부24 보조금 안내 사이트(https://www.gov.kr/portal/gvrnPolicy/listAll)에서 지역별, 대상별로 상세하게 검색해 보실 수 있습니다."
-3. 어르신 맞춤 전문성: 답변은 3~4문장 내외로 간결하게 정리하고, 너무 유치하지 않은 부드러운 격식체(~합니다, ~해요)를 사용해.
-4. 절대 금지: 마크다운 기호(**, *)를 단 한 개도 사용하지 마. 오직 일반 텍스트로만 출력해.
-"""
+    # [Step 3] 현재 정책 문맥과 안전 원칙을 포함해 CLOVA API 호출
+    system_prompt = build_system_prompt(policies_str, bool(past_messages))
 
     # 클로바 규격에 맞게 메시지 리스트 생성 (시스템 -> 과거대화 -> 현재질문)
     clova_messages = [{"role": "system", "content": system_prompt}]
@@ -256,6 +225,7 @@ async def process_chat(request: ChatRequest):
                 raise HTTPException(status_code=502, detail="AI 응답 형식이 올바르지 않습니다.")
 
             ai_answer = normalize_chatbot_text(raw_answer)
+            ai_answer = ensure_policy_link(ai_answer, matched_policies, message)
             if not ai_answer:
                 raise HTTPException(status_code=502, detail="AI 서버가 빈 답변을 반환했습니다.")
 

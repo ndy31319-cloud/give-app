@@ -1,0 +1,14 @@
+{
+  "name": "give-policy-assistant-v1",
+  "model": "HCX-003",
+  "tuningType": "PEFT",
+  "trainEpochs": 4,
+  "learningRate": 0.00001,
+  "validationSplitRatio": 0.1,
+  "loraR": 8,
+  "loraAlpha": 64,
+  "trainingDatasetFilePath": "datasets/give_policy_assistant_train.final.csv",
+  "trainingDatasetBucket": "REPLACE_WITH_OBJECT_STORAGE_BUCKET",
+  "trainingDatasetAccessKey": "STORE_IN_SECRET_MANAGER_NOT_IN_GIT",
+  "trainingDatasetSecretKey": "STORE_IN_SECRET_MANAGER_NOT_IN_GIT"
+}
