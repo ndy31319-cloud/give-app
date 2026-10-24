@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { AppHeader } from '@/src/components/common/AppHeader';
 import { AppScreen } from '@/src/components/common/AppScreen';
@@ -10,7 +10,7 @@ import { DeviceSimulatorScreen } from '@/src/screens/device';
 
 type Transfer = { transferId: number; title: string; items: string; recipientNickname: string; status: string };
 type Access = { enabled: boolean; role: 'donor' | 'recipient' | null; transfer: Transfer | null };
-type MemberQr = { memberId: number; nickname: string; roleId: number; imageDataUrl: string; access: Access };
+type MemberQr = { roleId: number; access: Access };
 type EligibleTrade = { pickupId: number; title: string; items: string; recipientNickname: string };
 
 export function MemberQrScreen() {
@@ -67,39 +67,11 @@ export function MemberQrScreen() {
   };
 
   const access = qr?.access;
-  const message = !access?.transfer
-    ? '보관함 나눔을 선택하면 QR을 사용할 수 있어요.'
-    : access.role === 'donor' && access.enabled
-      ? '보관함에 물품을 넣을 때 이 QR을 보여주세요.'
-      : access.role === 'recipient' && access.enabled
-        ? '물품이 준비됐어요. 보관함에서 이 QR을 보여주세요.'
-        : access.role === 'recipient'
-          ? '나눔 물품이 준비되면 이 QR을 사용할 수 있어요.'
-          : '현재 사용할 수 있는 보관함 거래가 없어요.';
 
   return (
     <AppScreen scroll contentContainerStyle={styles.content}>
       <AppHeader title="내 회원 QR" />
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
-      {!loading && qr ? <View style={styles.card}>
-        <Text style={styles.heading}>내 회원 QR</Text>
-        <Text style={styles.description}>{message}</Text>
-        <View style={styles.qrFrame}>
-          <Image source={{ uri: qr.imageDataUrl }} style={styles.qrImage} resizeMode="contain"
-            accessibilityLabel={`${qr.nickname} 회원 QR`} />
-          {!access?.enabled ? <View style={styles.cover}>
-            <Text style={styles.coverIcon}>🔒</Text>
-            <Text style={styles.coverText}>보관함 사용 대기 중</Text>
-          </View> : null}
-        </View>
-        <Text style={styles.name}>{qr.nickname}</Text>
-        {access?.transfer ? <Text style={styles.tradeText}>
-          {access.transfer.title} · {access.transfer.items}
-        </Text> : null}
-        <Pressable onPress={() => void loadQr()} style={styles.refreshButton}>
-          <Text style={styles.refreshText}>상태 새로고침</Text>
-        </Pressable>
-      </View> : null}
       {!loading && qr?.roleId === 1 && !access?.transfer ? <View style={styles.card}>
         <Text style={styles.heading}>보관함 나눔 선택</Text>
         <Text style={styles.description}>수락된 나눔의 게시글과 채팅 상대를 확인해주세요.</Text>
@@ -122,19 +94,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderRadius: radius.lg },
   heading: { color: colors.text, fontSize: 22, fontWeight: '800' },
   description: { color: colors.textMuted, fontSize: 15, textAlign: 'center' },
-  qrFrame: { width: 280, height: 280, marginVertical: spacing.md, position: 'relative' },
-  qrImage: { width: 280, height: 280 },
-  cover: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
-    backgroundColor: 'rgba(225, 229, 225, 0.96)', alignItems: 'center',
-    justifyContent: 'center', borderRadius: radius.md, gap: spacing.sm },
-  coverIcon: { fontSize: 38 },
-  coverText: { color: colors.textMuted, fontSize: 18, fontWeight: '800' },
-  name: { color: colors.text, fontSize: 20, fontWeight: '700' },
   tradeText: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
   tradeTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
   tradeButton: { alignSelf: 'stretch', padding: spacing.md, borderRadius: radius.md,
     backgroundColor: colors.brandSoft, gap: spacing.xs },
-  refreshButton: { padding: spacing.sm },
-  refreshText: { color: colors.brand, fontWeight: '700' },
   error: { color: colors.danger, textAlign: 'center' },
 });

@@ -15,7 +15,8 @@ import requests
 STATE_FILE = Path(__file__).with_name(".locker_state.json")
 ENV_FILE = Path(__file__).with_name(".env")
 MAX_OPEN_PULSE_SECONDS = 5.0
-MAX_STORAGE_OPEN_SECONDS = 10.0
+# Keep the storage window bounded because the solenoid may heat while powered.
+MAX_STORAGE_OPEN_SECONDS = 15.0
 
 
 def load_env_file() -> None:
@@ -170,7 +171,7 @@ class LockerAgent:
         self.device_key = os.getenv("LOCKER_DEVICE_API_KEY", "")
         self.poll_interval = env_float("POLL_INTERVAL_SECONDS", 1.0)
         self.request_timeout = env_float("REQUEST_TIMEOUT_SECONDS", 5.0)
-        configured_storage_timeout = env_float("STORAGE_OPEN_TIMEOUT_SECONDS", 10.0)
+        configured_storage_timeout = env_float("STORAGE_OPEN_TIMEOUT_SECONDS", 15.0)
         self.storage_open_timeout = min(
             max(configured_storage_timeout, 1.0),
             MAX_STORAGE_OPEN_SECONDS,

@@ -51,6 +51,7 @@ const initialDeviceSimulationState: DeviceSimulationState = {
 
 const AUTH_TOKEN_STORAGE_KEY = "givegive_access_token";
 const AUTH_USER_STORAGE_KEY = "givegive_user";
+const DEVICE_STORAGE_TIMEOUT_MS = 15_000;
 
 function readStoredAuth() {
   if (typeof globalThis.localStorage === "undefined") {
@@ -895,6 +896,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           "물품 투입을 기다리고 있습니다. 투입 후 감지 버튼을 눌러주세요.",
         lastUpdatedAt: new Date().toISOString(),
       }));
+    });
+
+    queueDeviceStep(2400 + DEVICE_STORAGE_TIMEOUT_MS, () => {
+      setDeviceSimulation((prev) => {
+        if (prev.step !== "awaiting_item" || !prev.lockerOpen) {
+          return prev;
+        }
+        return {
+          ...prev,
+          step: "error",
+          lockerOpen: false,
+          message: "시간이 초과되어 기부함이 닫혔습니다.",
+          lastUpdatedAt: new Date().toISOString(),
+        };
+      });
     });
 
     return { error: null };

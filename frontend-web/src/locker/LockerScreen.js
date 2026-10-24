@@ -22,6 +22,8 @@ const initialStatus = {
   storageSecondsRemaining: null,
 };
 
+const STORAGE_OPEN_TIMEOUT_SECONDS = 15;
+
 const stepItems = [
   { id: 'qr_scanned', label: 'QR 인식' },
   { id: 'server_validating', label: '서버 검증' },
@@ -326,11 +328,11 @@ function LockerScreen() {
         scannedTokenLabel: maskLockerQrToken(token),
       });
 
-      const storageDeadline = Date.now() + 10000;
+      const storageDeadline = Date.now() + STORAGE_OPEN_TIMEOUT_SECONDS * 1000;
       storageDeadlineRef.current = storageDeadline;
       setStatus((prev) => ({
         ...prev,
-        storageSecondsRemaining: 10,
+        storageSecondsRemaining: STORAGE_OPEN_TIMEOUT_SECONDS,
       }));
       storageTimerRef.current = window.setInterval(() => {
         const remaining = Math.max(0, Math.ceil((storageDeadline - Date.now()) / 1000));
@@ -386,7 +388,7 @@ function LockerScreen() {
     try {
       await timeoutLockerQr(token);
     } catch (error) {
-      // The Raspberry Pi has its own 10-second hardware cutoff, so a kiosk
+      // The Raspberry Pi has its own bounded hardware cutoff, so a kiosk
       // network failure must not leave the lock energized.
       console.warn('Storage timeout sync failed:', error);
     } finally {
