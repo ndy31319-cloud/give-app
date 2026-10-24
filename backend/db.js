@@ -1,6 +1,7 @@
 const mysql = require("mysql2/promise");
 const fs = require("fs");
 const path = require("path");
+const { normalizeMultilineSecret, normalizeScalar } = require("./lib/env");
 
 const localEnvPath = path.join(__dirname, ".env");
 const rootEnvPath = path.join(__dirname, "..", ".env");
@@ -9,15 +10,15 @@ const envPath = fs.existsSync(localEnvPath) ? localEnvPath : rootEnvPath;
 require("dotenv").config({ path: envPath });
 
 const dbCaCert =
-  process.env.DB_CA_CERT?.replace(/\\n/g, "\n") ||
+  normalizeMultilineSecret(process.env.DB_CA_CERT) ||
   fs.readFileSync(path.join(__dirname, "ca.pem"), "utf8");
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  port: process.env.DB_PORT,
+  host: normalizeScalar(process.env.DB_HOST),
+  user: normalizeScalar(process.env.DB_USER),
+  password: normalizeScalar(process.env.DB_PASSWORD),
+  database: normalizeScalar(process.env.DB_DATABASE),
+  port: Number(normalizeScalar(process.env.DB_PORT)) || 3306,
   ssl: {
     ca: dbCaCert,
   },

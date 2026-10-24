@@ -56,6 +56,19 @@ const activePostStatuses = new Set([
   "pickup_pending",
 ]);
 
+function isRequestPost(post: { type?: string | null }) {
+  const type = String(post.type ?? "").trim().toLowerCase();
+  return type === "need" || type === "request" || type === "wanted";
+}
+
+function isKioskRequestPost(post: {
+  type?: string | null;
+  createdFrom?: string | null;
+}) {
+  const createdFrom = String(post.createdFrom ?? "").trim().toLowerCase();
+  return isRequestPost(post) && (createdFrom === "web" || createdFrom === "kiosk");
+}
+
 type LockerPickupRequestForPost = {
   pickupId?: string;
   pickup_id?: string;
@@ -542,7 +555,7 @@ export function HomeScreen() {
     : "all";
   const homeFeed = useMemo(() => {
     const visiblePosts = posts.filter((post) => {
-      const isKioskRequest = post.type === "need" && post.createdFrom === "web";
+      const isKioskRequest = isKioskRequestPost(post);
       const isMyPost = user
         ? String(post.author.id) === String(user.id)
         : false;
@@ -552,12 +565,20 @@ export function HomeScreen() {
       if (statusFilter === "completed") {
         if (post.status !== "completed") return false;
       } else {
-        if (!activePostStatuses.has(post.status) || (isGeneralMember && isKioskRequest)) return false;
+        if (!activePostStatuses.has(post.status)) return false;
       }
       if (isMyPost) return true;
-      if (allowedHomePostType !== "all" && post.type !== allowedHomePostType)
+      if (
+        allowedHomePostType !== "all" &&
+        (allowedHomePostType === "need"
+          ? !isRequestPost(post)
+          : post.type !== allowedHomePostType)
+      )
         return false;
       if (!user) return true;
+      // Kiosk requests use the kiosk's fixed location. They must remain visible
+      // to donors even when the donor's saved neighborhood is different.
+      if (isKioskRequest) return true;
       return (
         filterPostsByRadius([post], user.location, user.location.radiusKm)
           .length > 0
@@ -637,9 +658,8 @@ export function HomeScreen() {
         >
           <View style={styles.feedFilterBar}>
             {[
-              { value: "active", label: "거래중" },
-              ...(isGeneralMember ? [{ value: "kiosk", label: "키오스크" }] : []),
-              { value: "completed", label: "완료" },
+              { value: "active", label: "나눔" },
+              { value: "completed", label: "나눔 완료" },
             ].map((item) => {
               const active = statusFilter === item.value;
               return (
@@ -1111,7 +1131,7 @@ export function PostDetailScreen() {
                 isApprovingPickupRequest
                   ? "수락 중"
                   : isPickupRequestApproved
-                    ? "수락 상태 확인"
+                    ? "수락"
                     : pickupRequestId
                     ? "물품 수령 수락"
                     : "예약 수락"

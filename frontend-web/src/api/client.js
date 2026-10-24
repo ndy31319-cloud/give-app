@@ -136,8 +136,9 @@ async function request(path, options = {}) {
 }
 
 function buildKioskHeaders() {
-  return process.env.REACT_APP_KIOSK_API_KEY
-    ? { 'x-kiosk-key': process.env.REACT_APP_KIOSK_API_KEY }
+  const kioskKey = String(process.env.REACT_APP_KIOSK_API_KEY || '').trim();
+  return kioskKey
+    ? { 'x-kiosk-key': kioskKey }
     : {};
 }
 

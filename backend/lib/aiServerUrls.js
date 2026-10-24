@@ -1,9 +1,10 @@
 const DEFAULT_LOCAL_AI_SERVER_URL = "http://127.0.0.1:8000";
+const { normalizeScalar } = require("./env");
 
 const splitConfiguredUrls = (value) =>
   String(value || "")
     .split(",")
-    .map((url) => url.trim())
+    .map(normalizeScalar)
     .filter(Boolean);
 
 const uniqueUrls = (urls) => [...new Set(urls.filter(Boolean))];
@@ -29,7 +30,9 @@ const isLoopbackUrl = (rawUrl) => {
 };
 
 const stripKnownAiSuffix = (rawUrl) => {
-  let normalizedUrl = String(rawUrl || "").trim().replace(/\/+$/, "");
+  let normalizedUrl = normalizeScalar(rawUrl)
+    .split(/[?#]/, 1)[0]
+    .replace(/\/+$/, "");
   const suffixes = [
     "/docs",
     "/api/post/generate-post",
@@ -50,6 +53,27 @@ const stripKnownAiSuffix = (rawUrl) => {
   }
 
   return normalizedUrl;
+};
+
+const normalizeAiBaseUrl = (rawUrl) => {
+  const normalizedUrl = stripKnownAiSuffix(rawUrl);
+
+  if (!normalizedUrl) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(normalizedUrl);
+    if (!["http:", "https:"].includes(parsedUrl.protocol) || !parsedUrl.hostname) {
+      return null;
+    }
+
+    parsedUrl.search = "";
+    parsedUrl.hash = "";
+    return parsedUrl.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
 };
 
 const appendEndpoint = (baseUrl, endpointPath) =>
@@ -90,7 +114,11 @@ const normalizeAiEndpointUrl = (rawUrl, endpointPath) => {
     return null;
   }
 
-  const normalizedUrl = String(rawUrl).trim().replace(/\/+$/, "");
+  const normalizedUrl = normalizeAiBaseUrl(rawUrl);
+  if (!normalizedUrl) {
+    return null;
+  }
+
   const normalizedEndpoint = `/${endpointPath.replace(/^\/+/, "")}`.replace(/\/+$/, "");
 
   if (normalizedUrl.endsWith(normalizedEndpoint)) {
@@ -129,6 +157,7 @@ const resolveAiEndpointUrls = ({
 
 module.exports = {
   DEFAULT_LOCAL_AI_SERVER_URL,
+  normalizeAiBaseUrl,
   resolveAiEndpointUrls,
   splitConfiguredUrls,
   stripKnownAiSuffix,

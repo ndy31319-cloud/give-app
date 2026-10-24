@@ -5,6 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const db = require("./db");
+const { splitEnvList } = require("./lib/env");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -18,10 +19,7 @@ const configuredOrigins = [
   "http://localhost:8082",
   "http://127.0.0.1:8082",
   "https://give-web-kiosk.onrender.com",
-  ...(process.env.CORS_ORIGINS || "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  ...splitEnvList(process.env.CORS_ORIGINS),
 ];
 
 const isAllowedOrigin = (origin) =>
@@ -47,6 +45,14 @@ app.use(
 );
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "give-backend",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // 회원 관련 라우터 연결
 const authRoutes = require("./routes/auth");

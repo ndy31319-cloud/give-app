@@ -54,6 +54,39 @@ test("local development defaults to the local AI server", () => {
   });
 });
 
+test("invalid AI URLs are ignored instead of being requested", () => {
+  withEnv(
+    {
+      AI_SERVER_URL_PRIMARY: "not-a-url",
+      AI_SERVER_URL_FALLBACK: "https://example-ai.ngrok-free.app/docs?preview=1",
+    },
+    () => {
+      assert.deepEqual(
+        resolveAiEndpointUrls({ endpointPath: "/api/chat/" }),
+        ["https://example-ai.ngrok-free.app/api/chat/"],
+      );
+    },
+  );
+});
+
+test("AI URLs copied as Markdown links are normalized", () => {
+  withEnv(
+    {
+      AI_SERVER_URL: "[https://example-ai.ngrok-free.dev/docs](https://example-ai.ngrok-free.dev/docs)",
+      AI_SERVER_URL_FALLBACK: "[https://fallback-ai.ngrok-free.dev]",
+    },
+    () => {
+      assert.deepEqual(
+        resolveAiEndpointUrls({ endpointPath: "/api/chat/" }),
+        [
+          "https://example-ai.ngrok-free.dev/api/chat/",
+          "https://fallback-ai.ngrok-free.dev/api/chat/",
+        ],
+      );
+    },
+  );
+});
+
 test("known AI endpoint suffixes are normalized before appending a different endpoint", () => {
   withEnv(
     {

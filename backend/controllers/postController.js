@@ -309,6 +309,9 @@ const firstTextValue = (...values) => {
   return null;
 };
 
+const isObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isTransientAiError = (error) => {
@@ -355,6 +358,12 @@ const callAiPostGeneration = async (imageFiles, hints = {}) => {
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       const form = new FormData();
       filesForAi.forEach((imageFile, index) => {
+        if (!imageFile?.path || !fs.existsSync(imageFile.path)) {
+          const error = new Error("업로드된 이미지 파일을 읽을 수 없습니다.");
+          error.statusCode = 400;
+          throw error;
+        }
+
         form.append(`file${index + 1}`, fs.createReadStream(imageFile.path), {
           filename: imageFile.originalname,
           contentType: imageFile.mimetype,
@@ -413,6 +422,10 @@ const isAiConnectionError = (error) =>
   error.statusCode === 503 ||
   error.code === "ECONNREFUSED" ||
   error.code === "ECONNRESET" ||
+  error.code === "EAI_AGAIN" ||
+  error.code === "ENETUNREACH" ||
+  error.code === "EHOSTUNREACH" ||
+  error.code === "EPIPE" ||
   error.code === "ENOTFOUND" ||
   (!error.response && Boolean(error.request));
 
@@ -421,6 +434,12 @@ const isAiTimeoutError = (error) =>
 
 const analyzeImagesWithAI = async (imageFiles, hints = {}) => {
   const aiResult = await callAiPostGeneration(imageFiles, hints);
+  if (!isObject(aiResult)) {
+    const error = new Error("AI 서버 응답 형식이 올바르지 않습니다.");
+    error.statusCode = 502;
+    throw error;
+  }
+
   const suggestedTitle = firstTextValue(
     aiResult.suggested_title,
     aiResult.title,
@@ -730,6 +749,12 @@ const analyzeImage = async (req, res) => {
       return res.status(503).json({
         message:
           "AI 서버에 연결할 수 없습니다. AI 서버 실행 상태를 확인해주세요.",
+      });
+    }
+
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        message: error.message || "AI 이미지 분석을 처리하지 못했습니다.",
       });
     }
 

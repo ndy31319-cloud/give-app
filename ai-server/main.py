@@ -51,14 +51,14 @@ app.include_router(post_router,  prefix="/api/post",  tags=["2. AI 기부글 생
 try:
     from routes.image_router import router as image_router
     app.include_router(image_router, prefix="/api/image", tags=["1. 이미지 판별 (ViT)"])
-except ModuleNotFoundError as error:
-    logging.warning("Image safety router is unavailable: %s", error.name)
+except Exception as error:
+    logging.warning("Image safety router is unavailable: %s", error)
 
 try:
     from routes.chat_router import router as chat_router
     app.include_router(chat_router, prefix="/api/chat", tags=["3. 챗봇 (RAG + Gemini)"])
-except ModuleNotFoundError as error:
-    logging.warning("Chatbot router is unavailable: %s", error.name)
+except Exception as error:
+    logging.warning("Chatbot router is unavailable: %s", error)
 
     class LightweightChatRequest(BaseModel):
         user_message: str

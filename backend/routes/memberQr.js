@@ -4,6 +4,7 @@ const db = require('../db');
 const authenticateToken = require('../middlewares/authMiddleware');
 const locker = require('../services/locker');
 const { ensureMemberQr, isMemberQrToken } = require('../services/memberQr');
+const { matchesApiKey, normalizeApiKey } = require('../lib/env');
 
 const router = express.Router();
 
@@ -46,11 +47,11 @@ router.get('/me', authenticateToken, async (req, res) => {
 
 // 회원 식별 테스트 전용. 보관함 잠금 해제나 거래 상태 변경은 하지 않습니다.
 router.post('/validate', async (req, res) => {
-  const expectedKey = process.env.KIOSK_API_KEY;
+  const expectedKey = normalizeApiKey(process.env.KIOSK_API_KEY);
   if (!expectedKey) {
     return res.status(503).json({ success: false, errorCode: 'KIOSK_NOT_CONFIGURED', message: '키오스크 인증키가 설정되지 않았습니다.' });
   }
-  if (expectedKey && req.headers['x-kiosk-key'] !== expectedKey) {
+  if (expectedKey && !matchesApiKey(expectedKey, req.headers['x-kiosk-key'])) {
     return res.status(403).json({ success: false, errorCode: 'KIOSK_UNAUTHORIZED', message: '키오스크 인증 정보가 올바르지 않습니다.' });
   }
   const token = String(req.body.token || '').trim();

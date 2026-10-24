@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const admin = require("firebase-admin");
+const { normalizeMultilineSecret, normalizeScalar } = require("./env");
 
 let firebaseApp;
 
@@ -11,9 +12,8 @@ const buildCredential = () => {
     );
 
     if (serviceAccount.private_key) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(
-        /\\n/g,
-        "\n",
+      serviceAccount.private_key = normalizeMultilineSecret(
+        serviceAccount.private_key,
       );
     }
 
@@ -34,9 +34,9 @@ const buildCredential = () => {
     return admin.credential.cert(serviceAccount);
   }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  const projectId = normalizeScalar(process.env.FIREBASE_PROJECT_ID);
+  const clientEmail = normalizeScalar(process.env.FIREBASE_CLIENT_EMAIL);
+  const privateKey = normalizeMultilineSecret(process.env.FIREBASE_PRIVATE_KEY);
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
@@ -47,7 +47,7 @@ const buildCredential = () => {
   return admin.credential.cert({
     projectId,
     clientEmail,
-    privateKey: privateKey.replace(/\\n/g, "\n"),
+    privateKey,
   });
 };
 
@@ -58,8 +58,8 @@ const getFirebaseApp = () => {
 
   firebaseApp = admin.initializeApp({
     credential: buildCredential(),
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    projectId: normalizeScalar(process.env.FIREBASE_PROJECT_ID),
+    storageBucket: normalizeScalar(process.env.FIREBASE_STORAGE_BUCKET) || undefined,
   });
 
   return firebaseApp;

@@ -193,9 +193,13 @@ class LockerAgent:
         )
         response.raise_for_status()
         payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("backend returned an invalid locker response")
         command = payload.get("data")
         if command is not None and not isinstance(command, dict):
             raise ValueError("backend returned an invalid locker command payload")
+        if command is not None and (not command.get("id") or not command.get("type")):
+            raise ValueError("backend returned an incomplete locker command")
         return command
 
     def post_status(self) -> None:
@@ -226,6 +230,14 @@ class LockerAgent:
         response.raise_for_status()
 
     def apply_command(self, command: dict[str, Any]) -> None:
+        command_id = command.get("id")
+        if not command_id:
+            raise ValueError("locker command id is missing")
+
+        if command_id == self.state.lastCommandId:
+            print(f"[locker] duplicate command acknowledged without reapplying: {command_id}")
+            return
+
         command_type = command.get("type")
         print(f"[locker] command={command.get('id')} type={command_type}")
 
@@ -270,7 +282,7 @@ class LockerAgent:
         else:
             raise ValueError(f"unsupported command type: {command_type}")
 
-        self.state.lastCommandId = command.get("id")
+        self.state.lastCommandId = command_id
         self.save_state()
 
     def stop(self, *_args: Any) -> None:

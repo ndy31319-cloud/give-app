@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const express = require("express");
 const authenticateToken = require("../middlewares/authMiddleware");
 const db = require("../db");
+const { isProductionRuntime, matchesApiKey, normalizeApiKey } = require("../lib/env");
 
 const router = express.Router();
 const sessionsByToken = new Map();
@@ -299,15 +300,22 @@ const findSession = (token) => {
 };
 
 const requireKioskAccess = (req, res, next) => {
-  const expectedKey = process.env.KIOSK_API_KEY;
+  const expectedKey = normalizeApiKey(process.env.KIOSK_API_KEY);
 
   if (!expectedKey) {
+    if (isProductionRuntime()) {
+      return res.status(503).json({
+        success: false,
+        code: "KIOSK_AUTH_NOT_CONFIGURED",
+        message: "키오스크 인증키가 Render 백엔드에 설정되지 않았습니다.",
+      });
+    }
     return next();
   }
 
   const providedKey = req.headers["x-kiosk-key"];
 
-  if (providedKey !== expectedKey) {
+  if (!matchesApiKey(expectedKey, providedKey)) {
     return res.status(403).json({
       success: false,
       code: "KIOSK_AUTH_FAILED",
@@ -319,15 +327,22 @@ const requireKioskAccess = (req, res, next) => {
 };
 
 const requireLockerDeviceAccess = (req, res, next) => {
-  const expectedKey = process.env.LOCKER_DEVICE_API_KEY;
+  const expectedKey = normalizeApiKey(process.env.LOCKER_DEVICE_API_KEY);
 
   if (!expectedKey) {
+    if (isProductionRuntime()) {
+      return res.status(503).json({
+        success: false,
+        code: "LOCKER_DEVICE_AUTH_NOT_CONFIGURED",
+        message: "라즈베리파이 보관함 인증키가 Render 백엔드에 설정되지 않았습니다.",
+      });
+    }
     return next();
   }
 
   const providedKey = req.headers["x-locker-device-key"];
 
-  if (providedKey !== expectedKey) {
+  if (!matchesApiKey(expectedKey, providedKey)) {
     return res.status(403).json({
       success: false,
       code: "LOCKER_DEVICE_AUTH_FAILED",

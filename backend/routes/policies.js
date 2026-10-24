@@ -29,7 +29,16 @@ const isTransientAiError = (error) => {
   const status = error.response?.status;
   return (
     !error.response ||
-    ["ECONNRESET", "ECONNREFUSED", "ECONNABORTED", "ETIMEDOUT"].includes(
+    [
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "ECONNABORTED",
+      "ETIMEDOUT",
+      "EAI_AGAIN",
+      "ENETUNREACH",
+      "EHOSTUNREACH",
+      "EPIPE",
+    ].includes(
       error.code,
     ) ||
     [500, 502, 503, 504].includes(status)
@@ -455,7 +464,15 @@ router.post(["/chatbot", "/chat"], authenticateToken, async (req, res) => {
       error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
     const isConnectionError =
       error.statusCode === 503 ||
-      ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND"].includes(error.code) ||
+      [
+        "ECONNREFUSED",
+        "ECONNRESET",
+        "ENOTFOUND",
+        "EAI_AGAIN",
+        "ENETUNREACH",
+        "EHOSTUNREACH",
+        "EPIPE",
+      ].includes(error.code) ||
       (!error.response && Boolean(error.request));
 
     if (isTimeout) {
