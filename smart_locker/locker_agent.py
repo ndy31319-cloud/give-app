@@ -13,6 +13,7 @@ import requests
 
 STATE_FILE = Path(__file__).with_name(".locker_state.json")
 ENV_FILE = Path(__file__).with_name(".env")
+MAX_OPEN_PULSE_SECONDS = 5.0
 
 
 def load_env_file() -> None:
@@ -106,7 +107,11 @@ class LockerHardware:
         relay_active_low = env_bool("RELAY_ACTIVE_LOW", True)
         red_led_active_high = env_bool("RED_LED_ACTIVE_HIGH", True)
 
-        self.open_pulse_seconds = env_float("OPEN_PULSE_SECONDS", 3.0)
+        configured_pulse_seconds = env_float("OPEN_PULSE_SECONDS", 3.0)
+        self.open_pulse_seconds = min(
+            max(configured_pulse_seconds, 0.1),
+            MAX_OPEN_PULSE_SECONDS,
+        )
         self.relay = make_output(
             relay_pin,
             active_high=not relay_active_low,
@@ -119,9 +124,15 @@ class LockerHardware:
         )
 
     def unlock_once(self) -> None:
-        self.relay.on()
-        time.sleep(max(self.open_pulse_seconds, 0.1))
-        self.relay.off()
+        try:
+            self.relay.on()
+            time.sleep(self.open_pulse_seconds)
+        finally:
+            # A signal or GPIO error must never leave the solenoid energized.
+            try:
+                self.relay.off()
+            except Exception as error:
+                print(f"[locker] failed to turn relay off after unlock pulse: {error}")
 
     def lock(self) -> None:
         self.relay.off()
