@@ -94,10 +94,17 @@ def make_output(pin: int, *, active_high: bool, initial_value: bool):
     try:
         from gpiozero import OutputDevice
     except Exception as error:
-        print(f"[locker] gpiozero unavailable, falling back to mock GPIO: {error}")
-        return MockOutput(pin, active_high=active_high, initial_value=initial_value)
+        raise RuntimeError(
+            "GPIO driver is unavailable. Install gpiozero and lgpio, "
+            "or set MOCK_GPIO=true only for a hardware-free test."
+        ) from error
 
-    return OutputDevice(pin, active_high=active_high, initial_value=initial_value)
+    try:
+        return OutputDevice(pin, active_high=active_high, initial_value=initial_value)
+    except Exception as error:
+        raise RuntimeError(
+            "GPIO pin factory could not be initialized. Install lgpio and check the GPIO pin wiring."
+        ) from error
 
 
 class LockerHardware:
