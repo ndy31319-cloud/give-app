@@ -1078,6 +1078,76 @@ router.post("/qr/storage/consume", requireKioskAccess, async (req, res) => {
   });
 });
 
+router.post("/qr/storage/timeout", requireKioskAccess, async (req, res) => {
+  const token = String(req.body.token || "").trim();
+
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      code: "QR_EMPTY",
+      message: "시간 초과 처리할 QR 토큰이 없습니다.",
+    });
+  }
+
+  let session = null;
+  try {
+    session = await loadAnyQrSession(token, "Kiosk storage timeout");
+  } catch (error) {
+    console.error("Kiosk storage timeout DB error:", error);
+    return res.status(500).json({
+      success: false,
+      code: "QR_TIMEOUT_FAILED",
+      message: "보관함 시간 초과 상태를 저장하지 못했습니다.",
+    });
+  }
+
+  if (!ensureUsableDonationStorageSession(session, res)) {
+    return;
+  }
+
+  try {
+    const [result] = await db.query(
+      `UPDATE DYNAMIC_QR
+       SET status = 'expired'
+       WHERE qr_id = ? AND status = 'active'`,
+      [session.id],
+    );
+
+    if (!result.affectedRows) {
+      return res.status(409).json({
+        success: false,
+        code: "QR_TIMEOUT_ALREADY_HANDLED",
+        message: "이미 처리된 보관함 QR입니다.",
+      });
+    }
+  } catch (error) {
+    console.error("Kiosk storage timeout update error:", error);
+    return res.status(500).json({
+      success: false,
+      code: "QR_TIMEOUT_FAILED",
+      message: "보관함 시간 초과 상태를 저장하지 못했습니다.",
+    });
+  }
+
+  session.status = "expired";
+  const lockerCommand = queueLockerCommand(defaultLockerId, "CLOSE_EMPTY_LED_OFF", {
+    qrSessionId: session.id,
+    qr_session_id: session.id,
+    reason: "storage_timeout",
+  });
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      qrSession: toResponseSession(session),
+      qr_session: toResponseSession(session),
+      lockerCommand,
+      locker_command: lockerCommand,
+    },
+    message: "보관 시간이 초과되어 보관함 닫힘 명령을 보냈습니다.",
+  });
+});
+
 router.get("/locker/status", requireKioskAccess, (req, res) => {
   const lockerId = normalizeLockerId(req.query.lockerId || req.query.locker_id);
 

@@ -184,7 +184,7 @@ export function DynamicQrScreen() {
   return <DeviceSimulatorScreen />;
 }
 
-export function DeviceSimulatorScreen() {
+export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean } = {}) {
   const {
     user,
     posts,
@@ -305,11 +305,8 @@ export function DeviceSimulatorScreen() {
     Alert.alert('QR 발급 완료', '선택한 나눔 게시글의 보관함 입고용 QR이 발급되었습니다.');
   };
 
-  return (
-    <AppScreen>
-      <AppHeader title="기부함 디바이스 시뮬레이터" />
-
-      <ScrollView contentContainerStyle={styles.pageContent} showsVerticalScrollIndicator={false}>
+  const simulatorContent = (
+    <>
         <View style={styles.heroCard}>
           <View style={styles.heroIcon}>
             <Ionicons
@@ -535,12 +532,27 @@ export function DeviceSimulatorScreen() {
             />
           </View>
         </View>
+    </>
+  );
+
+  if (embedded) {
+    return <View style={styles.embeddedContent}>{simulatorContent}</View>;
+  }
+
+  return (
+    <AppScreen>
+      <AppHeader title="기부함 디바이스 시뮬레이터" />
+      <ScrollView contentContainerStyle={styles.pageContent} showsVerticalScrollIndicator={false}>
+        {simulatorContent}
       </ScrollView>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  embeddedContent: {
+    gap: spacing.lg,
+  },
   pageContent: {
     padding: spacing.lg,
     gap: spacing.lg,

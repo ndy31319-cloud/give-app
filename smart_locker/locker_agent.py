@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -14,6 +15,7 @@ import requests
 STATE_FILE = Path(__file__).with_name(".locker_state.json")
 ENV_FILE = Path(__file__).with_name(".env")
 MAX_OPEN_PULSE_SECONDS = 5.0
+MAX_STORAGE_OPEN_SECONDS = 10.0
 
 
 def load_env_file() -> None:
@@ -141,6 +143,11 @@ class LockerHardware:
             except Exception as error:
                 print(f"[locker] failed to turn relay off after unlock pulse: {error}")
 
+    def open_for_storage(self) -> None:
+        # Keep the relay on only during the bounded storage window. The agent
+        # independently closes it when the kiosk or backend cannot respond.
+        self.relay.on()
+
     def lock(self) -> None:
         self.relay.off()
 
@@ -163,12 +170,48 @@ class LockerAgent:
         self.device_key = os.getenv("LOCKER_DEVICE_API_KEY", "")
         self.poll_interval = env_float("POLL_INTERVAL_SECONDS", 1.0)
         self.request_timeout = env_float("REQUEST_TIMEOUT_SECONDS", 5.0)
+        configured_storage_timeout = env_float("STORAGE_OPEN_TIMEOUT_SECONDS", 10.0)
+        self.storage_open_timeout = min(
+            max(configured_storage_timeout, 1.0),
+            MAX_STORAGE_OPEN_SECONDS,
+        )
         self.hardware = LockerHardware()
         self.state = self.load_state()
         self.running = True
+        self.storage_open_deadline: Optional[float] = None
+        self.storage_timeout_timer: Optional[threading.Timer] = None
 
         self.hardware.lock()
         self.hardware.set_red_led(self.state.redLedOn)
+
+    def close_expired_storage(self) -> bool:
+        if self.storage_open_deadline is None or time.monotonic() < self.storage_open_deadline:
+            return False
+
+        self.storage_open_deadline = None
+        self.storage_timeout_timer = None
+        self.hardware.lock()
+        self.hardware.set_red_led(False)
+        self.state.locked = True
+        self.state.doorOpen = False
+        self.state.redLedOn = False
+        self.state.occupied = False
+        self.save_state()
+        print("[locker] storage open timeout; locker closed")
+        return True
+
+    def cancel_storage_timeout(self) -> None:
+        timer = self.storage_timeout_timer
+        self.storage_timeout_timer = None
+        if timer is not None:
+            timer.cancel()
+
+    def schedule_storage_timeout(self) -> None:
+        self.cancel_storage_timeout()
+        timer = threading.Timer(self.storage_open_timeout, self.close_expired_storage)
+        timer.daemon = True
+        self.storage_timeout_timer = timer
+        timer.start()
 
     @property
     def headers(self) -> dict[str, str]:
@@ -260,11 +303,15 @@ class LockerAgent:
         print(f"[locker] command={command.get('id')} type={command_type}")
 
         if command_type == "OPEN_FOR_STORAGE":
-            self.hardware.unlock_once()
+            self.hardware.open_for_storage()
+            self.storage_open_deadline = time.monotonic() + self.storage_open_timeout
+            self.schedule_storage_timeout()
             self.state.locked = False
             self.state.doorOpen = True
 
         elif command_type == "CLOSE_WITH_ITEM_LED_ON":
+            self.storage_open_deadline = None
+            self.cancel_storage_timeout()
             self.hardware.lock()
             self.hardware.set_red_led(True)
             self.state.locked = True
@@ -273,6 +320,8 @@ class LockerAgent:
             self.state.occupied = True
 
         elif command_type == "OPEN_FOR_PICKUP":
+            self.storage_open_deadline = None
+            self.cancel_storage_timeout()
             self.hardware.set_red_led(True)
             self.hardware.unlock_once()
             self.state.locked = False
@@ -280,6 +329,8 @@ class LockerAgent:
             self.state.redLedOn = True
 
         elif command_type == "CLOSE_EMPTY_LED_OFF":
+            self.storage_open_deadline = None
+            self.cancel_storage_timeout()
             self.hardware.lock()
             self.hardware.set_red_led(False)
             self.state.locked = True
@@ -288,11 +339,15 @@ class LockerAgent:
             self.state.occupied = False
 
         elif command_type == "LOCK":
+            self.storage_open_deadline = None
+            self.cancel_storage_timeout()
             self.hardware.lock()
             self.state.locked = True
             self.state.doorOpen = False
 
         elif command_type == "RESET_EMPTY":
+            self.storage_open_deadline = None
+            self.cancel_storage_timeout()
             self.hardware.lock()
             self.hardware.set_red_led(False)
             self.state = LockerState(locked=True)
@@ -313,6 +368,12 @@ class LockerAgent:
 
         while self.running:
             try:
+                if self.close_expired_storage():
+                    try:
+                        self.post_status()
+                    except Exception as status_error:
+                        print(f"[locker] failed to publish timeout status: {status_error}")
+
                 command = self.get_next_command()
                 if command:
                     try:
@@ -332,6 +393,8 @@ class LockerAgent:
             time.sleep(max(self.poll_interval, 0.2))
 
         self.hardware.lock()
+        self.cancel_storage_timeout()
+        self.storage_open_deadline = None
         self.hardware.set_red_led(self.state.redLedOn)
         self.hardware.close()
         print("[locker] stopped")

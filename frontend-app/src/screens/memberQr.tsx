@@ -6,6 +6,7 @@ import { AppScreen } from '@/src/components/common/AppScreen';
 import { useAppContext } from '@/src/context/AppContext';
 import { buildAuthHeaders, requestEnvelope } from '@/src/services/backendClient';
 import { colors, radius, spacing } from '@/src/theme/colors';
+import { DeviceSimulatorScreen } from '@/src/screens/device';
 
 type Transfer = { transferId: number; title: string; items: string; recipientNickname: string; status: string };
 type Access = { enabled: boolean; role: 'donor' | 'recipient' | null; transfer: Transfer | null };
@@ -110,6 +111,7 @@ export function MemberQrScreen() {
         </Pressable>)}
       </View> : null}
       {!loading && error ? <Text style={styles.error}>{error}</Text> : null}
+      <DeviceSimulatorScreen embedded />
     </AppScreen>
   );
 }

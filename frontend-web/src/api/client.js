@@ -354,6 +354,14 @@ export async function consumeLockerQr(token) {
   });
 }
 
+export async function timeoutLockerQr(token) {
+  return request('/api/device/qr/storage/timeout', {
+    method: 'POST',
+    headers: buildKioskHeaders(),
+    body: JSON.stringify({ token }),
+  });
+}
+
 export function saveAuthToken(token) {
   if (token) {
     localStorage.setItem('givegive_access_token', token);

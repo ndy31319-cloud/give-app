@@ -1,7 +1,7 @@
 import { Html5Qrcode } from 'html5-qrcode';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { consumeLockerQr, validateLockerQr } from '../api/client';
+import { consumeLockerQr, timeoutLockerQr, validateLockerQr } from '../api/client';
 import {
   formatLockerManualCode,
   getLockerQrErrorMessage,
@@ -19,6 +19,7 @@ const initialStatus = {
   donation: null,
   donor: null,
   scannedTokenLabel: '',
+  storageSecondsRemaining: null,
 };
 
 const stepItems = [
@@ -88,6 +89,7 @@ function getErrorMessage(error, fallback) {
 
 function statusLabel(step) {
   if (step === 'completed') return '완료';
+  if (step === 'timeout') return '시간 초과';
   if (step === 'error') return '오류';
   if (step === 'idle') return '대기';
   return '진행 중';
@@ -129,6 +131,9 @@ function LockerScreen() {
   const scannerRef = useRef(null);
   const scanningRef = useRef(false);
   const scanHintTimerRef = useRef(null);
+  const storageTimerRef = useRef(null);
+  const storageDeadlineRef = useRef(null);
+  const storageTimeoutInFlightRef = useRef(false);
   const [scanning, setScanning] = useState(false);
   const [working, setWorking] = useState(false);
   const [manualCode, setManualCode] = useState('');
@@ -138,7 +143,7 @@ function LockerScreen() {
   const canDetectItem = status.step === 'awaiting_item' && status.token;
   const statusTone = status.step === 'completed'
     ? 'text-[#25673f]'
-    : status.step === 'error'
+    : status.step === 'error' || status.step === 'timeout'
       ? 'text-[#d64545]'
       : 'text-[#2f7d4f]';
 
@@ -146,6 +151,14 @@ function LockerScreen() {
     return status.donation?.title || status.session?.displayCode || '보관함 입고 QR';
   }, [status.donation, status.session]);
   const showDeviceStatus = Boolean(status.token) && status.step !== 'error';
+
+  const clearStorageCountdown = () => {
+    if (storageTimerRef.current) {
+      window.clearInterval(storageTimerRef.current);
+      storageTimerRef.current = null;
+    }
+    storageDeadlineRef.current = null;
+  };
 
   const stopScanner = async () => {
     const scanner = scannerRef.current;
@@ -182,6 +195,9 @@ function LockerScreen() {
       }
       if (scanHintTimerRef.current) {
         window.clearTimeout(scanHintTimerRef.current);
+      }
+      if (storageTimerRef.current) {
+        window.clearInterval(storageTimerRef.current);
       }
     };
   }, []);
@@ -264,6 +280,7 @@ function LockerScreen() {
   };
 
   const handleValidate = async (rawToken) => {
+    clearStorageCountdown();
     const inspection = inspectLockerQrPayload(rawToken);
     const token = inspection.token;
 
@@ -309,6 +326,27 @@ function LockerScreen() {
         scannedTokenLabel: maskLockerQrToken(token),
       });
 
+      const storageDeadline = Date.now() + 10000;
+      storageDeadlineRef.current = storageDeadline;
+      setStatus((prev) => ({
+        ...prev,
+        storageSecondsRemaining: 10,
+      }));
+      storageTimerRef.current = window.setInterval(() => {
+        const remaining = Math.max(0, Math.ceil((storageDeadline - Date.now()) / 1000));
+        setStatus((prev) => {
+          if (prev.token !== token || prev.step === 'completed' || prev.step === 'error' || prev.step === 'timeout') {
+            return prev;
+          }
+          return { ...prev, storageSecondsRemaining: remaining };
+        });
+
+        if (remaining <= 0) {
+          clearStorageCountdown();
+          void handleStorageTimeout(token);
+        }
+      }, 250);
+
       window.setTimeout(() => {
         setStatus((prev) => {
           if (prev.step !== 'locker_open') return prev;
@@ -329,6 +367,33 @@ function LockerScreen() {
       });
     } finally {
       setWorking(false);
+    }
+  };
+
+  const handleStorageTimeout = async (token) => {
+    if (storageTimeoutInFlightRef.current) return;
+    storageTimeoutInFlightRef.current = true;
+    clearStorageCountdown();
+    setWorking(true);
+    setStatus((prev) => ({
+      ...prev,
+      step: 'timeout',
+      lockerOpen: false,
+      storageSecondsRemaining: 0,
+      message: '시간이 초과되었습니다. 보관함을 닫고 초기 화면으로 돌아갑니다.',
+    }));
+
+    try {
+      await timeoutLockerQr(token);
+    } catch (error) {
+      // The Raspberry Pi has its own 10-second hardware cutoff, so a kiosk
+      // network failure must not leave the lock energized.
+      console.warn('Storage timeout sync failed:', error);
+    } finally {
+      window.alert('시간이 초과되었습니다.');
+      storageTimeoutInFlightRef.current = false;
+      setWorking(false);
+      navigate('/locker', { replace: true });
     }
   };
 
@@ -422,6 +487,8 @@ function LockerScreen() {
   const handleItemDetected = async () => {
     if (!canDetectItem) return;
 
+    clearStorageCountdown();
+
     if (status.token === 'test-locker-qr') {
       window.alert('물품 보관이 완료되었습니다.');
       navigate('/locker', { replace: true });
@@ -472,6 +539,8 @@ function LockerScreen() {
 
   const handleReset = () => {
     stopScanner();
+    clearStorageCountdown();
+    storageTimeoutInFlightRef.current = false;
     setManualCode('');
     setStatus(initialStatus);
   };
@@ -630,6 +699,15 @@ function LockerScreen() {
             <p className="text-[30px] leading-snug">{status.message}</p>
           </div>
 
+          {status.step === 'awaiting_item' && status.storageSecondsRemaining !== null ? (
+            <div className="rounded-[26px] border-2 border-[#e5b94d] bg-[#fff8df] px-8 py-6 mb-8 text-center">
+              <p className="text-[28px] font-black text-[#9a6b00]">물품 투입까지 남은 시간</p>
+              <p className="mt-2 text-[64px] font-black leading-none text-[#9a6b00]">
+                {status.storageSecondsRemaining}초
+              </p>
+            </div>
+          ) : null}
+
           {status.scannedTokenLabel ? (
             <p className="-mt-3 mb-8 text-[22px] font-bold text-[#526158]">
               인식한 QR 토큰: {status.scannedTokenLabel}
@@ -642,7 +720,7 @@ function LockerScreen() {
             disabled={!canDetectItem || working}
             className="w-full h-[112px] rounded-[28px] bg-[#2f7d4f] text-white text-[36px] font-black shadow-[0_12px_30px_rgba(46,139,87,0.24)] disabled:bg-[#c9cec4] disabled:opacity-60 active:scale-[0.98] mb-8"
           >
-            물품 투입 감지
+            물품 투입 완료
           </button>
 
           <button
