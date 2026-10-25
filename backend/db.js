@@ -9,23 +9,31 @@ const envPath = fs.existsSync(localEnvPath) ? localEnvPath : rootEnvPath;
 
 require("dotenv").config({ path: envPath });
 
+const localCaPath = path.join(__dirname, "ca.pem");
 const dbCaCert =
   normalizeMultilineSecret(process.env.DB_CA_CERT) ||
-  fs.readFileSync(path.join(__dirname, "ca.pem"), "utf8");
+  (fs.existsSync(localCaPath) ? fs.readFileSync(localCaPath, "utf8") : "");
 
-const pool = mysql.createPool({
+if (!dbCaCert) {
+  console.warn("DB_CA_CERT is not configured and backend/ca.pem is missing. MySQL TLS connection may fail.");
+}
+
+const poolOptions = {
   host: normalizeScalar(process.env.DB_HOST),
   user: normalizeScalar(process.env.DB_USER),
   password: normalizeScalar(process.env.DB_PASSWORD),
   database: normalizeScalar(process.env.DB_DATABASE),
   port: Number(normalizeScalar(process.env.DB_PORT)) || 3306,
-  ssl: {
-    ca: dbCaCert,
-  },
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-});
+};
+
+if (dbCaCert) {
+  poolOptions.ssl = { ca: dbCaCert };
+}
+
+const pool = mysql.createPool(poolOptions);
 
 pool
   .getConnection()

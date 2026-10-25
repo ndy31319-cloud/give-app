@@ -169,50 +169,60 @@ class LockerAgent:
         self.backend_url = os.getenv("BACKEND_URL", "http://localhost:3001").rstrip("/")
         self.locker_id = os.getenv("LOCKER_DEVICE_ID", "locker-1")
         self.device_key = os.getenv("LOCKER_DEVICE_API_KEY", "")
-        self.poll_interval = env_float("POLL_INTERVAL_SECONDS", 1.0)
-        self.request_timeout = env_float("REQUEST_TIMEOUT_SECONDS", 5.0)
+        self.poll_interval = max(env_float("POLL_INTERVAL_SECONDS", 1.0), 0.2)
+        self.request_timeout = max(env_float("REQUEST_TIMEOUT_SECONDS", 5.0), 0.5)
         configured_storage_timeout = env_float("STORAGE_OPEN_TIMEOUT_SECONDS", 15.0)
         self.storage_open_timeout = min(
             max(configured_storage_timeout, 1.0),
             MAX_STORAGE_OPEN_SECONDS,
         )
+        self.state_lock = threading.RLock()
         self.hardware = LockerHardware()
         self.state = self.load_state()
+        # A restart cannot prove that the physical door is still open. Start
+        # from the electrically safe state while preserving occupancy so the
+        # red LED can be restored for an item already in the locker.
+        self.state.locked = True
+        self.state.doorOpen = False
         self.running = True
         self.storage_open_deadline: Optional[float] = None
         self.storage_timeout_timer: Optional[threading.Timer] = None
 
         self.hardware.lock()
         self.hardware.set_red_led(self.state.redLedOn)
+        self.save_state()
 
     def close_expired_storage(self) -> bool:
-        if self.storage_open_deadline is None or time.monotonic() < self.storage_open_deadline:
-            return False
+        with self.state_lock:
+            if self.storage_open_deadline is None or time.monotonic() < self.storage_open_deadline:
+                return False
 
-        self.storage_open_deadline = None
-        self.storage_timeout_timer = None
-        self.hardware.lock()
-        self.hardware.set_red_led(False)
-        self.state.locked = True
-        self.state.doorOpen = False
-        self.state.redLedOn = False
-        self.state.occupied = False
-        self.save_state()
-        print("[locker] storage open timeout; locker closed")
-        return True
+            self.storage_open_deadline = None
+            self.storage_timeout_timer = None
+            self.hardware.lock()
+            self.hardware.set_red_led(False)
+            self.state.locked = True
+            self.state.doorOpen = False
+            self.state.redLedOn = False
+            self.state.occupied = False
+            self.save_state()
+            print("[locker] storage open timeout; locker closed")
+            return True
 
     def cancel_storage_timeout(self) -> None:
-        timer = self.storage_timeout_timer
-        self.storage_timeout_timer = None
-        if timer is not None:
-            timer.cancel()
+        with self.state_lock:
+            timer = self.storage_timeout_timer
+            self.storage_timeout_timer = None
+            if timer is not None:
+                timer.cancel()
 
     def schedule_storage_timeout(self) -> None:
-        self.cancel_storage_timeout()
-        timer = threading.Timer(self.storage_open_timeout, self.close_expired_storage)
-        timer.daemon = True
-        self.storage_timeout_timer = timer
-        timer.start()
+        with self.state_lock:
+            self.cancel_storage_timeout()
+            timer = threading.Timer(self.storage_open_timeout, self.close_expired_storage)
+            timer.daemon = True
+            self.storage_timeout_timer = timer
+            timer.start()
 
     @property
     def headers(self) -> dict[str, str]:
@@ -238,13 +248,18 @@ class LockerAgent:
             return LockerState()
 
     def save_state(self) -> None:
+        temp_file = STATE_FILE.with_name(f"{STATE_FILE.name}.tmp")
         try:
-            STATE_FILE.write_text(
-                json.dumps(asdict(self.state), ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            with self.state_lock:
+                payload = json.dumps(asdict(self.state), ensure_ascii=False, indent=2)
+            temp_file.write_text(payload, encoding="utf-8")
+            os.replace(temp_file, STATE_FILE)
         except Exception as error:
             print(f"[locker] failed to persist local state, continuing with in-memory state: {error}")
+            try:
+                temp_file.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     def get_next_command(self) -> dict[str, Any] | None:
         response = requests.get(
@@ -265,10 +280,8 @@ class LockerAgent:
         return command
 
     def post_status(self) -> None:
-        payload = {
-            "lockerId": self.locker_id,
-            **asdict(self.state),
-        }
+        with self.state_lock:
+            payload = {"lockerId": self.locker_id, **asdict(self.state)}
         response = requests.post(
             f"{self.backend_url}/api/device/locker/status",
             headers=self.headers,
@@ -278,10 +291,12 @@ class LockerAgent:
         response.raise_for_status()
 
     def ack_command(self, command: dict[str, Any], success: bool, error: Optional[str] = None) -> None:
+        with self.state_lock:
+            state = asdict(self.state)
         payload = {
             "success": success,
             "error": error,
-            "state": asdict(self.state),
+            "state": state,
         }
         response = requests.post(
             f"{self.backend_url}/api/device/locker/commands/{command['id']}/ack",
@@ -292,6 +307,13 @@ class LockerAgent:
         response.raise_for_status()
 
     def apply_command(self, command: dict[str, Any]) -> None:
+        # Timer callbacks and the polling loop can receive commands at the
+        # same time. Serialize every hardware transition so a timeout cannot
+        # reopen or overwrite a newer close command.
+        with self.state_lock:
+            self._apply_command(command)
+
+    def _apply_command(self, command: dict[str, Any]) -> None:
         command_id = command.get("id")
         if not command_id:
             raise ValueError("locker command id is missing")
@@ -393,11 +415,12 @@ class LockerAgent:
 
             time.sleep(max(self.poll_interval, 0.2))
 
-        self.hardware.lock()
-        self.cancel_storage_timeout()
-        self.storage_open_deadline = None
-        self.hardware.set_red_led(self.state.redLedOn)
-        self.hardware.close()
+        with self.state_lock:
+            self.hardware.lock()
+            self.cancel_storage_timeout()
+            self.storage_open_deadline = None
+            self.hardware.set_red_led(self.state.redLedOn)
+            self.hardware.close()
         print("[locker] stopped")
 
 

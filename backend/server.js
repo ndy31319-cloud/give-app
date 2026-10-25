@@ -43,7 +43,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/health", (req, res) => {
@@ -111,19 +111,26 @@ app.use((error, req, res, next) => {
   }
 
   const isJsonParseError = error?.type === "entity.parse.failed";
+  const isPayloadTooLarge = error?.type === "entity.too.large";
   const isUploadError = error instanceof multer.MulterError;
-  const status = isJsonParseError
-    ? 400
+  const status = isPayloadTooLarge
+    ? 413
+    : isJsonParseError
+      ? 400
     : isUploadError
       ? 400
     : error.statusCode || error.status || 500;
   const code = isJsonParseError
     ? "INVALID_JSON"
+    : isPayloadTooLarge
+      ? "PAYLOAD_TOO_LARGE"
     : isUploadError
       ? error.code || "UPLOAD_ERROR"
     : error.code || (status >= 500 ? "INTERNAL_SERVER_ERROR" : `HTTP_${status}`);
   const message = isJsonParseError
     ? "요청 JSON 형식이 올바르지 않습니다."
+    : isPayloadTooLarge
+      ? "요청 데이터가 너무 큽니다. 파일은 이미지 업로드 형식으로 나눠서 보내주세요."
     : isUploadError && error.code === "LIMIT_FILE_SIZE"
       ? "첨부 파일 용량이 너무 큽니다."
     : isUploadError

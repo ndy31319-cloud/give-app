@@ -4,7 +4,7 @@ import re
 from typing import Any, Iterable
 
 
-GOV24_POLICY_URL = "https://www.gov.kr/portal/gvrnPolicy/listAll"
+GOV24_POLICY_URL = "https://www.gov.kr/portal/rcvfvrSvc/main"
 _URL_PATTERN = re.compile(r"(?:https?://|www\.)[^\s<>\"')]+", re.IGNORECASE)
 
 
@@ -21,6 +21,40 @@ def extract_urls(*values: Any) -> list[str]:
             if url and url not in urls:
                 urls.append(url)
     return urls
+
+
+def _normalized_url(value: Any) -> str:
+    return str(value or "").strip().rstrip(".,;:!?)]}").lower()
+
+
+def _policy_urls(policies: Iterable[dict[str, Any]]) -> list[str]:
+    """Return only URLs explicitly stored as official/application links."""
+    urls: list[str] = []
+    for policy in policies:
+        for key in ("official_url", "application_url"):
+            for url in extract_urls(policy.get(key)):
+                if url and url not in urls:
+                    urls.append(url)
+    return urls
+
+
+def _strip_untrusted_urls(answer: str, allowed_urls: Iterable[str]) -> str:
+    allowed = {_normalized_url(url) for url in allowed_urls}
+    answer_urls = extract_urls(answer)
+    if not answer_urls:
+        return answer
+
+    cleaned = re.sub(
+        r"\[([^\]\n]+)\]\(((?:https?://|www\.)[^\s)]+)\)",
+        lambda match: match.group(0) if _normalized_url(match.group(2)) in allowed else match.group(1),
+        answer,
+        flags=re.IGNORECASE,
+    )
+    cleaned = _URL_PATTERN.sub(
+        lambda match: match.group(0) if _normalized_url(match.group(0)) in allowed else "",
+        cleaned,
+    )
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
 
 
 def build_policy_context(policies: Iterable[dict[str, Any]]) -> str:
@@ -46,12 +80,7 @@ def build_policy_context(policies: Iterable[dict[str, Any]]) -> str:
             if field_text:
                 lines.append(f"  {label}: {field_text}")
 
-        urls = extract_urls(
-            policy.get("official_url"),
-            policy.get("application_url"),
-            policy.get("content"),
-            policy.get("ai_search_text"),
-        )
+        urls = _policy_urls([policy])
         for url in urls[:2]:
             lines.append(f"  공식 확인 링크: {url}")
 
@@ -64,17 +93,11 @@ def ensure_policy_link(answer: str, policies: Iterable[dict[str, Any]], user_mes
     """Keep policy answers actionable without adding links to technical flows."""
     if not answer.strip():
         return answer
-    if re.search(r"(?:https?://|www\.)", answer, re.IGNORECASE):
+    policy_urls = _policy_urls(policies)
+    answer = _strip_untrusted_urls(answer, policy_urls)
+    answer_urls = extract_urls(answer)
+    if answer_urls and any(_normalized_url(url) in {_normalized_url(item) for item in policy_urls} for url in answer_urls):
         return answer
-
-    policy_urls = []
-    for policy in policies:
-        policy_urls.extend(extract_urls(
-            policy.get("official_url"),
-            policy.get("application_url"),
-            policy.get("content"),
-            policy.get("ai_search_text"),
-        ))
     if policy_urls:
         return f"{answer.rstrip()}\n공식 확인 링크: {policy_urls[0]}"
 

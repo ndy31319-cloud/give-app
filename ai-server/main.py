@@ -180,7 +180,7 @@ except Exception as error:
                 "현재 질문만으로는 바로 연결되는 정책을 좁히기 어렵습니다.\n"
                 "생활비, 주거, 의료, 교육, 일자리처럼 필요한 지원 분야와 거주 지역, 가구 상황을 함께 알려주시면 더 정확하게 찾아볼게요.\n"
                 "이미 알고 계신 정책명이 있다면 그 이름을 보내주시면 지원 대상과 지원 내용을 중심으로 정리해 드리겠습니다.\n"
-                "더 다양한 맞춤형 혜택은 정부24 보조금 안내 사이트(https://www.gov.kr/portal/gvrnPolicy/listAll)에서 확인하실 수 있습니다."
+                "더 다양한 맞춤형 혜택은 정부24 혜택알리미(https://www.gov.kr/portal/rcvfvrSvc/main)에서 확인하실 수 있습니다."
             )
 
         lines = ["질문 내용 기준으로는 아래 정책을 먼저 확인해 보시면 좋겠습니다."]
@@ -212,7 +212,7 @@ except Exception as error:
             if application_url and application_url != official_url:
                 lines.append(f"신청 링크: {application_url}")
         lines.append("정확한 가능 여부는 소득, 거주지, 가구 구성, 현재 위기 상황 같은 세부 조건에 따라 달라질 수 있습니다.")
-        lines.append("더 다양한 맞춤형 혜택은 정부24 보조금 안내 사이트(https://www.gov.kr/portal/gvrnPolicy/listAll)에서 지역별, 대상별로 상세하게 검색해 보실 수 있습니다.")
+        lines.append("더 다양한 맞춤형 혜택은 정부24 혜택알리미(https://www.gov.kr/portal/rcvfvrSvc/main)에서 지역별, 대상별로 상세하게 검색해 보실 수 있습니다.")
         return remove_application_method_sections("\n".join(lines))
 
     def _format_user_context(user: dict[str, Any] | None) -> str:

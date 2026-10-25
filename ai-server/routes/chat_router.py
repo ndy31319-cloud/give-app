@@ -261,7 +261,7 @@ async def clear_chat_history(request: ClearChatRequest):
 @router.post("/", response_model=ChatResponse)
 async def process_chat(request: ChatRequest):
     message = request.user_message
-    member_id = request.member_id or 1
+    member_id = request.member_id if isinstance(request.member_id, int) and request.member_id > 0 else None
 
     if not message or not message.strip():
         raise HTTPException(status_code=400, detail="메시지를 입력해 주세요.")
@@ -282,14 +282,19 @@ async def process_chat(request: ChatRequest):
 
     # [Step 2 & 기능 2] DB에서 이전 대화 기록(Context) 가져오기
     past_messages = []
-    if db_engine:
+    if db_engine and member_id is not None:
         try:
             with db_engine.connect() as conn:
                 rows = conn.execute(
                     text("""
-                        SELECT role, content FROM AI_CHAT_HISTORY 
-                        WHERE member_id = :mid 
-                        ORDER BY created_at ASC LIMIT 10
+                        SELECT role, content FROM (
+                            SELECT role, content, created_at
+                            FROM AI_CHAT_HISTORY
+                            WHERE member_id = :mid
+                            ORDER BY created_at DESC
+                            LIMIT 10
+                        ) AS recent_history
+                        ORDER BY created_at ASC
                     """),
                     {"mid": member_id}
                 ).fetchall()
@@ -333,6 +338,8 @@ async def process_chat(request: ChatRequest):
             try:
                 res_json = response.json()
                 raw_answer = res_json["result"]["message"]["content"]
+                if not isinstance(raw_answer, str) or not raw_answer.strip():
+                    raise ValueError("AI response content is empty")
             except (ValueError, KeyError, TypeError) as parse_error:
                 logger.error(f"CLOVA 응답 파싱 실패: {parse_error}")
                 raise HTTPException(status_code=502, detail="AI 응답 형식이 올바르지 않습니다.")
@@ -357,7 +364,7 @@ async def process_chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail="AI 응답 생성 중 오류가 발생했습니다.")
 
     # [Step 4 & 기능 3] DB에 현재 대화 저장 (사용자 질문 + AI 답변)
-    if db_engine:
+    if db_engine and member_id is not None:
         try:
             with db_engine.begin() as conn:
                 conn.execute(

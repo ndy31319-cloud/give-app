@@ -16,8 +16,9 @@ class ChatPromptTest(unittest.TestCase):
                 "agency": "OO시",
                 "target_criteria": "무주택 청년",
                 "support_detail": "공고 기준 확인",
-                "content": "자세한 안내 https://example.org/policy.",
-                "ai_search_text": "https://example.org/policy",
+                "official_url": "https://example.org/policy",
+                "content": "자세한 안내 https://invalid.example/ignore.",
+                "ai_search_text": "https://invalid.example/ignore",
             }
         ])
 
@@ -40,6 +41,24 @@ class ChatPromptTest(unittest.TestCase):
 
         self.assertIn(GOV24_POLICY_URL, policy_answer)
         self.assertNotIn(GOV24_POLICY_URL, locker_answer)
+
+    def test_untrusted_answer_url_is_replaced_with_official_url(self):
+        policy = [{
+            "official_url": "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/123",
+            "content": "내부 참고 https://invalid.example/blank",
+        }]
+        answer = ensure_policy_link("자세한 내용은 https://invalid.example/blank에서 확인하세요.", policy, "지원 정책이 궁금해요")
+
+        self.assertNotIn("invalid.example", answer)
+        self.assertIn("https://www.gov.kr/portal/rcvfvrSvc/dtlEx/123", answer)
+
+        mixed = ensure_policy_link(
+            "공식 안내 https://www.gov.kr/portal/rcvfvrSvc/dtlEx/123, 참고 https://invalid.example/blank",
+            policy,
+            "지원 정책이 궁금해요",
+        )
+        self.assertIn("https://www.gov.kr/portal/rcvfvrSvc/dtlEx/123", mixed)
+        self.assertNotIn("invalid.example", mixed)
 
     def test_chatbot_application_method_section_is_removed(self):
         answer = "정책 요약입니다.\n신청 방법: 주민센터에서 신청하세요.\n주의할 점입니다."

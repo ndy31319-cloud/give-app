@@ -13,7 +13,7 @@ import { Policy } from '@/src/types/app';
 import { normalizeChatbotText, removeApplicationMethodSections, splitChatbotLinks } from '@/src/utils/chatText';
 import { LoadingDots } from '@/src/components/common/LoadingDots';
 
-const POLICY_DIRECTORY_URL = 'https://www.gov.kr/portal/gvrnPolicy/listAll';
+const POLICY_DIRECTORY_URL = 'https://www.gov.kr/portal/rcvfvrSvc/main';
 
 function ChatbotReply({ text }: { text: string }) {
   const content = splitChatbotLinks(text).map((part, index) => {

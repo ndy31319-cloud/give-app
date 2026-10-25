@@ -15,6 +15,8 @@ const lockerStatesById = new Map();
 const defaultTtlSeconds = 60;
 const defaultLockerId = process.env.DEFAULT_LOCKER_ID || "locker-1";
 const defaultLockerCommandRedeliveryMs = 10000;
+const maxLockerCommandHistory = 500;
+const lockerCommandRetentionMs = 60 * 60 * 1000;
 const pickupApprovalPostStatuses = new Set(["reserved", "stored"]);
 const pickupAccessiblePostStatuses = new Set(["stored"]);
 let lockerCommandSequence = 0;
@@ -85,8 +87,37 @@ const getLockerQueue = (lockerId) => {
   return lockerCommandQueues.get(normalizedLockerId);
 };
 
+const pruneLockerCommands = (lockerId, now = Date.now()) => {
+  const queue = getLockerQueue(lockerId);
+  const removableStatuses = new Set(["acknowledged", "failed"]);
+  const kept = queue.filter((command) => {
+    const terminalAt = Date.parse(command.acknowledgedAt || command.acknowledged_at || "");
+    return !removableStatuses.has(command.status) || !Number.isFinite(terminalAt) || now - terminalAt < lockerCommandRetentionMs;
+  });
+
+  while (kept.length > maxLockerCommandHistory) {
+    const removableIndex = kept.findIndex((command) => removableStatuses.has(command.status));
+    if (removableIndex < 0) break;
+    const [removed] = kept.splice(removableIndex, 1);
+    if (removed) lockerCommandsById.delete(removed.id);
+  }
+
+  lockerCommandQueues.set(normalizeLockerId(lockerId), kept);
+  return kept;
+};
+
 const queueLockerCommand = (lockerId, type, payload = {}) => {
   const normalizedLockerId = normalizeLockerId(lockerId);
+  const queue = pruneLockerCommands(normalizedLockerId);
+  const dedupeId = payload.qrSessionId || payload.qr_session_id || payload.pickupId || payload.pickup_id;
+  if (dedupeId && ["OPEN_FOR_STORAGE", "CLOSE_WITH_ITEM_LED_ON", "OPEN_FOR_PICKUP", "CLOSE_EMPTY_LED_OFF"].includes(type)) {
+    const existing = [...queue].reverse().find((command) =>
+      command.type === type &&
+      command.status !== "failed" &&
+      String(command.payload?.qrSessionId || command.payload?.qr_session_id || command.payload?.pickupId || command.payload?.pickup_id) === String(dedupeId),
+    );
+    if (existing) return existing;
+  }
   const createdAt = new Date().toISOString();
   const command = {
     id: `locker_cmd_${Date.now()}_${lockerCommandSequence += 1}`,
@@ -106,7 +137,7 @@ const queueLockerCommand = (lockerId, type, payload = {}) => {
   };
 
   lockerCommandsById.set(command.id, command);
-  getLockerQueue(normalizedLockerId).push(command);
+  queue.push(command);
   return command;
 };
 
@@ -126,13 +157,21 @@ const isCommandReadyForDelivery = (command, now = Date.now()) => {
 const updateLockerState = (lockerId, state) => {
   const normalizedLockerId = normalizeLockerId(lockerId);
   const previous = lockerStatesById.get(normalizedLockerId) || {};
+  const toBoolean = (value, fallback) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (["true", "1", "yes", "on"].includes(value.trim().toLowerCase())) return true;
+      if (["false", "0", "no", "off"].includes(value.trim().toLowerCase())) return false;
+    }
+    return fallback;
+  };
   const next = {
     lockerId: normalizedLockerId,
     locker_id: normalizedLockerId,
-    locked: state.locked ?? previous.locked ?? true,
-    doorOpen: state.doorOpen ?? state.door_open ?? previous.doorOpen ?? false,
-    redLedOn: state.redLedOn ?? state.red_led_on ?? previous.redLedOn ?? false,
-    occupied: state.occupied ?? previous.occupied ?? false,
+    locked: toBoolean(state.locked, previous.locked ?? true),
+    doorOpen: toBoolean(state.doorOpen ?? state.door_open, previous.doorOpen ?? false),
+    redLedOn: toBoolean(state.redLedOn ?? state.red_led_on, previous.redLedOn ?? false),
+    occupied: toBoolean(state.occupied, previous.occupied ?? false),
     lastCommandId: state.lastCommandId ?? state.last_command_id ?? previous.lastCommandId ?? null,
     updatedAt: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -1170,7 +1209,7 @@ router.post("/locker/status", requireLockerDeviceAccess, (req, res) => {
 
 router.get("/locker/commands/next", requireLockerDeviceAccess, (req, res) => {
   const lockerId = normalizeLockerId(req.query.lockerId || req.query.locker_id);
-  const queue = getLockerQueue(lockerId);
+  const queue = pruneLockerCommands(lockerId);
   const now = Date.now();
   const command = queue.find((item) => isCommandReadyForDelivery(item, now));
 
