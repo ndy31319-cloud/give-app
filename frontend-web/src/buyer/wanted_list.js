@@ -85,8 +85,12 @@ function WantedList() {
           <p className="text-[28px] font-bold text-gray-500">등록된 요청 게시글이 없습니다.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {wantedItems.map((item) => (
+        <div
+          className="wanted-post-scroll max-h-[calc(100vh-330px)] min-h-0 overflow-y-auto overscroll-contain pr-2 [touch-action:pan-y]"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {wantedItems.map((item) => (
             <div key={item.id} className="bg-white p-8 rounded-[32px] shadow-sm border border-gray-100 transition-all active:scale-[0.98]">
               <div className="flex justify-between items-start mb-4">
                 <span className="bg-green-100 text-green-600 px-4 py-1 rounded-full font-bold text-[14px]">
@@ -100,7 +104,8 @@ function WantedList() {
               </p>
 
             </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>

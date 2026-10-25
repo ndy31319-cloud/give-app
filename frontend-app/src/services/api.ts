@@ -681,19 +681,17 @@ export const memberAPI = {
   },
 
   async changePassword(
-    memberId: string,
     nextPassword: string,
+    authToken?: string,
   ): ApiResult<{ success: boolean }> {
-    const response = await safeFetch<{ data?: { success: boolean } }>(
-      `/members/${memberId}/password`,
-      {
-        method: "PATCH",
-        headers: withJsonHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ memberPw: nextPassword }),
-      },
-    );
-    if (response?.data) {
-      return { data: response.data, error: null };
+    if (isBackendEnabled()) {
+      const response = await requestEnvelope<{ success?: boolean }>('/api/members/me', {
+        method: 'PATCH',
+        headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ member_pw: nextPassword }),
+      });
+      if (response.data) return { data: { success: response.data.success !== false }, error: null };
+      return { data: null as never, error: response.error ?? '비밀번호 변경에 실패했습니다.' };
     }
     return { data: { success: true }, error: null };
   },
@@ -1725,7 +1723,37 @@ export const reportAPI = {
 
   async create(
     report: Omit<ReportRecord, "reportId" | "createdAt" | "status">,
+    authToken?: string,
   ): ApiResult<ReportRecord> {
+    if (isBackendEnabled()) {
+      const response = await requestEnvelope<any>('/api/reports', {
+        method: 'POST',
+        headers: buildAuthHeaders(authToken, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          targetType: report.targetType,
+          targetId: report.targetId,
+          reason: report.reason,
+        }),
+      });
+
+      if (response.data) {
+        return {
+          data: {
+            reportId: String(response.data.reportId ?? response.data.report_id),
+            reporterId: String(response.data.reporterId ?? response.data.reporter_id ?? report.reporterId),
+            targetType: response.data.targetType ?? response.data.target_type ?? report.targetType,
+            targetId: String(response.data.targetId ?? response.data.target_id ?? report.targetId),
+            reason: String(response.data.reason ?? report.reason),
+            status: response.data.status ?? 'received',
+            createdAt: response.data.createdAt ?? response.data.created_at ?? new Date().toISOString(),
+          },
+          error: null,
+        };
+      }
+
+      return { data: null as never, error: response.error ?? '신고 접수에 실패했습니다.' };
+    }
+
     return {
       data: {
         ...report,

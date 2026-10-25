@@ -28,7 +28,7 @@ import { AppModal } from "@/src/components/common/AppModal";
 import { AppScreen } from "@/src/components/common/AppScreen";
 import { AppTextField } from "@/src/components/common/AppTextField";
 import { useAppContext } from "@/src/context/AppContext";
-import { reviewAPI } from "@/src/services/api";
+import { reportAPI, reviewAPI } from "@/src/services/api";
 import { backendConfig, buildAuthHeaders, requestEnvelope } from "@/src/services/backendClient";
 import { loadReviewStatus, ReviewStatus } from '@/src/services/reviewApi';
 import { MemberReputation } from '@/src/components/common/MemberReputation';
@@ -186,6 +186,9 @@ export function ChatRoomScreen() {
     null,
   );
   const [ratingComment, setRatingComment] = useState("");
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportBusy, setReportBusy] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSendingMeetingPlace, setIsSendingMeetingPlace] = useState(false);
   const sendingRef = useRef(false);
@@ -690,9 +693,11 @@ export function ChatRoomScreen() {
 
         <Pressable
           style={styles.menuAction}
-          onPress={() =>
-            Alert.alert("신고 접수", "신고 기능은 추후 백엔드와 연동됩니다.")
-          }
+          onPress={() => {
+            setMenuOpen(false);
+            setReportReason('');
+            setReportOpen(true);
+          }}
         >
           <Ionicons
             name="alert-circle-outline"
@@ -769,6 +774,46 @@ export function ChatRoomScreen() {
         <AppButton label="닫기" onPress={() => setMenuOpen(false)} />
       </AppModal>
 
+      <AppModal visible={reportOpen} onClose={() => { if (!reportBusy) setReportOpen(false); }}>
+        <Text style={styles.modalTitle}>신고 사유 기입</Text>
+        <Text style={styles.sectionText}>채팅방에서 확인한 문제를 구체적으로 적어주세요. 관리자 문의함으로 전달됩니다.</Text>
+        <AppTextField
+          label="신고 사유"
+          value={reportReason}
+          onChangeText={setReportReason}
+          multiline
+          maxLength={2000}
+          placeholder="예: 거래와 무관한 반복 메시지를 받았어요."
+        />
+        <View style={styles.modalButtonRow}>
+          <AppButton label="취소" variant="secondary" disabled={reportBusy} onPress={() => setReportOpen(false)} style={{ flex: 1 }} />
+          <AppButton
+            label="신고 접수"
+            loading={reportBusy}
+            disabled={!reportReason.trim()}
+            onPress={async () => {
+              if (!user?.id || reportBusy || !reportReason.trim()) return;
+              setReportBusy(true);
+              const result = await reportAPI.create({
+                reporterId: user.id,
+                targetType: 'chat_room',
+                targetId: String(chatRoom.id),
+                reason: reportReason.trim(),
+              }, authToken ?? undefined);
+              setReportBusy(false);
+              if (result.error) {
+                Alert.alert('신고 접수 실패', result.error);
+                return;
+              }
+              setReportOpen(false);
+              setReportReason('');
+              Alert.alert('신고 접수 완료', '관리자에게 신고 내용이 전달되었습니다.');
+            }}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </AppModal>
+
       <AppModal visible={plusOpen} onClose={() => setPlusOpen(false)} onDismiss={finishPlusDismiss}>
         <Text style={styles.modalTitle}>추가 기능</Text>
 
@@ -836,7 +881,7 @@ export function ChatRoomScreen() {
         >
           <Text style={styles.modalTitle}>{editingTrade?.appointment?.confirmed ? '약속 변경 제안' : '만날 약속 정하기'}</Text>
           <Text style={styles.sectionText}>{editingTrade ? '상대방이 확인하면 확정돼요.' : '선택한 장소와 시간을 채팅으로 보내요.'} 시간은 기기에 설정된 시간대 기준입니다.</Text>
-          <AppTextField label="만날 장소" placeholder="예: 학교 정문 앞 벤치" value={meetingLabel} maxLength={200} onChangeText={value => { setMeetingLabel(value); setMeetingPlace(null); }} />
+          <AppTextField label="만날 장소" placeholder="예: 학교 정문 앞 벤치" value={meetingLabel} maxLength={200} onChangeText={setMeetingLabel} />
           <Text style={styles.sectionText}>
             파란 점은 내 위치예요. 지도를 누르거나 핀을 움직여 만날 위치를 정해주세요.
           </Text>

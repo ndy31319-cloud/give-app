@@ -20,7 +20,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  // Modern phone cameras can produce larger originals, especially before the
+  // app's JPEG normalization step. Keep a generous server-side ceiling while
+  // still preventing unbounded uploads.
+  limits: { fileSize: 15 * 1024 * 1024, files: 10 },
 });
 
 module.exports = upload;

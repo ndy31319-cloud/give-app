@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Keyboard, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/src/components/common/AppButton';
+import { AppModal } from '@/src/components/common/AppModal';
 import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { PillTabs } from '@/src/components/common/PillTabs';
@@ -81,6 +82,7 @@ export function PolicyScreen() {
   const chatRequestLock = useRef(false);
   const chatScrollRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
+  const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
 
   const resetChat = async (start: boolean) => {
     if (chatRequestLock.current || chatResetLock.current) return;
@@ -189,9 +191,8 @@ export function PolicyScreen() {
   };
 
   const handlePolicyPress = async (policy: Policy, source: 'recommended' | 'browse') => {
-    if (!user?.id) {
-      return;
-    }
+    setSelectedPolicy(policy);
+    if (!user?.id) return;
 
     const result = await policyAPI.createSearchHistory({
       memberId: user.id,
@@ -212,21 +213,23 @@ export function PolicyScreen() {
     Keyboard.dismiss();
     chatRequestLock.current = true;
     setChatPending(true);
-    setMessages((prev) => [...prev, { sender: 'user', text: trimmed }]);
+    const nextMessages = [...messages, { sender: 'user' as const, text: trimmed }];
+    setMessages(nextMessages);
     setChatInput('');
     try {
-    const result = await policyAPI.askChatbot(
-      trimmed,
-      messages.map((message) => ({ role: message.sender, message: message.text })),
-      authToken ?? undefined,
-    );
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender: 'bot',
-        text: result.data?.response ?? result.error ?? '정책 챗봇 응답을 받을 수 없습니다.',
-      },
-    ]);
+      requestAnimationFrame(() => chatScrollRef.current?.scrollToEnd({ animated: false }));
+      const result = await policyAPI.askChatbot(
+        trimmed,
+        nextMessages.map((chatMessage) => ({ role: chatMessage.sender, message: chatMessage.text })),
+        authToken ?? undefined,
+      );
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'bot',
+          text: result.data?.response ?? result.error ?? '정책 챗봇 응답을 받을 수 없습니다.',
+        },
+      ]);
     } catch {
       setMessages(prev => [...prev, { sender: 'bot', text: '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.' }]);
     } finally {
@@ -380,6 +383,21 @@ export function PolicyScreen() {
           </View>
         ) : null}
       </View>
+      <AppModal visible={Boolean(selectedPolicy)} onClose={() => setSelectedPolicy(null)}>
+        {selectedPolicy ? (
+          <ScrollView showsVerticalScrollIndicator contentContainerStyle={styles.policyDetailContent}>
+            <Text style={styles.policyDetailTitle}>{selectedPolicy.title}</Text>
+            <Text style={styles.policyDetailAgency}>{selectedPolicy.agency} · {selectedPolicy.category}</Text>
+            <Text style={styles.policyDetailSection}>정책 내용</Text>
+            <Text style={styles.policyDetailText}>{selectedPolicy.content || selectedPolicy.description || '상세 내용이 준비 중입니다.'}</Text>
+            <Text style={styles.policyDetailSection}>지원 대상</Text>
+            <Text style={styles.policyDetailText}>{selectedPolicy.target || selectedPolicy.targetCriteria || '지원 대상 정보를 확인해주세요.'}</Text>
+            <Text style={styles.policyDetailSection}>지원 내용 및 신청 방법</Text>
+            <Text style={styles.policyDetailText}>{selectedPolicy.support || '관할 행정복지센터 또는 해당 기관에 문의해주세요.'}</Text>
+            <AppButton label="닫기" onPress={() => setSelectedPolicy(null)} />
+          </ScrollView>
+        ) : null}
+      </AppModal>
     </AppScreen>
   );
 }
@@ -601,5 +619,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  policyDetailContent: {
+    gap: 12,
+    paddingBottom: 4,
+  },
+  policyDetailTitle: {
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  policyDetailAgency: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  policyDetailSection: {
+    marginTop: 6,
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.brand,
+  },
+  policyDetailText: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: colors.text,
   },
 });

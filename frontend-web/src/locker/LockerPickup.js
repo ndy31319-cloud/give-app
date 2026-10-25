@@ -223,14 +223,6 @@ function LockerPickup() {
       style={{ fontFamily: "'Noto Sans KR', sans-serif", letterSpacing: '0' }}
     >
       <section className="locker-pickup-card w-full max-w-[820px] rounded-[28px] bg-white border border-[#e5e7df] p-6 text-center shadow-sm">
-        <button
-          type="button"
-          onClick={() => navigate('/locker')}
-          className="mb-6 block text-[18px] font-bold text-gray-500 active:scale-95"
-        >
-          ← 물품보관함으로
-        </button>
-
         <div className="mx-auto mb-6 flex h-28 w-28 items-center justify-center rounded-full bg-[#e9f5ee] text-[60px] font-black text-[#2f7d4f]">
           ✓
         </div>
@@ -252,7 +244,7 @@ function LockerPickup() {
           </p>
         ) : null}
 
-        <div className="locker-pickup-list-panel mb-5 space-y-4 rounded-[22px] bg-[#f1f3ee] p-6 text-left">
+        <div className="locker-pickup-list-panel mb-5 max-h-[calc(100vh-430px)] min-h-0 space-y-4 overflow-y-auto overscroll-contain rounded-[22px] bg-[#f1f3ee] p-6 text-left [touch-action:pan-y]" style={{ WebkitOverflowScrolling: 'touch' }}>
           {isLoading ? (
             <p className="text-[26px] font-black text-[#66706a]">물품을 확인하는 중입니다...</p>
           ) : showPendingState ? (

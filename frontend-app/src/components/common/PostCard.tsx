@@ -48,7 +48,7 @@ export function PostCard({
       ]}
     >
       <View style={[styles.content, completed && styles.completedContent]}>
-        {post.images[0] ? (
+        {post.type === "need" ? null : post.images[0] ? (
           <Image
             source={{ uri: post.images[0] }}
             style={styles.image}

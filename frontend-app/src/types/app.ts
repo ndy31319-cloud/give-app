@@ -76,7 +76,7 @@ export interface TradeAppointment {
   pending: AppointmentDetails | null;
 }
 export type ChatRoomStatus = 'open' | 'closed';
-export type ReportTargetType = 'post' | 'comment' | 'member';
+export type ReportTargetType = 'post' | 'comment' | 'member' | 'chat_room';
 export type ReportStatus = 'received' | 'processing' | 'resolved' | 'rejected';
 export type PickupRequestStatus = 'pending' | 'approved' | 'rejected' | 'picked_up';
 export type UrgencyLevel = 'low' | 'normal' | 'high' | 'urgent';

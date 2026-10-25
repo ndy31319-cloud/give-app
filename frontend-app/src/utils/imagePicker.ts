@@ -1,13 +1,41 @@
 import { Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 import { UploadableImage } from '@/src/types/app';
 
-function assetToUploadableImage(asset: ImagePicker.ImagePickerAsset): UploadableImage {
+async function assetToUploadableImage(asset: ImagePicker.ImagePickerAsset): Promise<UploadableImage> {
+  const originalName = asset.fileName ?? `image-${Date.now()}`;
+  const originalType = String(asset.mimeType ?? '').toLowerCase();
+  const isHeic = originalType.includes('heic') || originalType.includes('heif') || /\.(heic|heif)$/i.test(originalName);
+
+  // iOS may keep the camera/library asset as HEIC even when the picker does
+  // not report a MIME type. Normalize it before AI analysis and multipart upload
+  // so the backend never has to decode an Apple-only source format.
+  if (Platform.OS === 'ios' || isHeic) {
+    try {
+      const normalized = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [],
+        { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      return {
+        uri: normalized.uri,
+        name: `${originalName.replace(/\.[^.]+$/, '') || `image-${Date.now()}`}.jpg`,
+        type: 'image/jpeg',
+        width: normalized.width,
+        height: normalized.height,
+        size: asset.fileSize,
+      };
+    } catch (error) {
+      console.warn('Image normalization failed; uploading the original asset:', error);
+    }
+  }
+
   return {
     uri: asset.uri,
-    name: asset.fileName ?? `image-${Date.now()}.jpg`,
-    type: asset.mimeType ?? 'image/jpeg',
+    name: originalName.includes('.') ? originalName : `${originalName}.jpg`,
+    type: originalType || 'image/jpeg',
     width: asset.width,
     height: asset.height,
     size: asset.fileSize,
@@ -58,7 +86,7 @@ export async function pickImagesFromLibrary(selectionLimit = 5) {
     return null;
   }
 
-  return result.assets.map(assetToUploadableImage);
+  return Promise.all(result.assets.map(assetToUploadableImage));
 }
 
 export async function captureImage() {

@@ -22,7 +22,6 @@ import {
   getEffectiveQrStatus,
   getQrPurposeLabel,
   getQrStatusLabel,
-  getRemainingSeconds,
 } from '@/src/utils/dynamicQr';
 
 const deviceStepOrder: DeviceSimulationStep[] = [
@@ -195,7 +194,6 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
     issueDynamicQr,
     startDeviceAuthentication,
     confirmDeviceItemInserted,
-    resetDeviceSimulation,
   } = useAppContext();
   const [now, setNow] = useState(Date.now());
   const [tokenInput, setTokenInput] = useState('');
@@ -206,7 +204,6 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
   const [myPostsError, setMyPostsError] = useState<string | null>(null);
   const [reloadMyPostsKey, setReloadMyPostsKey] = useState(0);
 
-  const activeStatus = getEffectiveQrStatus(activeQrSession);
   const activeStepIndex = deviceStepOrder.indexOf(deviceSimulation.step);
   const ownedPosts = useMemo(() => {
     const candidates = [...(myPosts ?? []), ...posts];
@@ -307,22 +304,6 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
 
   const simulatorContent = (
     <>
-        <View style={styles.heroCard}>
-          <View style={styles.heroIcon}>
-            <Ionicons
-              name="hardware-chip-outline"
-              size={28}
-              color={simulationTone(deviceSimulation.step)}
-            />
-          </View>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.heroTitle}>QR 인증부터 완료 처리까지 테스트</Text>
-            <Text style={styles.heroText}>
-              1분 만료 QR 발급부터 QR 인식, 서버 검증, 잠금 해제, 물품 투입, 데이터 갱신까지 한 화면에서 검증할 수 있습니다.
-            </Text>
-          </View>
-        </View>
-
         {activeQrSession ? <DynamicQrStatusCard session={activeQrSession} now={now} /> : null}
 
         <View style={styles.simulatorCard}>
@@ -392,49 +373,12 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
               })}
             </View>
           )}
-        </View>
-
-        <View style={styles.simulatorCard}>
-          <View style={styles.simulatorTop}>
-            <Text style={styles.sectionTitle}>활성 QR 상태</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: statusTone(activeStatus).backgroundColor },
-              ]}>
-              <Text style={[styles.statusBadgeText, { color: statusTone(activeStatus).color }]}>
-                {getQrStatusLabel(activeStatus)}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.simulatorCode}>
-            {activeQrSession?.displayCode ?? '발급된 QR이 없습니다'}
-          </Text>
-          <Text style={styles.supportText}>
-            {activeQrSession
-              ? `남은 시간 ${formatTimer(getRemainingSeconds(activeQrSession.expiresAt))}`
-              : '먼저 동적 QR을 발급한 뒤 테스트를 시작하세요.'}
-          </Text>
-
-          <View style={styles.actionColumn}>
-            <AppButton
-              label="현재 활성 QR로 인증 시작"
-              onPress={() => handleStartWithToken(activeQrSession?.token ?? '')}
-              disabled={!activeQrSession || activeStatus !== 'active'}
-              loading={working}
-            />
-            <AppButton
-              label="새 QR 발급"
-              variant="secondary"
-              onPress={handleIssueAndApply}
-              disabled={!user || !selectedPost}
-              loading={issuing}
-            />
-          </View>
-          {!user ? (
-            <Text style={styles.supportText}>로그인한 회원만 앱에서 새 동적 QR을 발급할 수 있습니다.</Text>
-          ) : null}
+          <AppButton
+            label="선택한 나눔글 QR 발급"
+            onPress={handleIssueAndApply}
+            disabled={!user || !selectedPost}
+            loading={issuing}
+          />
         </View>
 
         <View style={styles.formCard}>
@@ -524,11 +468,6 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
               onPress={handleItemDetected}
               disabled={deviceSimulation.step !== 'awaiting_item'}
               loading={working}
-            />
-            <AppButton
-              label="시뮬레이터 초기화"
-              variant="secondary"
-              onPress={resetDeviceSimulation}
             />
           </View>
         </View>

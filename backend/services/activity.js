@@ -53,7 +53,11 @@ async function listActivity(memberId, req) {
     createdAt: iso(row.created_seconds), expiresAt: iso(row.expires_seconds),
   }));
   const sentRequests = trades.filter(row => row.requesterId === String(memberId));
-  const receivedRequests = trades.filter(row => row.donorId === String(memberId));
+  // Keep this tab as a pending action queue. Accepted and completed trades are
+  // still available through the donor's own sharing history.
+  const receivedRequests = trades.filter(row =>
+    row.donorId === String(memberId) && row.status === 'pending'
+  );
   return {
     donatedPosts: donations.map(row => post(row, 'donate')),
     requestedPosts: wanted.map(row => post(row, 'request')),

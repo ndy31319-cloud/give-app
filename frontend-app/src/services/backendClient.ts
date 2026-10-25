@@ -338,7 +338,9 @@ export function mapBackendPost(raw: any, fallbackLocation?: NeighborhoodLocation
     urgency: mapBackendUrgency(raw?.urgency),
     images,
     author: {
-      id: String(authorRaw?.id ?? authorRaw?.userId ?? raw?.memberId ?? raw?.member_id ?? 'user_unknown'),
+      // The row owner from the API is authoritative. Do not let a stale nested
+      // author object make another member's kiosk request look like ours.
+      id: String(raw?.memberId ?? raw?.member_id ?? authorRaw?.id ?? authorRaw?.userId ?? 'user_unknown'),
       name: authorRaw?.name ?? '사용자',
       nickname: authorRaw?.nickname ?? raw?.authorNickname ?? raw?.author_nickname ?? raw?.nickname,
       temperature: Number(authorRaw?.temperature ?? 36.5),

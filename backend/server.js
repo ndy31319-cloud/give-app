@@ -77,6 +77,7 @@ app.use("/api/locker", require("./routes/locker").router);
 app.use("/api/hardware", require("./routes/hardware"));
 app.use("/api/notifications", notificationsRoutes);
 app.use('/api/inquiries', require('./routes/inquiries'));
+app.use('/api/reports', require('./routes/reports'));
 app.use("/api/policies", policiesRoutes);
 app.use("/api/wanted", wantedRoutes);
 app.use("/api/products", productsRoutes);

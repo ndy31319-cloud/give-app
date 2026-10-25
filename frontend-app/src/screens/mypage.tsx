@@ -23,7 +23,7 @@ import { AppScreen } from '@/src/components/common/AppScreen';
 import { AppTextField } from '@/src/components/common/AppTextField';
 import { useAppContext } from '@/src/context/AppContext';
 import { neighborhoodOptions } from '@/src/data/mockData';
-import { MypageStats, mypageAPI } from '@/src/services/api';
+import { memberAPI, MypageStats, mypageAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { NeighborhoodLocation, ShareHistoryItem } from '@/src/types/app';
 import { pickImageFromLibrary } from '@/src/utils/imagePicker';
@@ -179,7 +179,6 @@ export function MyPageScreen() {
       <View style={styles.menuCard}>
         <MenuRow icon="location-outline" label="내 동네 설정" onPress={() => router.push('/my-location')} />
         <MenuRow icon="qr-code-outline" label="내 회원 QR" onPress={() => router.push('/qr')} />
-        <MenuRow icon="heart-outline" label="신청·나눔 내역" onPress={() => router.push('/my-shares')} />
         <MenuRow icon="bar-chart-outline" label="나눔통계" onPress={() => router.push('/my-stats')} />
         <MenuRow icon="chatbubble-ellipses-outline" label="관리자에게 문의하기" onPress={() => router.push('/contact-admin')} />
         {user?.roleId === '2' && <MenuRow icon="shield-checkmark-outline" label="문의 관리" onPress={() => router.push('/contact-admin?mode=admin')} />}
@@ -595,7 +594,11 @@ export function MySharesScreen() {
 }
 
 export function SettingsScreen() {
-  const { logout } = useAppContext();
+  const { logout, authToken } = useAppContext();
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
   const [notifications, setNotifications] = useState({
     push: true,
     newPost: true,
@@ -630,10 +633,44 @@ export function SettingsScreen() {
       </View>
 
       <View style={styles.menuCard}>
-        <MenuRow icon="lock-closed-outline" label="비밀번호 변경" onPress={() => Alert.alert('안내', '추후 백엔드와 연동됩니다.')} />
+        <MenuRow icon="lock-closed-outline" label="비밀번호 변경" onPress={() => { setNewPassword(''); setConfirmPassword(''); setPasswordModalOpen(true); }} />
         <MenuRow icon="document-text-outline" label="서비스 이용약관" onPress={() => Alert.alert('안내', '정책 문서는 추후 연결됩니다.')} />
         <MenuRow icon="help-circle-outline" label="자주 묻는 질문" onPress={() => Alert.alert('안내', 'FAQ는 추후 연결됩니다.')} />
       </View>
+
+      <AppModal visible={passwordModalOpen} onClose={() => { if (!passwordBusy) setPasswordModalOpen(false); }}>
+        <Text style={styles.modalTitle}>비밀번호 변경</Text>
+        <Text style={styles.sectionText}>영문, 숫자, 특수문자를 포함한 8자 이상으로 입력해주세요.</Text>
+        <AppTextField label="새 비밀번호" value={newPassword} onChangeText={setNewPassword} secureTextEntry maxLength={100} />
+        <AppTextField label="새 비밀번호 확인" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry maxLength={100} />
+        <View style={styles.modalButtonRow}>
+          <AppButton label="취소" variant="secondary" disabled={passwordBusy} onPress={() => setPasswordModalOpen(false)} style={{ flex: 1 }} />
+          <AppButton
+            label="변경하기"
+            loading={passwordBusy}
+            onPress={async () => {
+              if (!/^(?=.*[0-9])(?=.*[!@#$%^&*]).{8,}$/.test(newPassword)) {
+                Alert.alert('비밀번호 확인', '영문, 숫자, 특수문자를 포함한 8자 이상으로 입력해주세요.');
+                return;
+              }
+              if (newPassword !== confirmPassword) {
+                Alert.alert('비밀번호 확인', '새 비밀번호가 일치하지 않습니다.');
+                return;
+              }
+              setPasswordBusy(true);
+              const result = await memberAPI.changePassword(newPassword, authToken ?? undefined);
+              setPasswordBusy(false);
+              if (result.error) {
+                Alert.alert('변경 실패', result.error);
+                return;
+              }
+              setPasswordModalOpen(false);
+              Alert.alert('변경 완료', '비밀번호가 변경되었습니다.');
+            }}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </AppModal>
 
       <AppButton
         label="로그아웃"
@@ -1007,6 +1044,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: colors.text,
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
   },
   reviewBubble: {
     gap: 10,

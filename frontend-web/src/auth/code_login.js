@@ -3,6 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAuthTokenFromLoginResult, loginWithMemberCode } from '../api/client';
 import useAuthStore from '../store/useAuthStore';
 
+function isVulnerableMember(user) {
+  const roleText = String(user?.role || user?.roleName || user?.role_name || '').toUpperCase();
+  const roleId = Number(user?.roleId || user?.role_id);
+  return roleId === 3 || roleText === 'BENEFICIARY' || roleText.includes('VULNERABLE');
+}
+
 function CodeLogin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -96,10 +102,15 @@ function CodeLogin() {
       setIsLoading(true);
       const result = await loginWithMemberCode({ code: certificateCode, postId });
       const token = getAuthTokenFromLoginResult(result);
-      const member = result.member || result.user || result.data?.user || result.data || {};
+      const member = result.member || result.user || result.data?.member || result.data?.user || result.data || {};
 
       if (!token) {
         alert('회원코드 인증은 되었지만 로그인 토큰을 받지 못했습니다. 다시 시도해주세요.');
+        return;
+      }
+
+      if (isWantedWrite && !isVulnerableMember(member)) {
+        alert('요청하기 권한이 없는 일반 사용자 입니다. 취약계층 회원 인증 후 이용할 수 있습니다.');
         return;
       }
 
