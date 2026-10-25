@@ -563,6 +563,12 @@ const getAllPosts = async (req, res) => {
       LEFT JOIN ITEM i ON i.donate_id = d.donate_id
       LEFT JOIN PRODUCT p ON p.product_id = i.product_id
       LEFT JOIN ITEM_DONATE_IMAGE di ON di.donate_id = d.donate_id
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM PICKUP_REQUEST internal_pickup
+        WHERE internal_pickup.donate_id = d.donate_id
+          AND internal_pickup.memo LIKE '요청글 나눔 의사 자동 연결%'
+      )
       GROUP BY
         d.donate_id, d.member_id, m.name, m.nickname, d.title, d.content,
         d.dong_name, d.latitude, d.longitude, d.status, d.created_at, d.updated_at,
