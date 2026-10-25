@@ -82,6 +82,7 @@ app.use("/api/policies", policiesRoutes);
 app.use("/api/wanted", wantedRoutes);
 app.use("/api/products", productsRoutes);
 app.use("/api/trades", require("./routes/trades"));
+app.use("/api/reviews", require("./routes/reviews"));
 
 const trades = require("./services/trades");
 const maintainTrades = () => trades.maintain().catch(error => console.error("Trade maintenance:", error.message));

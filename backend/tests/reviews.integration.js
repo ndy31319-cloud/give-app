@@ -12,6 +12,7 @@ test('completed-trade reviews and live reputation', async t => {
   const members = [], donations = [], rooms = [];
   const app = express(); app.use(express.json());
   app.use('/api/chats', require('../routes/chat'));
+  app.use('/api/reviews', require('../routes/reviews'));
   app.use('/api/members', require('../routes/members'));
   const server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -46,6 +47,7 @@ test('completed-trade reviews and live reputation', async t => {
     return { status: response.status, body: await response.json() };
   }
   const path = `/api/chats/rooms/${rooms[0]}/review`;
+  const donationPath = `/api/reviews/donations/${post.insertId}`;
   await t.test('auth and completed participation are required, including old rejected rooms', async () => {
     assert.equal((await fetch(base + path + '-status')).status, 401);
     assert.equal((await request(outsider, path + '-status')).status, 403);
@@ -53,15 +55,16 @@ test('completed-trade reviews and live reputation', async t => {
     assert.equal((await request(requester, path + '-status')).body.data.canReview, false);
     await db.query("UPDATE ITEM_DONATE SET status = 'completed' WHERE donate_id = ?", [post.insertId]);
     await db.query("UPDATE PICKUP_REQUEST SET request_status = 'completed' WHERE chat_room_id = ?", [rooms[0]]);
+    assert.equal((await request(requester, `${donationPath}/status`)).body.data.canReview, true);
     assert.equal((await request(outsider, `/api/chats/rooms/${rooms[1]}/review`, 'POST', { rating: 5, content: '잘못된 후기' })).status, 409);
     assert.equal((await request(requester, path, 'POST', { rating: 6, content: '후기' })).status, 400);
     assert.equal((await request(requester, path, 'POST', { rating: 5, content: '가'.repeat(501) })).status, 400);
   });
   await t.test('concurrent duplicate sends create one review and ignore forged target IDs', async () => {
-    const results = await Promise.all([1, 2].map(() => request(requester, path, 'POST', { rating: 5, content: '친절해요', targetMemberId: outsider, writerId: donor })));
+    const results = await Promise.all([1, 2].map(() => request(requester, donationPath, 'POST', { rating: 5, content: '친절해요', targetMemberId: outsider, writerId: donor })));
     assert.deepEqual(results.map(r => r.status).sort(), [201, 409]);
     assert.equal(results.find(r => r.status === 201).body.data.targetMemberId, String(donor));
-    const status = (await request(requester, path + '-status')).body.data;
+    const status = (await request(requester, `${donationPath}/status`)).body.data;
     assert.equal(status.canReview, false); assert.equal(status.alreadyReviewed, true);
     const profile = (await request(requester, `/api/members/${donor}/reputation`)).body.data;
     assert.equal(profile.score, 37); assert.equal(profile.count, 1); assert.equal(profile.reviews[0].content, '친절해요');

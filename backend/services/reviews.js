@@ -36,6 +36,51 @@ async function eligibility(roomId, memberId, connection = db) {
   const completed = ['completed', 'picked_up'].includes(trade.request_status) && trade.post_status === 'completed';
   return { canReview: completed && !existing, alreadyReviewed: Boolean(existing), reason: existing ? '이미 후기를 작성했습니다.' : completed ? null : '나눔 완료 후 평가할 수 있습니다.', donateId: trade.donate_id, targetMemberId: target, writerId: Number(memberId), postStatus: trade.post_status };
 }
+
+async function eligibilityByDonate(donateId, memberId, connection = db) {
+  const normalizedDonateId = Number(donateId);
+  const normalizedMemberId = Number(memberId);
+  if (!Number.isSafeInteger(normalizedDonateId) || normalizedDonateId <= 0) {
+    fail(400, '올바른 나눔 물품 번호가 필요합니다.');
+  }
+
+  const [[trade]] = await connection.query(`SELECT p.pickup_id, p.donate_id, p.requester_id,
+      p.request_status, d.member_id AS donor_id, d.status AS post_status
+    FROM PICKUP_REQUEST p JOIN ITEM_DONATE d ON d.donate_id = p.donate_id
+    WHERE p.donate_id = ?
+      AND p.request_status IN ('completed', 'picked_up')
+      AND d.status = 'completed'
+      AND (p.requester_id = ? OR d.member_id = ?)
+    ORDER BY p.pickup_id DESC LIMIT 1`, [normalizedDonateId, normalizedMemberId, normalizedMemberId]);
+
+  if (!trade) {
+    return {
+      canReview: false,
+      alreadyReviewed: false,
+      reason: '완료된 나눔 거래 기록이 없거나 평가 권한이 없습니다.',
+      donateId: normalizedDonateId,
+      writerId: normalizedMemberId,
+    };
+  }
+
+  const [[existing]] = await connection.query(
+    'SELECT review_id FROM REVIEW WHERE donate_id = ? AND writer_id = ?',
+    [trade.donate_id, normalizedMemberId],
+  );
+  const target = normalizedMemberId === Number(trade.donor_id)
+    ? trade.requester_id
+    : trade.donor_id;
+  return {
+    canReview: !existing,
+    alreadyReviewed: Boolean(existing),
+    reason: existing ? '이미 후기를 작성했습니다.' : null,
+    donateId: Number(trade.donate_id),
+    pickupId: Number(trade.pickup_id),
+    targetMemberId: Number(target),
+    writerId: normalizedMemberId,
+    postStatus: trade.post_status,
+  };
+}
 async function create(roomId, memberId, input) {
   const rating = input?.rating;
   const content = typeof input?.content === 'string' ? input.content.trim() : '';
@@ -59,4 +104,48 @@ async function create(roomId, memberId, input) {
     throw error;
   } finally { connection.release(); }
 }
-module.exports = { eligibility, create, profile, scores, score };
+
+async function createByDonate(donateId, memberId, input) {
+  const rating = input?.rating;
+  const content = typeof input?.content === 'string' ? input.content.trim() : '';
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) fail(400, '평점은 1~5점이어야 합니다.');
+  if (!content || content.length > 500) fail(400, '후기는 1~500자로 입력해주세요.');
+
+  const initial = await eligibilityByDonate(donateId, memberId);
+  if (!initial.canReview) fail(409, initial.reason);
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.query('SELECT donate_id FROM ITEM_DONATE WHERE donate_id = ? FOR UPDATE', [initial.donateId]);
+    const current = await eligibilityByDonate(initial.donateId, memberId, connection);
+    if (!current.canReview) fail(409, current.reason);
+    const [insert] = await connection.query(
+      `INSERT INTO REVIEW (donate_id, writer_id, target_member_id, rating, content)
+       VALUES (?, ?, ?, ?, ?)`,
+      [current.donateId, memberId, current.targetMemberId, rating, content],
+    );
+    const [[saved]] = await connection.query(
+      'SELECT UNIX_TIMESTAMP(created_at) AS seconds FROM REVIEW WHERE review_id = ?',
+      [insert.insertId],
+    );
+    await connection.commit();
+    return {
+      reviewId: String(insert.insertId),
+      donateId: String(current.donateId),
+      writerId: String(memberId),
+      targetMemberId: String(current.targetMemberId),
+      rating,
+      content,
+      createdAt: new Date(Number(saved.seconds) * 1000).toISOString(),
+    };
+  } catch (error) {
+    await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY') fail(409, '이미 후기를 작성했습니다.');
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+module.exports = { eligibility, eligibilityByDonate, create, createByDonate, profile, scores, score };

@@ -3,6 +3,9 @@ import logging
 import numpy as np
 import faiss
 import os
+import re
+import threading
+import time
 import httpx  
 
 from fastapi import APIRouter, HTTPException
@@ -58,36 +61,174 @@ POLICIES_CACHE = []
 faiss_index = None
 MAX_MESSAGE_LENGTH = 500
 
+
+def _safe_int_env(name, default, minimum=0):
+    try:
+        return max(minimum, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        logger.warning("환경변수 %s 값이 숫자가 아니어서 기본값 %s를 사용합니다.", name, default)
+        return max(minimum, default)
+
+
+SEMANTIC_TOP_K = max(5, _safe_int_env("POLICY_SEMANTIC_TOP_K", 8, 5))
+RETURN_TOP_K = max(3, _safe_int_env("POLICY_RETURN_TOP_K", 5, 3))
+POLICY_INDEX_TTL_SECONDS = _safe_int_env("POLICY_INDEX_TTL_SECONDS", 300, 0)
+POLICY_EMBED_BATCH_SIZE = max(1, _safe_int_env("POLICY_EMBED_BATCH_SIZE", 32, 1))
+policy_index_built_at = 0.0
+policy_index_lock = threading.Lock()
+
+
+def _compact(value):
+    return " ".join(str(value or "").split())
+
+
+def _policy_search_text(policy):
+    return _compact(" ".join(
+        str(policy.get(key) or "")
+        for key in (
+            "policy_name", "category", "agency", "summary", "target_criteria",
+            "support_detail", "content", "ai_search_text", "application_period",
+            "region", "official_url", "application_url",
+        )
+    ))
+
+
+def _normalize_search_text(value):
+    return re.sub(r"\s+", "", str(value or "").lower())
+
+
+def _query_terms(message):
+    terms = re.findall(r"[가-힣A-Za-z0-9]{2,}", str(message or "").lower())
+    return list(dict.fromkeys(terms))
+
+
+def _policy_lexical_score(policy, message, terms):
+    normalized_message = _normalize_search_text(message)
+    title = _normalize_search_text(policy.get("policy_name"))
+    category = _normalize_search_text(policy.get("category"))
+    agency = _normalize_search_text(policy.get("agency"))
+    searchable = _normalize_search_text(_policy_search_text(policy))
+    score = 0
+    if title and title in normalized_message:
+        score += 120
+    for term in terms:
+        normalized_term = _normalize_search_text(term)
+        if len(normalized_term) < 2:
+            continue
+        if normalized_term in title:
+            score += 24
+        elif normalized_term in category:
+            score += 14
+        elif normalized_term in agency:
+            score += 10
+        elif normalized_term in searchable:
+            score += 4
+    return score
+
 def build_faiss_index():
-    global POLICIES_CACHE, faiss_index
-    if not db_engine or not embedder: return
+    global POLICIES_CACHE, faiss_index, policy_index_built_at
+    if not db_engine or not embedder:
+        return False
+    if not policy_index_lock.acquire(blocking=False):
+        return bool(POLICIES_CACHE and faiss_index is not None)
     try:
         with db_engine.connect() as conn:
+            column_rows = conn.execute(text("SHOW COLUMNS FROM POLICY")).fetchall()
+            columns = {row[0] for row in column_rows}
+            optional_fields = {
+                "official_url": "official_url",
+                "application_url": "application_url",
+                "application_period": "application_period",
+                "region": "region",
+                "source_updated_at": "source_updated_at",
+            }
+            selected = [
+                "policy_id", "policy_name", "category", "agency", "summary",
+                "target_criteria", "support_detail", "content", "ai_search_text",
+            ]
+            for column, alias in optional_fields.items():
+                selected.append(column if column in columns else f"NULL AS {alias}")
             rows = conn.execute(text(
-                """
-                SELECT policy_id, policy_name, category, agency, summary,
-                       target_criteria, support_detail, content, ai_search_text
-                FROM POLICY ORDER BY policy_id
-                """
-            )).fetchall()
-        if not rows: return
+                f"SELECT {', '.join(selected)} FROM POLICY ORDER BY policy_id"
+            )).mappings().all()
+        if not rows:
+            POLICIES_CACHE = []
+            faiss_index = None
+            policy_index_built_at = time.time()
+            return False
 
-        POLICIES_CACHE = [
-            {
-                "policy_id": r[0], "policy_name": " ".join(str(r[1] or "").split()),
-                "category": r[2] or "", "agency": r[3] or "", "summary": " ".join(str(r[4] or "").split()),
-                "target_criteria": r[5], "support_detail": r[6], "content": r[7],
-                "ai_search_text": r[8] or "",
-            } for r in rows
-        ]
-        texts = [p["ai_search_text"] for p in POLICIES_CACHE]
-        embeddings = embedder.encode(texts)
+        next_policies = []
+        for row in rows:
+            policy = {key: row.get(key) for key in (
+                "policy_id", "policy_name", "category", "agency", "summary",
+                "target_criteria", "support_detail", "content", "ai_search_text",
+                "official_url", "application_url", "application_period", "region",
+                "source_updated_at",
+            )}
+            for field in (
+                "policy_name", "category", "agency", "summary", "target_criteria",
+                "support_detail", "content", "ai_search_text", "official_url",
+                "application_url", "application_period", "region",
+            ):
+                policy[field] = _compact(policy[field])
+            if policy["source_updated_at"] is not None and hasattr(policy["source_updated_at"], "isoformat"):
+                policy["source_updated_at"] = policy["source_updated_at"].isoformat()
+            policy["search_text"] = _policy_search_text(policy)
+            next_policies.append(policy)
+
+        texts = [p["search_text"] or p["policy_name"] for p in next_policies]
+        embeddings = embedder.encode(
+            texts,
+            batch_size=POLICY_EMBED_BATCH_SIZE,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+        embeddings = np.atleast_2d(np.asarray(embeddings, dtype="float32"))
         dimension = embeddings.shape[1]
-        faiss_index = faiss.IndexFlatL2(dimension)
-        faiss_index.add(np.array(embeddings).astype("float32"))
-        logger.info("✅ FAISS 인덱싱 완료! 시맨틱 엔진 준비 완료.")
+        next_index = faiss.IndexFlatL2(dimension)
+        next_index.add(embeddings)
+        # Replace both objects together only after the new index is complete.
+        POLICIES_CACHE = next_policies
+        faiss_index = next_index
+        policy_index_built_at = time.time()
+        logger.info("✅ FAISS 인덱싱 완료: %s개 정책, 의미 검색 상위 %s개 + 키워드 보정", len(POLICIES_CACHE), SEMANTIC_TOP_K)
+        return True
     except Exception as e:
         logger.error(f"❌ FAISS 인덱스 구축 실패: {e}")
+        return False
+    finally:
+        policy_index_lock.release()
+
+
+def refresh_policy_index_if_needed():
+    if not POLICIES_CACHE or faiss_index is None:
+        return build_faiss_index()
+    if POLICY_INDEX_TTL_SECONDS and time.time() - policy_index_built_at >= POLICY_INDEX_TTL_SECONDS:
+        return build_faiss_index()
+    return True
+
+
+def search_policies(message):
+    if not refresh_policy_index_if_needed():
+        return []
+    user_vector = embedder.encode([message])
+    semantic_k = min(SEMANTIC_TOP_K, len(POLICIES_CACHE))
+    distances, indices = faiss_index.search(np.array(user_vector).astype("float32"), semantic_k)
+    semantic_rank = {
+        int(index): rank
+        for rank, index in enumerate(indices[0])
+        if index != -1 and index < len(POLICIES_CACHE)
+    }
+    terms = _query_terms(message)
+    scored = []
+    for index, policy in enumerate(POLICIES_CACHE):
+        lexical = _policy_lexical_score(policy, message, terms)
+        rank = semantic_rank.get(index)
+        semantic = (semantic_k - rank) * 3 if rank is not None else 0
+        if lexical or rank is not None:
+            scored.append((lexical + semantic, lexical, -(rank if rank is not None else semantic_k + 1), policy))
+    scored.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    return [item[3] for item in scored[:RETURN_TOP_K]]
 
 build_faiss_index()
 
@@ -125,44 +266,15 @@ async def process_chat(request: ChatRequest):
         raise HTTPException(status_code=400, detail="메시지를 입력해 주세요.")
     if len(message) > MAX_MESSAGE_LENGTH:
         raise HTTPException(status_code=400, detail=f"질문이 너무 깁니다. {MAX_MESSAGE_LENGTH}자 이내로 요약해 주세요.")
-    if not embedder or faiss_index is None:
+    if not embedder or (faiss_index is None and not refresh_policy_index_if_needed()):
         raise HTTPException(status_code=503, detail="AI 엔진이 준비되지 않았습니다.")
 
-    # [Step 1: FAISS 검색]
+    # [Step 1: 의미 검색 + 정책명/분야/기관 키워드 보정]
     try:
-        user_vector = await run_in_threadpool(embedder.encode, [message])
-        distances, indices = faiss_index.search(np.array(user_vector).astype("float32"), 2)
+        matched_policies = await run_in_threadpool(search_policies, message)
     except Exception as e:
         logger.error(f"FAISS 검색 실패: {e}")
         raise HTTPException(status_code=500, detail="AI 검색 중 오류가 발생했습니다.")
-
-    # 1. 일단 FAISS가 찾은 2개를 임시 리스트에 담습니다.
-    raw_matched_policies = []
-    for idx in indices[0]:
-        if idx != -1 and idx < len(POLICIES_CACHE):
-            raw_matched_policies.append(POLICIES_CACHE[idx])
-
-    # -------------------------------------------------------------------
-    # 🔥 [여기에 핵심 필터링 로직 추가] 
-    # 사용자가 특정 정책 이름을 콕 집어 물어봤는지 확인합니다.
-    # -------------------------------------------------------------------
-    matched_policies = []
-    user_msg_clean = message.replace(" ", "")  # 띄어쓰기 무시하고 비교하기 위함
-
-    for p in raw_matched_policies:
-        policy_name_clean = p['policy_name'].replace(" ", "")
-        
-        # 질문(user_message) 안에 정책 이름이 통째로 들어있다면?
-        if policy_name_clean in user_msg_clean:
-            matched_policies = [p]  # 💡 다른 건 다 날리고 이 정책 1개만 넣습니다!
-            break                   # 찾았으니 즉시 반복문 종료
-            
-    # 만약 사용자가 특정 정책 이름을 말하지 않았다면 (예: "도와주세요")
-    # 그냥 FAISS가 찾은 2개를 그대로 사용합니다.
-    if not matched_policies:
-        matched_policies = raw_matched_policies
-
-    # -------------------------------------------------------------------
 
     # 검색 레코드에 포함된 공식 URL만 모델에 전달한다.
     policies_str = build_policy_context(matched_policies)

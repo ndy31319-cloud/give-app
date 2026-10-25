@@ -15,6 +15,8 @@
 
 기존 `/api/chats/rooms/:roomId/review-status`, `/api/chats/rooms/:roomId/review` 및 짧은 경로를 유지한다. 서버가 작성자/대상 회원을 결정하며 클라이언트가 보낸 writer/target 값은 사용하지 않는다. 평점은 정수 1~5, 내용은 1~500자. 게시글 행 잠금 후 작성 가능 여부를 다시 검사하고 기존 `uq_review_donate_writer` DB 유일 제약으로 중복 제출을 차단한다. 실패하면 실제 오류를 반환하고 메모리 임시 저장이나 가짜 성공 응답은 사용하지 않는다.
 
+채팅방이 연결되지 않은 보관함 수령 거래도 평가할 수 있도록 `GET /api/reviews/donations/:donateId/status`와 `POST /api/reviews/donations/:donateId`를 제공한다. 완료된 `PICKUP_REQUEST`의 실제 수령자/기부자만 접근할 수 있고, 서버가 평가 대상 회원을 결정한다. 키오스크에서 물품 수령 완료를 처리하면 완료 화면에서 이 API를 호출해 수령자가 기부자를 평가할 수 있다.
+
 새 인증 API `GET /api/members/:id/reputation`은 score/count/positive/negative/neutral 및 최신 후기 20개를 반환한다. 점수와 개수는 전체 유효 후기를 반영하며 후기 작성자의 개인정보는 반환하지 않는다. 회원 프로필과 본인 마이페이지에서 조회하고, 채팅 목록과 게시글 작성자 점수도 같은 집계 함수를 사용한다.
 
 채팅방 완료 카드의 ‘거래 후기’나 메뉴의 ‘매너 평가하기’에서 서버의 작성 가능 여부를 확인한다. 이미 작성/미완료는 안내를 보여주며 성공 후 채팅 점수를 다시 조회한다. 프로필의 예시 후기·나눔 횟수·응답률은 제거했다. 프로필과 마이페이지 점수는 열거나 다시 진입할 때 갱신한다.

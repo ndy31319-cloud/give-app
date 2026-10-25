@@ -294,6 +294,17 @@ export async function completeLockerPickup(payload) {
   });
 }
 
+export async function fetchDonationReviewStatus(donateId) {
+  return request(`/api/reviews/donations/${encodeURIComponent(donateId)}/status`);
+}
+
+export async function createDonationReview(donateId, payload) {
+  return request(`/api/reviews/donations/${encodeURIComponent(donateId)}`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchMyLikes() {
   return request('/api/members/me/likes');
 }

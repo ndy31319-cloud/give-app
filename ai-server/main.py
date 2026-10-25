@@ -129,6 +129,13 @@ except Exception as error:
                 "content",
                 "aiSearchText",
                 "ai_search_text",
+                "officialUrl",
+                "official_url",
+                "applicationUrl",
+                "application_url",
+                "applicationPeriod",
+                "application_period",
+                "region",
             )
         ).lower()
 
@@ -161,10 +168,10 @@ except Exception as error:
                 scored.append((score, policy))
 
         if not scored:
-            return policies[:3]
+            return policies[:5]
 
         scored.sort(key=lambda item: item[0], reverse=True)
-        return [policy for _, policy in scored[:3]]
+        return [policy for _, policy in scored[:5]]
 
     def _fallback_answer(message: str, policies: list[dict[str, Any]]) -> str:
         if not policies:
@@ -204,6 +211,12 @@ except Exception as error:
             lines.append(
                 f"{index}. {title}: 담당 기관은 {agency}입니다. 지원 대상은 {target}이고, 주요 지원 내용은 {support}입니다. 신청이나 확인은 {apply_info}"
             )
+            official_url = _first_policy_value(policy, "officialUrl", "official_url")
+            application_url = _first_policy_value(policy, "applicationUrl", "application_url")
+            if official_url:
+                lines.append(f"공식 확인 링크: {official_url}")
+            if application_url and application_url != official_url:
+                lines.append(f"신청 링크: {application_url}")
         lines.append("정확한 가능 여부는 소득, 거주지, 가구 구성, 현재 위기 상황 같은 세부 조건에 따라 달라질 수 있습니다.")
         lines.append("더 다양한 맞춤형 혜택은 정부24 보조금 안내 사이트(https://www.gov.kr/portal/gvrnPolicy/listAll)에서 지역별, 대상별로 상세하게 검색해 보실 수 있습니다.")
         return "\n".join(lines)
@@ -272,6 +285,11 @@ except Exception as error:
             f"  요약: {_first_policy_value(policy, 'description', 'summary')}\n"
             f"  지원대상: {_first_policy_value(policy, 'targetCriteria', 'target_criteria', 'target')}\n"
             f"  지원내용: {_first_policy_value(policy, 'support', 'support_detail')}\n"
+            f"  신청기간: {_first_policy_value(policy, 'applicationPeriod', 'application_period')}\n"
+            f"  대상지역: {_first_policy_value(policy, 'region')}\n"
+            f"  기준일: {_first_policy_value(policy, 'sourceUpdatedAt', 'source_updated_at')}\n"
+            f"  공식 확인 링크: {_first_policy_value(policy, 'officialUrl', 'official_url')}\n"
+            f"  신청 링크: {_first_policy_value(policy, 'applicationUrl', 'application_url')}\n"
             f"  상세/신청 참고: {_first_policy_value(policy, 'content', 'aiSearchText', 'ai_search_text')}"
             for policy in policies
         ) or "검색된 정책 없음"
@@ -286,7 +304,8 @@ except Exception as error:
 4. 여러 정책이 있으면 최대 3개까지 비교해서 어떤 상황에 맞는지 설명해.
 5. 질문이 모호하면 무작정 정책을 나열하지 말고, 확인해야 할 정보도 함께 물어봐.
 6. 마크다운 표, 굵게 표시, 별표 기호는 쓰지 말고 일반 문장과 줄바꿈만 사용해.
-7. 마지막에는 정부24 보조금 안내 사이트 링크를 자연스럽게 안내해.
+7. 제공된 공식 확인 링크나 신청 링크가 있으면 답변에 정확히 포함해.
+8. 마지막에는 정부24 보조금 안내 사이트 링크를 자연스럽게 안내해.
 
 [회원 참고 정보]
 {_format_user_context(user)}

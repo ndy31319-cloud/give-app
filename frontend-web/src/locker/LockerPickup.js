@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   completeLockerPickup,
+  createDonationReview,
   fetchLockerPickupItems,
+  fetchDonationReviewStatus,
   openLockerForPickup,
 } from '../api/client';
 
@@ -63,6 +65,10 @@ function buildPickupPayload(item) {
   };
 }
 
+function getDonateId(item) {
+  return item?.donateId || item?.donate_id || null;
+}
+
 function LockerPickup() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -72,6 +78,11 @@ function LockerPickup() {
   const [busyItemId, setBusyItemId] = useState(null);
   const [phase, setPhase] = useState('list');
   const [errorMessage, setErrorMessage] = useState('');
+  const [reviewStatus, setReviewStatus] = useState(null);
+  const [reviewRating, setReviewRating] = useState(null);
+  const [reviewContent, setReviewContent] = useState('');
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewError, setReviewError] = useState('');
 
   useEffect(() => {
     let ignore = false;
@@ -107,6 +118,31 @@ function LockerPickup() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (phase !== 'completed' || !getDonateId(activeItem)) {
+      return undefined;
+    }
+
+    let ignore = false;
+    setReviewStatus(null);
+    setReviewError('');
+    fetchDonationReviewStatus(getDonateId(activeItem))
+      .then((result) => {
+        if (!ignore) {
+          setReviewStatus(result?.data || result || null);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setReviewError(error?.message || '평가 가능 여부를 확인하지 못했습니다.');
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [activeItem, phase]);
 
   const lockerNumber = getLockerNumber(activeItem);
   const showEmptyState = !isLoading && items.length === 0;
@@ -150,6 +186,25 @@ function LockerPickup() {
       setErrorMessage(error?.message || '물품 수령 완료 처리에 실패했습니다.');
     } finally {
       setBusyItemId(null);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    const donateId = getDonateId(activeItem);
+    if (!donateId || !reviewRating || reviewBusy || !reviewStatus?.canReview) return;
+
+    setReviewBusy(true);
+    setReviewError('');
+    try {
+      const content = reviewContent.trim() || (
+        reviewRating >= 4 ? '친절하고 원활하게 나눔을 진행했어요.' : '나눔 과정에서 아쉬운 점이 있었어요.'
+      );
+      const result = await createDonationReview(donateId, { rating: reviewRating, content });
+      setReviewStatus(result?.data || result || { canReview: false, alreadyReviewed: true });
+    } catch (error) {
+      setReviewError(error?.message || '평가를 저장하지 못했습니다. 이미 평가했는지 확인해주세요.');
+    } finally {
+      setReviewBusy(false);
     }
   };
 
@@ -205,6 +260,56 @@ function LockerPickup() {
           <p className="mx-auto mb-8 max-w-[620px] text-[26px] font-bold leading-snug text-[#66706a] word-keep">
             기부자 휴대폰 알림함으로 “물품 수령이 완료되었습니다.” 알림이 전송됩니다.
           </p>
+          <div className="mb-8 rounded-[24px] border-2 border-[#e5e7df] bg-[#f7f7f4] p-6 text-left">
+            <h2 className="mb-2 text-[28px] font-black text-[#191f1b]">나눔 후기를 남겨주세요</h2>
+            <p className="mb-5 text-[21px] font-bold leading-snug text-[#66706a]">
+              평가가 저장되면 기부자의 앱 마음 점수에 반영됩니다. 한 번 완료한 거래는 한 번만 평가할 수 있어요.
+            </p>
+            {reviewError ? (
+              <p className="mb-4 rounded-[16px] bg-[#fff1f1] p-4 text-[20px] font-black text-[#d64545]">{reviewError}</p>
+            ) : null}
+            {reviewStatus?.alreadyReviewed ? (
+              <p className="rounded-[16px] bg-[#e9f5ee] p-4 text-[22px] font-black text-[#25673f]">평가가 완료되었습니다. 마음 점수에 반영되었습니다.</p>
+            ) : reviewStatus?.canReview ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setReviewRating(5)}
+                    className={`rounded-[18px] border-2 py-4 text-[23px] font-black ${reviewRating >= 4 ? 'border-[#2f7d4f] bg-[#e9f5ee] text-[#25673f]' : 'border-[#d8ddd4] bg-white text-[#526158]'}`}
+                  >
+                    매너있어요 +0.5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewRating(2)}
+                    className={`rounded-[18px] border-2 py-4 text-[23px] font-black ${reviewRating === 2 ? 'border-[#d64545] bg-[#fff1f1] text-[#b42318]' : 'border-[#d8ddd4] bg-white text-[#526158]'}`}
+                  >
+                    아쉬워요 -0.5
+                  </button>
+                </div>
+                <textarea
+                  value={reviewContent}
+                  onChange={(event) => setReviewContent(event.target.value)}
+                  maxLength={500}
+                  placeholder="선택 사항: 나눔 경험을 간단히 적어주세요."
+                  className="mt-4 min-h-[96px] w-full resize-y rounded-[18px] border-2 border-[#d8ddd4] bg-white p-4 text-[20px] font-bold outline-none focus:border-[#2f7d4f]"
+                />
+                <button
+                  type="button"
+                  onClick={handleSubmitReview}
+                  disabled={!reviewRating || reviewBusy}
+                  className="mt-4 w-full rounded-[18px] bg-[#2f7d4f] py-4 text-[24px] font-black text-white disabled:bg-[#c9cec4]"
+                >
+                  {reviewBusy ? '저장 중' : '평가 남기기'}
+                </button>
+              </>
+            ) : reviewStatus ? (
+              <p className="rounded-[16px] bg-[#f1f3ee] p-4 text-[21px] font-black text-[#526158]">{reviewStatus.reason || '이 거래는 평가할 수 없습니다.'}</p>
+            ) : (
+              <p className="rounded-[16px] bg-[#f1f3ee] p-4 text-[21px] font-black text-[#526158]">평가 가능 여부를 확인하고 있습니다...</p>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => navigate('/locker', { replace: true })}

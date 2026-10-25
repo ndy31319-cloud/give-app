@@ -9,6 +9,7 @@ const {
 
 const router = express.Router();
 let memberColumnsCache = null;
+let policyColumnsCache = null;
 const AI_REQUEST_TIMEOUT_MS = 30000;
 const AI_RETRY_DELAY_MS = 1000;
 
@@ -65,6 +66,32 @@ const logAiRequestError = ({ url, attempt, startedAt, error }) => {
 
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
+const POLICY_METADATA_FIELDS = [
+  ["official_url", "official_url"],
+  ["application_url", "application_url"],
+  ["application_period", "application_period"],
+  ["region", "region"],
+  ["source_updated_at", "source_updated_at"],
+];
+
+const loadPolicyColumns = async () => {
+  if (policyColumnsCache) return policyColumnsCache;
+  const [rows] = await db.query("SHOW COLUMNS FROM POLICY");
+  policyColumnsCache = new Set(rows.map((row) => row.Field));
+  return policyColumnsCache;
+};
+
+const policyMetadataSelect = (columns, tableAlias = "") =>
+  POLICY_METADATA_FIELDS.map(([column, alias]) => {
+    const qualified = tableAlias ? `${tableAlias}.${column}` : column;
+    return columns.has(column) ? `${qualified} AS ${alias}` : `NULL AS ${alias}`;
+  }).join(",\n            ");
+
+const policyMetadataGroupBy = (columns, tableAlias = "") =>
+  POLICY_METADATA_FIELDS
+    .filter(([column]) => columns.has(column))
+    .map(([column]) => `${tableAlias ? `${tableAlias}.` : ""}${column}`);
+
 const toPolicyResponse = (policy) => ({
   id: String(policy.policy_id ?? policy.id),
   title: policy.policy_name ?? policy.title ?? "",
@@ -76,6 +103,11 @@ const toPolicyResponse = (policy) => ({
   target: policy.target_criteria ?? policy.target ?? "",
   support: policy.support_detail ?? policy.support ?? "",
   aiSearchText: policy.ai_search_text ?? policy.aiSearchText ?? "",
+  officialUrl: policy.official_url ?? policy.officialUrl ?? null,
+  applicationUrl: policy.application_url ?? policy.applicationUrl ?? null,
+  applicationPeriod: policy.application_period ?? policy.applicationPeriod ?? null,
+  region: policy.region ?? null,
+  sourceUpdatedAt: policy.source_updated_at ?? policy.sourceUpdatedAt ?? null,
 });
 
 const getMemberId = (req) => req.user.member_id || req.user.memberId || req.user.id;
@@ -90,6 +122,7 @@ const normalizeOptionalNumber = (value) => {
 };
 
 const loadPolicies = async (category) => {
+  const policyColumns = await loadPolicyColumns();
   const params = [];
   let whereClause = "";
 
@@ -100,7 +133,8 @@ const loadPolicies = async (category) => {
 
   const [rows] = await db.query(
     `SELECT policy_id, policy_name, category, agency, summary, content,
-            target_criteria, support_detail, ai_search_text
+            target_criteria, support_detail, ai_search_text,
+            ${policyMetadataSelect(policyColumns)}
      FROM POLICY
      ${whereClause}
      ORDER BY policy_id ASC`,
@@ -170,6 +204,7 @@ const loadRecommendedPolicies = async (member) => {
   }
 
   const memberColumns = await loadMemberColumns();
+  const policyColumns = await loadPolicyColumns();
   const ageExpression = memberColumns.has("birth_date")
     ? "TIMESTAMPDIFF(YEAR, m.birth_date, CURDATE())"
     : memberColumns.has("birthdate")
@@ -186,6 +221,7 @@ const loadRecommendedPolicies = async (member) => {
   const [rows] = await db.query(
     `SELECT p.policy_id, p.policy_name, p.category, p.agency, p.summary, p.content,
             p.target_criteria, p.support_detail, p.ai_search_text,
+            ${policyMetadataSelect(policyColumns, "p")},
             COUNT(*) AS history_count
      FROM SEARCH_HISTORY sh
      JOIN MEMBER m ON m.member_id = sh.member_id
@@ -198,8 +234,9 @@ const loadRecommendedPolicies = async (member) => {
          OR (? IS NOT NULL AND m.role_id = ?)
          OR (? != '' AND m.dong_name = ?)
        )
-     GROUP BY p.policy_id, p.policy_name, p.category, p.agency, p.summary, p.content,
-              p.target_criteria, p.support_detail, p.ai_search_text
+    GROUP BY p.policy_id, p.policy_name, p.category, p.agency, p.summary, p.content,
+             p.target_criteria, p.support_detail, p.ai_search_text
+             ${policyMetadataGroupBy(policyColumns, "p").length ? `, ${policyMetadataGroupBy(policyColumns, "p").join(", ")}` : ""}
      ORDER BY history_count DESC, p.policy_id ASC
      LIMIT 10`,
     [

@@ -12,6 +12,11 @@ class PolicyItem(BaseModel):
     support_detail:   Optional[str] = None
     content:          str
     ai_search_text:   str
+    official_url:     Optional[str] = None
+    application_url:  Optional[str] = None
+    application_period: Optional[str] = None
+    region:           Optional[str] = None
+    source_updated_at: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -32,4 +37,4 @@ class ChatHistoryItem(BaseModel):
 
 class ChatHistoryResponse(BaseModel):
     member_id: int
-    history: List[ChatHistoryItem]    
+    history: List[ChatHistoryItem]

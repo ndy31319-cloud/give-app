@@ -37,6 +37,9 @@ def build_policy_context(policies: Iterable[dict[str, Any]]) -> str:
             ("담당기관", policy.get("agency")),
             ("지원대상", policy.get("target_criteria")),
             ("지원내용", policy.get("support_detail")),
+            ("신청기간", policy.get("application_period")),
+            ("대상 지역", policy.get("region")),
+            ("기준일", policy.get("source_updated_at")),
         )
         for label, value in fields:
             field_text = _text(value)
@@ -45,6 +48,7 @@ def build_policy_context(policies: Iterable[dict[str, Any]]) -> str:
 
         urls = extract_urls(
             policy.get("official_url"),
+            policy.get("application_url"),
             policy.get("content"),
             policy.get("ai_search_text"),
         )
@@ -67,6 +71,7 @@ def ensure_policy_link(answer: str, policies: Iterable[dict[str, Any]], user_mes
     for policy in policies:
         policy_urls.extend(extract_urls(
             policy.get("official_url"),
+            policy.get("application_url"),
             policy.get("content"),
             policy.get("ai_search_text"),
         ))
@@ -107,14 +112,17 @@ def build_system_prompt(policy_context: str, has_history: bool) -> str:
 4. 최종 선정 여부는 담당 기관이 판단한다. '가능성이 있습니다', '확인이 필요합니다'처럼 신중하게 표현한다.
 5. 간단한 질문은 2~3문장으로 답한다. 정책 조건·신청 절차를 설명할 때는 4~7개의 짧은 문장으로 충분히 안내한다.
 6. 답변은 실행할 다음 행동을 포함한다. 단순히 '찾아보세요'라고 끝내지 말고, 무엇을 확인하거나 누구에게 어떤 내용을 문의해야 하는지 말한다.
+7. 정책에 기준일·신청기간·지역이 제공되면 반드시 함께 안내한다. 제공되지 않은 값은 추측하지 않는다.
 
 [링크 원칙]
 1. 검색 정책 정보에 '공식 확인 링크'가 있으면, 정책을 설명한 답변 마지막에 정확히 한 개를 다음 형식으로 포함한다.
 공식 확인 링크: https://example.com
-2. 제공된 링크를 바꾸거나 새 링크를 지어내지 않는다.
-3. 정책 안내인데 공식 확인 링크가 없으면, 필요한 경우에만 다음 검증된 링크를 한 번 제공한다.
+2. 신청 URL이 있으면 신청 방법 설명 뒤에 다음 형식으로 한 개를 포함한다.
+신청 링크: https://example.com
+3. 제공된 링크를 바꾸거나 새 링크를 지어내지 않는다.
+4. 정책 안내인데 공식 확인 링크가 없으면, 필요한 경우에만 다음 검증된 링크를 한 번 제공한다.
 정책 통합 확인: {GOV24_POLICY_URL}
-4. QR, 보관함, 수령 승인, 개인정보, 긴급상황 질문에는 정부24 링크를 기계적으로 붙이지 않는다.
+5. QR, 보관함, 수령 승인, 개인정보, 긴급상황 질문에는 정부24 링크를 기계적으로 붙이지 않는다.
 
 [개인정보·안전]
 1. 비밀번호, 인증번호, QR 비밀 토큰, 주민등록번호, 계좌번호, 카드번호, 진단서 사진을 요구하거나 노출하지 않는다.
