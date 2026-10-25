@@ -8,6 +8,7 @@ async function migrate() {
   const additions = {
     official_url: 'VARCHAR(1000) NULL',
     application_url: 'VARCHAR(1000) NULL',
+    application_method: 'TEXT NULL',
     application_period: 'VARCHAR(255) NULL',
     region: 'VARCHAR(120) NULL',
     source_updated_at: 'DATETIME NULL',

@@ -16,6 +16,7 @@
     "content": "정책 원문 또는 상세 설명",
     "target_criteria": "지원 대상",
     "support_detail": "지원 내용",
+    "application_method": "주민센터 방문 또는 온라인 신청",
     "ai_search_text": "검색에 사용할 핵심 문장",
     "official_url": "https://공식-정책-페이지",
     "application_url": "https://공식-신청-페이지",

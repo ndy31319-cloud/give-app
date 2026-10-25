@@ -339,6 +339,12 @@ export interface Policy {
   target: string;
   support: string;
   targetTypes?: string[];
+  officialUrl?: string | null;
+  applicationUrl?: string | null;
+  applicationMethod?: string | null;
+  applicationPeriod?: string | null;
+  region?: string | null;
+  sourceUpdatedAt?: string | null;
 }
 
 export interface SearchHistoryRecord {

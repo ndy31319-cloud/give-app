@@ -463,6 +463,12 @@ export function mapBackendPolicy(raw: any): Policy {
     target: raw?.target ?? raw?.targetCriteria ?? '',
     support: raw?.support ?? raw?.howToApply ?? '',
     targetTypes: Array.isArray(raw?.targetTypes) ? raw.targetTypes : undefined,
+    officialUrl: raw?.officialUrl ?? raw?.official_url ?? null,
+    applicationUrl: raw?.applicationUrl ?? raw?.application_url ?? null,
+    applicationMethod: raw?.applicationMethod ?? raw?.application_method ?? null,
+    applicationPeriod: raw?.applicationPeriod ?? raw?.application_period ?? null,
+    region: raw?.region ?? null,
+    sourceUpdatedAt: raw?.sourceUpdatedAt ?? raw?.source_updated_at ?? null,
   };
 }
 

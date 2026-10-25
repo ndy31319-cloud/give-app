@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Keyboard, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Keyboard, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/src/components/common/AppButton';
 import { AppModal } from '@/src/components/common/AppModal';
@@ -34,6 +34,12 @@ function ChatbotReply({ text }: { text: string }) {
   return <Text style={styles.chatText}>{content}</Text>;
 }
 
+function compactPolicyText(value: string, fallback: string, maxLength = 120) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return fallback;
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1).trim()}…` : normalized;
+}
+
 function PolicyCard({
   title,
   category,
@@ -57,10 +63,16 @@ function PolicyCard({
           <Text style={styles.categoryBadgeText}>{category}</Text>
         </View>
       </View>
-      <Text style={styles.cardDescription}>{description}</Text>
+      <Text style={styles.cardDescription} numberOfLines={2} ellipsizeMode="tail">
+        {compactPolicyText(description, '정책 내용을 확인해보세요.', 110)}
+      </Text>
       <View style={styles.metaBlock}>
-        <Text style={styles.metaLine}>대상: {target}</Text>
-        <Text style={styles.metaLine}>지원: {support}</Text>
+        <Text style={styles.metaLine} numberOfLines={1} ellipsizeMode="tail">
+          대상: {compactPolicyText(target, '상세 조건 확인 필요', 72)}
+        </Text>
+        <Text style={styles.metaLine} numberOfLines={1} ellipsizeMode="tail">
+          지원: {compactPolicyText(support, '지원 내용 확인 필요', 72)}
+        </Text>
       </View>
       <AppButton label="자세히 보기" variant="secondary" onPress={onPress} />
     </Pressable>
@@ -206,6 +218,22 @@ export function PolicyScreen() {
     }
   };
 
+  const openPolicyLink = async (url: string, label: string) => {
+    const normalized = url.trim();
+    if (!/^https?:\/\//i.test(normalized)) {
+      Alert.alert('링크를 열 수 없어요', `${label} 주소가 올바르지 않습니다.`);
+      return;
+    }
+    const supported = await Linking.canOpenURL(normalized).catch(() => false);
+    if (!supported) {
+      Alert.alert('링크를 열 수 없어요', '브라우저에서 주소를 확인해주세요.');
+      return;
+    }
+    await Linking.openURL(normalized).catch(() =>
+      Alert.alert('링크를 열 수 없어요', '잠시 후 다시 시도해주세요.'),
+    );
+  };
+
   const sendChat = async () => {
     const trimmed = chatInput.trim();
     if (!trimmed || !chatStarted || chatRequestLock.current || chatResetLock.current) return;
@@ -273,62 +301,70 @@ export function PolicyScreen() {
 
       <View style={styles.policyBody}>
         {activeTab === 'ai' ? (
-          <ScrollView
+          <FlatList
+            data={visibleRecommendedPolicies}
+            keyExtractor={(policy) => policy.id}
             style={styles.policyScroll}
             contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.highlightCard}>
-              <Text style={styles.highlightTitle}>회원님께 추천하는 정책</Text>
-              <Text style={styles.highlightText}>가입 정보와 취약계층 여부를 바탕으로 맞춤 정책을 우선 노출합니다.</Text>
-            </View>
-            {visibleRecommendedPolicies.length ? (
-              visibleRecommendedPolicies.map((policy) => (
-                <PolicyCard
-                  key={policy.id}
-                  {...policy}
-                  onPress={() => handlePolicyPress(policy, 'recommended')}
-                />
-              ))
-            ) : (
+            initialNumToRender={6}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+            removeClippedSubviews
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              <View style={styles.highlightCard}>
+                <Text style={styles.highlightTitle}>회원님께 추천하는 정책</Text>
+                <Text style={styles.highlightText}>가입 정보와 취약계층 여부를 바탕으로 맞춤 정책을 우선 노출합니다.</Text>
+              </View>
+            }
+            renderItem={({ item: policy }) => (
+              <PolicyCard {...policy} onPress={() => handlePolicyPress(policy, 'recommended')} />
+            )}
+            ListEmptyComponent={
               <View style={styles.emptyStateCard}>
                 <Text style={styles.emptyStateTitle}>추천 정책이 아직 없어요.</Text>
                 <Text style={styles.emptyStateText}>조건에 맞는 정책이 없거나 아직 불러오지 못했습니다.</Text>
               </View>
-            )}
-          </ScrollView>
+            }
+          />
         ) : null}
 
         {activeTab === 'category' ? (
-          <ScrollView
+          <FlatList
+            data={categoryPolicies}
+            keyExtractor={(policy) => policy.id}
             style={styles.policyScroll}
             contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}>
-            <View style={styles.categoryGrid}>
-              {categories.map((category) => {
-                const active = selectedCategories.includes(category);
-                return (
-                  <Pressable
-                    key={category}
-                    onPress={() =>
-                      setSelectedCategories(active ? [] : [category])
-                    }
-                    style={[styles.categoryButton, active && styles.categoryButtonActive]}>
-                    <Text style={[styles.categoryButtonText, active && styles.categoryButtonTextActive]}>{category}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {categoryPolicies.length ? (
-              categoryPolicies.map((policy) => (
-                <PolicyCard key={policy.id} {...policy} onPress={() => handlePolicyPress(policy, 'browse')} />
-              ))
-            ) : (
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={6}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+            removeClippedSubviews
+            ListHeaderComponent={
+              <View style={styles.categoryGrid}>
+                {categories.map((category) => {
+                  const active = selectedCategories.includes(category);
+                  return (
+                    <Pressable
+                      key={category}
+                      onPress={() => setSelectedCategories(active ? [] : [category])}
+                      style={[styles.categoryButton, active && styles.categoryButtonActive]}>
+                      <Text style={[styles.categoryButtonText, active && styles.categoryButtonTextActive]}>{category}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            }
+            renderItem={({ item: policy }) => (
+              <PolicyCard {...policy} onPress={() => handlePolicyPress(policy, 'browse')} />
+            )}
+            ListEmptyComponent={
               <View style={styles.emptyStateCard}>
                 <Text style={styles.emptyStateTitle}>조건에 맞는 정책이 없습니다.</Text>
                 <Text style={styles.emptyStateText}>검색어나 카테고리를 바꿔보세요.</Text>
               </View>
-            )}
-          </ScrollView>
+            }
+          />
         ) : null}
 
         {activeTab === 'chatbot' ? (
@@ -394,6 +430,28 @@ export function PolicyScreen() {
             <Text style={styles.policyDetailText}>{selectedPolicy.target || selectedPolicy.targetCriteria || '지원 대상 정보를 확인해주세요.'}</Text>
             <Text style={styles.policyDetailSection}>지원 내용 및 신청 방법</Text>
             <Text style={styles.policyDetailText}>{selectedPolicy.support || '관할 행정복지센터 또는 해당 기관에 문의해주세요.'}</Text>
+            <Text style={styles.policyDetailSection}>신청 방법</Text>
+            <ChatbotReply text={selectedPolicy.applicationMethod || '신청 방법은 담당 기관 공고를 확인해주세요.'} />
+            {selectedPolicy.applicationPeriod ? (
+              <Text style={styles.policyDetailHint}>신청 기간: {selectedPolicy.applicationPeriod}</Text>
+            ) : null}
+            {selectedPolicy.applicationUrl ? (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => void openPolicyLink(selectedPolicy.applicationUrl!, '신청')}
+                style={styles.policyLinkButton}>
+                <Text style={styles.policyLinkText}>온라인 신청 경로 열기</Text>
+                <Text style={styles.policyLinkUrl} numberOfLines={2}>{selectedPolicy.applicationUrl}</Text>
+              </Pressable>
+            ) : selectedPolicy.officialUrl ? (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => void openPolicyLink(selectedPolicy.officialUrl!, '공식')}
+                style={styles.policyLinkButton}>
+                <Text style={styles.policyLinkText}>공식 안내 및 신청 경로 열기</Text>
+                <Text style={styles.policyLinkUrl} numberOfLines={2}>{selectedPolicy.officialUrl}</Text>
+              </Pressable>
+            ) : null}
             <AppButton label="닫기" onPress={() => setSelectedPolicy(null)} />
           </ScrollView>
         ) : null}
@@ -644,5 +702,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     color: colors.text,
+  },
+  policyDetailHint: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.textMuted,
+  },
+  policyLinkButton: {
+    gap: 4,
+    padding: 14,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+  },
+  policyLinkText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.brand,
+  },
+  policyLinkUrl: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
 });

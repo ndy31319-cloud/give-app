@@ -88,7 +88,7 @@ def _policy_search_text(policy):
         for key in (
             "policy_name", "category", "agency", "summary", "target_criteria",
             "support_detail", "content", "ai_search_text", "application_period",
-            "region", "official_url", "application_url",
+            "application_method", "region", "official_url", "application_url",
         )
     ))
 
@@ -138,6 +138,7 @@ def build_faiss_index():
             optional_fields = {
                 "official_url": "official_url",
                 "application_url": "application_url",
+                "application_method": "application_method",
                 "application_period": "application_period",
                 "region": "region",
                 "source_updated_at": "source_updated_at",
@@ -162,13 +163,13 @@ def build_faiss_index():
             policy = {key: row.get(key) for key in (
                 "policy_id", "policy_name", "category", "agency", "summary",
                 "target_criteria", "support_detail", "content", "ai_search_text",
-                "official_url", "application_url", "application_period", "region",
+                "official_url", "application_url", "application_method", "application_period", "region",
                 "source_updated_at",
             )}
             for field in (
                 "policy_name", "category", "agency", "summary", "target_criteria",
                 "support_detail", "content", "ai_search_text", "official_url",
-                "application_url", "application_period", "region",
+                "application_url", "application_method", "application_period", "region",
             ):
                 policy[field] = _compact(policy[field])
             if policy["source_updated_at"] is not None and hasattr(policy["source_updated_at"], "isoformat"):

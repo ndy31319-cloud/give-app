@@ -16,7 +16,7 @@ const URL_FIELDS = ['official_url', 'application_url'];
 const TEXT_FIELDS = [
   'policy_name', 'category', 'agency', 'summary', 'content',
   'target_criteria', 'support_detail', 'ai_search_text',
-  'application_period', 'region',
+  'application_method', 'application_period', 'region',
 ];
 
 const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -65,7 +65,7 @@ function normalizePolicy(raw, index) {
   }
   policy.ai_search_text = policy.ai_search_text || [
     policy.policy_name, policy.category, policy.agency, policy.summary,
-    policy.target_criteria, policy.support_detail, policy.content,
+    policy.target_criteria, policy.support_detail, policy.application_method, policy.content,
     policy.application_period, policy.region,
   ].filter(Boolean).join(' ');
   return policy;
@@ -78,7 +78,7 @@ function camelCase(value) {
 function dedupePolicies(policies) {
   const seen = new Set();
   return policies.filter(policy => {
-    const key = [policy.policy_name, policy.agency, policy.region || ''].map(value => value.toLowerCase()).join('|');
+    const key = policyKey(policy);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -87,8 +87,12 @@ function dedupePolicies(policies) {
 
 function policyKey(policy) {
   return [policy.policy_name, policy.agency, policy.region || '']
-    .map(value => String(value ?? '').toLowerCase())
+    .map(value => String(value ?? '').replace(/\s+/g, '').toLowerCase())
     .join('|');
+}
+
+function policyNameKey(policy) {
+  return String(policy.policy_name ?? '').replace(/\s+/g, '').toLowerCase();
 }
 
 function readInput(filePath) {
@@ -125,6 +129,7 @@ async function importPolicies(filePath) {
       `SELECT policy_id, policy_name, agency${fields.has('region') ? ', region' : ''} FROM POLICY`,
     );
     const existingByKey = new Map();
+    const existingByName = new Map();
     for (const row of existingRows) {
       const key = policyKey({
         policy_name: row.policy_name,
@@ -132,13 +137,15 @@ async function importPolicies(filePath) {
         region: fields.has('region') ? row.region : '',
       });
       if (!existingByKey.has(key)) existingByKey.set(key, row.policy_id);
+      const nameKey = policyNameKey(row);
+      if (!existingByName.has(nameKey)) existingByName.set(nameKey, row.policy_id);
     }
 
     const inserts = [];
     const updates = [];
     for (const policy of policies) {
       const values = supported.map(field => policy[field]);
-      const existingId = existingByKey.get(policyKey(policy));
+      const existingId = existingByKey.get(policyKey(policy)) || existingByName.get(policyNameKey(policy));
       if (existingId) updates.push({ values, id: existingId });
       else inserts.push(values);
     }

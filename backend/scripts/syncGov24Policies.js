@@ -31,6 +31,7 @@ const config = {
   pageSize: envNumber("ODCLOUD_POLICY_PAGE_SIZE", 1000, { max: 1000 }),
   timeoutMs: envNumber("ODCLOUD_API_TIMEOUT_MS", 20000, { min: 1000, max: 120000 }),
   fetchDetails: String(process.env.ODCLOUD_FETCH_DETAILS || "false").toLowerCase() === "true",
+  serviceNameFilter: String(process.env.ODCLOUD_SERVICE_NAME_FILTER || "").trim(),
 };
 
 const text = value => String(value ?? "").replace(/\s+/g, " ").trim();
@@ -95,7 +96,11 @@ async function fetchServiceList() {
   let page = 1;
   while (rows.length < config.limit) {
     const perPage = Math.min(config.pageSize, config.limit - rows.length);
-    const response = await requestJson(config.listPath, { page, perPage });
+    const response = await requestJson(config.listPath, {
+      page,
+      perPage,
+      ...(config.serviceNameFilter ? { "cond[서비스명::LIKE]": config.serviceNameFilter } : {}),
+    });
     rows.push(...response.data);
     if (response.data.length === 0 || rows.length >= Number(response.totalCount || 0)) break;
     page += 1;
@@ -167,6 +172,7 @@ function toPolicy(row, detail = null) {
     ai_search_text: aiSearchText,
     official_url: officialUrl,
     application_url: applicationUrl,
+    application_method: text(merged["신청방법"] || "공고 확인"),
     application_period: text(merged["신청기한"] || "공고 확인"),
     region: null,
     source_updated_at: sourceUpdatedAt,

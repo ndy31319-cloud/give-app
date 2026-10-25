@@ -69,6 +69,7 @@ const isObject = (value) => value !== null && typeof value === "object" && !Arra
 const POLICY_METADATA_FIELDS = [
   ["official_url", "official_url"],
   ["application_url", "application_url"],
+  ["application_method", "application_method"],
   ["application_period", "application_period"],
   ["region", "region"],
   ["source_updated_at", "source_updated_at"],

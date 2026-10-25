@@ -37,6 +37,7 @@ def build_policy_context(policies: Iterable[dict[str, Any]]) -> str:
             ("담당기관", policy.get("agency")),
             ("지원대상", policy.get("target_criteria")),
             ("지원내용", policy.get("support_detail")),
+            ("신청방법", policy.get("application_method")),
             ("신청기간", policy.get("application_period")),
             ("대상 지역", policy.get("region")),
             ("기준일", policy.get("source_updated_at")),
