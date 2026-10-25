@@ -1,6 +1,7 @@
 const express = require("express");
 const db = require("../db");
 const authenticateToken = require("../middlewares/authMiddleware");
+const { buildDonationOfferPickupMemo } = require("../services/wantedOffers");
 
 const router = express.Router();
 
@@ -10,7 +11,6 @@ const DEFAULT_PRODUCT_ID = 51;
 const DEFAULT_ITEM_CONDITION = "상태 무관";
 const DONATION_OFFER_VISIT_GUIDE =
   "후원자가 보관함에 물품을 넣으면 키오스크의 물품 찾기에서 받을 수 있습니다.";
-const DONATION_OFFER_PICKUP_MEMO_PREFIX = "요청글 나눔 의사 자동 연결";
 
 const parsePositiveInteger = (value) => {
   const normalizedValue = String(value || "").trim();
@@ -36,9 +36,6 @@ const normalizeCreatedFrom = (value) => {
   const normalizedValue = String(value || "web").trim().toLowerCase();
   return normalizedValue === "app" ? "app" : "web";
 };
-
-const buildDonationOfferPickupMemo = (requestId) =>
-  `${DONATION_OFFER_PICKUP_MEMO_PREFIX} #${requestId}`;
 
 const buildDonationOfferContent = (wantedPost) => {
   const requestContent = normalizeNullableText(wantedPost.content);

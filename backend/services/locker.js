@@ -1,5 +1,6 @@
 const db = require('../db');
 const { isMemberQrToken } = require('./memberQr');
+const { syncLinkedRequestStatus } = require('./wantedOffers');
 
 const ACTIVE_STATUSES = ['awaiting_deposit', 'stored'];
 const SCAN_WINDOW_SECONDS = 600;
@@ -294,6 +295,7 @@ async function confirm(transferId, action) {
         WHERE pickup_id = ?`, [transfer.pickup_id]);
       await connection.query(`UPDATE ITEM_DONATE SET status = 'completed', updated_at = NOW()
         WHERE donate_id = ?`, [transfer.donate_id]);
+      await syncLinkedRequestStatus(connection, transfer.donate_id);
       await connection.query('UPDATE LOCKER_SLOT SET transfer_id = NULL WHERE slot_id = 1 AND transfer_id = ?',
         [transferId]);
       await notify(connection, transfer.donor_id, transfer.pickup_id, 'pickup_completed',

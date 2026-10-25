@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const db = require("../db");
+const { getCompletedLinkedRequestIds } = require("../services/wantedOffers");
 const {
   resolveAiEndpointUrls,
 } = require("../lib/aiServerUrls");
@@ -611,9 +612,13 @@ const getAllPosts = async (req, res) => {
     `;
 
     const [rows] = await db.query(sql);
+    const completedLinkedRequestIds = await getCompletedLinkedRequestIds(db);
     const reputation = await require('../services/reviews').scores(rows.map(row => row.member_id));
     const posts = rows.map((row) => {
       const imageUrl = normalizeUploadUrl(req, row.image_url);
+      const isCompletedLinkedRequest =
+        row.post_type === "request" &&
+        completedLinkedRequestIds.has(Number(row.post_id));
 
       return {
         id: row.id,
@@ -652,7 +657,7 @@ const getAllPosts = async (req, res) => {
         },
         latitude: row.latitude,
         longitude: row.longitude,
-        status: row.status,
+        status: isCompletedLinkedRequest ? "completed" : row.status,
         created_from: row.created_from,
         createdFrom: row.created_from,
         image_url: imageUrl,

@@ -3,6 +3,7 @@ const express = require("express");
 const authenticateToken = require("../middlewares/authMiddleware");
 const db = require("../db");
 const { isProductionRuntime, matchesApiKey, normalizeApiKey } = require("../lib/env");
+const { syncLinkedRequestStatus } = require("../services/wantedOffers");
 
 const router = express.Router();
 const sessionsByToken = new Map();
@@ -1685,6 +1686,7 @@ router.post("/locker/pickup/complete", authenticateToken, async (req, res) => {
       "UPDATE ITEM_DONATE SET status = 'completed', updated_at = NOW() WHERE donate_id = ?",
       [item.donateId],
     );
+    await syncLinkedRequestStatus(connection, item.donateId);
 
     try {
       await connection.query(

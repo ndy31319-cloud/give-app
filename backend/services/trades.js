@@ -3,6 +3,8 @@ const { readAppointment, transition } = require('../lib/appointment');
 const { getFirestore } = require('../lib/firebaseAdmin');
 const { activeStatuses, nextStatus, validateCancelReason, fail } = require('../lib/tradeState');
 
+const WANTED_DONATION_MEMO_PREFIX = '요청글 나눔 의사 자동 연결';
+
 const selectTrade = `SELECT p.*, d.member_id AS donor_id, d.title, d.status AS post_status,
   UNIX_TIMESTAMP(p.expires_at) * 1000 AS expires_ms,
   m.nickname AS requester_name FROM PICKUP_REQUEST p
@@ -153,6 +155,18 @@ async function act(id, action, memberId, input = {}) {
       WHERE pickup_id = ?`, [target, target, target, target, target, cancelReason, id]);
     const postStatus = target === 'completed' ? 'completed' : activeStatuses.has(target) ? 'reserved' : 'open';
     await connection.query('UPDATE ITEM_DONATE SET status = ? WHERE donate_id = ?', [postStatus, row.donate_id]);
+    if (target === 'completed') {
+      await connection.query(
+        `UPDATE ITEM_REQUEST r
+         INNER JOIN PICKUP_REQUEST p
+           ON p.donate_id = ?
+          AND p.memo LIKE CONCAT(?, ' #%')
+          AND CAST(SUBSTRING_INDEX(p.memo, '#', -1) AS UNSIGNED) = r.request_id
+         SET r.status = 'completed', r.updated_at = NOW()
+         WHERE p.request_status IN ('completed', 'picked_up')`,
+        [row.donate_id, WANTED_DONATION_MEMO_PREFIX],
+      );
+    }
     const recipient = Number(memberId) === Number(row.donor_id) ? row.requester_id : row.donor_id;
     const notices = {
       approved: ['pickup_approved', `‘${row.title}’ 나눔 요청이 수락됐어요. 약속을 정해보세요.`],

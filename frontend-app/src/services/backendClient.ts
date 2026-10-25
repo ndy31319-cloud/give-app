@@ -293,6 +293,7 @@ export function mapBackendUser(raw: any): User {
 }
 
 function mapBackendPostStatus(status?: string) {
+  if (status === 'picked_up' || status === 'received' || status === 'done') return 'completed';
   if (status === 'available') return 'open';
   if (status === 'reserved') return 'reserved';
   if (status === 'completed') return 'completed';

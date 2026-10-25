@@ -64,7 +64,11 @@ test('activity API separates own posts, sent and received requests', async t => 
   await t.test('donor sees own posts and received requests, not sent requests', async () => {
     const data = await get(donor);
     assert.equal(data.donatedPosts.length, 8);
-    assert.equal(data.receivedRequests.length, 8);
+    // The received-requests tab is an action queue. Completed, rejected,
+    // canceled, and expired requests remain available in history but are not
+    // shown as new requests.
+    assert.equal(data.receivedRequests.length, 1);
+    assert.equal(data.receivedRequests[0].status, 'pending');
     assert.equal(data.sentRequests.length, 0);
     assert.equal(data.requestedPosts.length, 0);
     assert.ok(data.receivedRequests.every(row => row.donorId === String(donor) && row.requesterId === String(requester)));
