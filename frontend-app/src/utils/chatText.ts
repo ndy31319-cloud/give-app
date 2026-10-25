@@ -24,6 +24,14 @@ export function normalizeChatbotText(value: string): string {
   return result;
 }
 
+export function removeApplicationMethodSections(value: string): string {
+  const keptLines = String(value || '').split('\n').filter((line) => {
+    const heading = line.replace(/^[\s#*\-\d.)]+/, '').trim();
+    return !/신청\s*방법(?:\s*:|$|은|는)/.test(heading);
+  });
+  return keptLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export interface ChatbotReplyPart {
   text: string;
   target?: string;

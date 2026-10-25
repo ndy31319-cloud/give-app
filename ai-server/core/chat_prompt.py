@@ -37,7 +37,6 @@ def build_policy_context(policies: Iterable[dict[str, Any]]) -> str:
             ("담당기관", policy.get("agency")),
             ("지원대상", policy.get("target_criteria")),
             ("지원내용", policy.get("support_detail")),
-            ("신청방법", policy.get("application_method")),
             ("신청기간", policy.get("application_period")),
             ("대상 지역", policy.get("region")),
             ("기준일", policy.get("source_updated_at")),
@@ -118,12 +117,15 @@ def build_system_prompt(policy_context: str, has_history: bool) -> str:
 [링크 원칙]
 1. 검색 정책 정보에 '공식 확인 링크'가 있으면, 정책을 설명한 답변 마지막에 정확히 한 개를 다음 형식으로 포함한다.
 공식 확인 링크: https://example.com
-2. 신청 URL이 있으면 신청 방법 설명 뒤에 다음 형식으로 한 개를 포함한다.
+2. 신청 URL이 있으면 답변 마지막에 다음 형식으로 한 개를 포함한다.
 신청 링크: https://example.com
 3. 제공된 링크를 바꾸거나 새 링크를 지어내지 않는다.
 4. 정책 안내인데 공식 확인 링크가 없으면, 필요한 경우에만 다음 검증된 링크를 한 번 제공한다.
 정책 통합 확인: {GOV24_POLICY_URL}
 5. QR, 보관함, 수령 승인, 개인정보, 긴급상황 질문에는 정부24 링크를 기계적으로 붙이지 않는다.
+
+[신청 절차 출력 제한]
+별도의 '신청 방법' 또는 '신청방법' 섹션을 만들지 않는다. 신청 절차의 상세 설명 대신 검증된 신청 링크가 있으면 링크만 안내한다.
 
 [개인정보·안전]
 1. 비밀번호, 인증번호, QR 비밀 토큰, 주민등록번호, 계좌번호, 카드번호, 진단서 사진을 요구하거나 노출하지 않는다.

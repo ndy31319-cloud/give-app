@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.chat_prompt import GOV24_POLICY_URL, build_policy_context, build_system_prompt, ensure_policy_link
+from core.chat_text import remove_application_method_sections
 
 
 class ChatPromptTest(unittest.TestCase):
@@ -30,6 +31,7 @@ class ChatPromptTest(unittest.TestCase):
         self.assertIn("4~7개의 짧은 문장", prompt)
         self.assertIn(f"정책 통합 확인: {GOV24_POLICY_URL}", prompt)
         self.assertIn("새 링크를 지어내지 않는다", prompt)
+        self.assertIn("별도의 '신청 방법' 또는 '신청방법' 섹션을 만들지 않는다", prompt)
 
     def test_policy_link_is_added_without_touching_locker_flow(self):
         policy = [{"content": "", "ai_search_text": "", "official_url": ""}]
@@ -38,6 +40,14 @@ class ChatPromptTest(unittest.TestCase):
 
         self.assertIn(GOV24_POLICY_URL, policy_answer)
         self.assertNotIn(GOV24_POLICY_URL, locker_answer)
+
+    def test_chatbot_application_method_section_is_removed(self):
+        answer = "정책 요약입니다.\n신청 방법: 주민센터에서 신청하세요.\n주의할 점입니다."
+        cleaned = remove_application_method_sections(answer)
+
+        self.assertNotIn("신청 방법", cleaned)
+        self.assertIn("정책 요약입니다.", cleaned)
+        self.assertIn("주의할 점입니다.", cleaned)
 
 
 if __name__ == "__main__":

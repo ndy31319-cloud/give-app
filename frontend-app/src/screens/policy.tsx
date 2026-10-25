@@ -10,8 +10,10 @@ import { useAppContext } from '@/src/context/AppContext';
 import { policyAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { Policy } from '@/src/types/app';
-import { normalizeChatbotText, splitChatbotLinks } from '@/src/utils/chatText';
+import { normalizeChatbotText, removeApplicationMethodSections, splitChatbotLinks } from '@/src/utils/chatText';
 import { LoadingDots } from '@/src/components/common/LoadingDots';
+
+const POLICY_DIRECTORY_URL = 'https://www.gov.kr/portal/gvrnPolicy/listAll';
 
 function ChatbotReply({ text }: { text: string }) {
   const content = splitChatbotLinks(text).map((part, index) => {
@@ -395,7 +397,7 @@ export function PolicyScreen() {
                 <View
                   key={`${message.sender}-${index}`}
                   style={[styles.chatBubble, message.sender === 'user' ? styles.chatUser : styles.chatBot]}>
-                  {message.sender === 'bot' ? <ChatbotReply text={normalizeChatbotText(message.text)} /> : (
+                  {message.sender === 'bot' ? <ChatbotReply text={removeApplicationMethodSections(normalizeChatbotText(message.text))} /> : (
                     <Text style={[styles.chatText, { color: '#fff' }]}>{message.text}</Text>
                   )}
                 </View>
@@ -430,28 +432,24 @@ export function PolicyScreen() {
             <Text style={styles.policyDetailText}>{selectedPolicy.target || selectedPolicy.targetCriteria || '지원 대상 정보를 확인해주세요.'}</Text>
             <Text style={styles.policyDetailSection}>지원 내용 및 신청 방법</Text>
             <Text style={styles.policyDetailText}>{selectedPolicy.support || '관할 행정복지센터 또는 해당 기관에 문의해주세요.'}</Text>
-            <Text style={styles.policyDetailSection}>신청 방법</Text>
-            <ChatbotReply text={selectedPolicy.applicationMethod || '신청 방법은 담당 기관 공고를 확인해주세요.'} />
+            <Text style={styles.policyDetailText}>
+              {selectedPolicy.applicationMethod || '신청 절차는 아래 공식 안내에서 확인해주세요.'}
+            </Text>
             {selectedPolicy.applicationPeriod ? (
               <Text style={styles.policyDetailHint}>신청 기간: {selectedPolicy.applicationPeriod}</Text>
             ) : null}
-            {selectedPolicy.applicationUrl ? (
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => void openPolicyLink(selectedPolicy.applicationUrl!, '신청')}
-                style={styles.policyLinkButton}>
-                <Text style={styles.policyLinkText}>온라인 신청 경로 열기</Text>
-                <Text style={styles.policyLinkUrl} numberOfLines={2}>{selectedPolicy.applicationUrl}</Text>
-              </Pressable>
-            ) : selectedPolicy.officialUrl ? (
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => void openPolicyLink(selectedPolicy.officialUrl!, '공식')}
-                style={styles.policyLinkButton}>
-                <Text style={styles.policyLinkText}>공식 안내 및 신청 경로 열기</Text>
-                <Text style={styles.policyLinkUrl} numberOfLines={2}>{selectedPolicy.officialUrl}</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => void openPolicyLink(
+                selectedPolicy.officialUrl || selectedPolicy.applicationUrl || POLICY_DIRECTORY_URL,
+                '공식',
+              )}
+              style={styles.policyLinkButton}>
+              <Text style={styles.policyLinkText}>공식 안내 및 신청 경로 열기</Text>
+              <Text style={styles.policyLinkUrl} numberOfLines={2}>
+                {selectedPolicy.officialUrl || selectedPolicy.applicationUrl || POLICY_DIRECTORY_URL}
+              </Text>
+            </Pressable>
             <AppButton label="닫기" onPress={() => setSelectedPolicy(null)} />
           </ScrollView>
         ) : null}

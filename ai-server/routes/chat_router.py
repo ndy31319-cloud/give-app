@@ -16,7 +16,7 @@ from sqlalchemy import create_engine, text
 from pydantic import BaseModel
 
 from schemas.chat_schema import ChatRequest, ChatResponse, PolicyItem, ChatHistoryItem, ChatHistoryResponse
-from core.chat_text import normalize_chatbot_text
+from core.chat_text import normalize_chatbot_text, remove_application_method_sections
 from core.chat_prompt import build_policy_context, build_system_prompt, ensure_policy_link
 
 logger = logging.getLogger(__name__)
@@ -339,6 +339,7 @@ async def process_chat(request: ChatRequest):
 
             ai_answer = normalize_chatbot_text(raw_answer)
             ai_answer = ensure_policy_link(ai_answer, matched_policies, message)
+            ai_answer = remove_application_method_sections(ai_answer)
             if not ai_answer:
                 raise HTTPException(status_code=502, detail="AI 서버가 빈 답변을 반환했습니다.")
 

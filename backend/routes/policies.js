@@ -106,6 +106,7 @@ const toPolicyResponse = (policy) => ({
   aiSearchText: policy.ai_search_text ?? policy.aiSearchText ?? "",
   officialUrl: policy.official_url ?? policy.officialUrl ?? null,
   applicationUrl: policy.application_url ?? policy.applicationUrl ?? null,
+  applicationMethod: policy.application_method ?? policy.applicationMethod ?? null,
   applicationPeriod: policy.application_period ?? policy.applicationPeriod ?? null,
   region: policy.region ?? null,
   sourceUpdatedAt: policy.source_updated_at ?? policy.sourceUpdatedAt ?? null,
