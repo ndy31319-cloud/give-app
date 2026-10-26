@@ -25,14 +25,3 @@ def normalize_chatbot_text(value: str) -> str:
     for index, url in enumerate(urls):
         result = result.replace(f"\x00URL{index}\x00", url)
     return result
-
-
-def remove_application_method_sections(value: str) -> str:
-    """Remove model-generated application-method headings and their body lines."""
-    kept_lines = []
-    for line in str(value or '').splitlines():
-        heading = re.sub(r"^[\s#*\-\d.)]+", "", line).strip()
-        if re.search(r"신청\s*방법(?:\s*:|$|은|는)", heading):
-            continue
-        kept_lines.append(line)
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
