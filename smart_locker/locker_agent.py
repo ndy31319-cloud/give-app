@@ -16,10 +16,10 @@ STATE_FILE = Path(__file__).with_name(".locker_state.json")
 ENV_FILE = Path(__file__).with_name(".env")
 # Keep the storage window bounded because the solenoid may heat while powered.
 MAX_STORAGE_OPEN_SECONDS = 15.0
-# Pickup uses the same bounded hardware window. The kiosk close command normally
-# ends it earlier, while this limit prevents a lost network request from leaving
-# the solenoid energized indefinitely.
-MAX_PICKUP_OPEN_SECONDS = 15.0
+# The kiosk close command normally ends pickup earlier. Keep a generous but
+# bounded hardware window so a lost network request cannot leave the solenoid
+# energized indefinitely.
+MAX_PICKUP_OPEN_SECONDS = 60.0
 
 
 def load_env_file() -> None:
@@ -168,7 +168,7 @@ class LockerAgent:
             max(configured_storage_timeout, 1.0),
             MAX_STORAGE_OPEN_SECONDS,
         )
-        configured_pickup_timeout = env_float("PICKUP_OPEN_TIMEOUT_SECONDS", 15.0)
+        configured_pickup_timeout = env_float("PICKUP_OPEN_TIMEOUT_SECONDS", 60.0)
         self.pickup_open_timeout = min(
             max(configured_pickup_timeout, 1.0),
             MAX_PICKUP_OPEN_SECONDS,
