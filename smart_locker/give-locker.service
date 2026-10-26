@@ -5,12 +5,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=hanseungjae
-WorkingDirectory=/home/hanseungjae/give-app/smart_locker
-EnvironmentFile=/home/hanseungjae/give-app/smart_locker/.env
-ExecStart=/home/hanseungjae/give-app/smart_locker/.venv/bin/python /home/hanseungjae/give-app/smart_locker/locker_agent.py
+User=hsj
+WorkingDirectory=/home/hsj/give-app/smart_locker
+EnvironmentFile=/home/hsj/give-app/smart_locker/.env
+ExecStart=/home/hsj/give-app/smart_locker/.venv/bin/python /home/hsj/give-app/smart_locker/locker_agent.py
 Restart=always
 RestartSec=3
+TimeoutStopSec=10
+KillSignal=SIGTERM
+UMask=077
 
 [Install]
 WantedBy=multi-user.target
