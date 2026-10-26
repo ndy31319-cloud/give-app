@@ -4,6 +4,8 @@ import { fetchPosts } from './api/client';
 import PostImage from './buyer/PostImage';
 import { getItemCategory, isDonatePost as isVisibleDonatePost } from './buyer/postListUtils';
 
+const POST_REFRESH_INTERVAL_MS = 15000;
+
 function MainScreen() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -24,10 +26,16 @@ function MainScreen() {
 
   useEffect(() => {
     let ignore = false;
+    let requestInFlight = false;
 
-    async function loadPosts() {
+    async function loadPosts({ silent = false } = {}) {
+      if (requestInFlight) return;
+
+      requestInFlight = true;
       try {
-        setIsLoading(true);
+        if (!silent) {
+          setIsLoading(true);
+        }
         const data = await fetchPosts();
         const nextItems = data.content || data.posts || data || [];
 
@@ -35,20 +43,33 @@ function MainScreen() {
           setItems(nextItems);
         }
       } catch (error) {
-        if (!ignore) {
+        // A background refresh should not interrupt kiosk usage with alerts.
+        if (!ignore && !silent) {
           alert(`물품 목록을 불러오지 못했습니다: ${error.message}`);
         }
       } finally {
-        if (!ignore) {
+        requestInFlight = false;
+        if (!ignore && !silent) {
           setIsLoading(false);
         }
       }
     }
 
     loadPosts();
+    const refreshWhenVisible = () => {
+      if (!document.hidden) {
+        void loadPosts({ silent: true });
+      }
+    };
+    const refreshTimer = window.setInterval(refreshWhenVisible, POST_REFRESH_INTERVAL_MS);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       ignore = true;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, []);
 

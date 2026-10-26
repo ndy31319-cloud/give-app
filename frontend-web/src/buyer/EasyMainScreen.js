@@ -6,6 +6,7 @@ import ReceiveConfirmModal from './ReceiveConfirmModal';
 import { getItemCategory, isDonatePost as isVisibleDonatePost } from './postListUtils';
 
 const PAGE_SIZE = 4;
+const POST_REFRESH_INTERVAL_MS = 15000;
 const MAIN_CATEGORY_IDS = ['clothing', 'electronics', 'household'];
 
 function EasyMainScreen() {
@@ -27,11 +28,17 @@ function EasyMainScreen() {
 
   useEffect(() => {
     let ignore = false;
+    let requestInFlight = false;
 
-    async function loadPosts() {
+    async function loadPosts({ silent = false } = {}) {
+      if (requestInFlight) return;
+
+      requestInFlight = true;
       try {
-        setIsLoading(true);
-        setLoadError('');
+        if (!silent) {
+          setIsLoading(true);
+          setLoadError('');
+        }
         const data = await fetchPosts();
         const nextItems = data.content || data.posts || data || [];
 
@@ -39,20 +46,33 @@ function EasyMainScreen() {
           setItems(nextItems);
         }
       } catch (error) {
-        if (!ignore) {
+        // Keep the currently visible list when a background refresh fails.
+        if (!ignore && !silent) {
           setLoadError(`물품을 불러오지 못했습니다. ${error.message}`);
         }
       } finally {
-        if (!ignore) {
+        requestInFlight = false;
+        if (!ignore && !silent) {
           setIsLoading(false);
         }
       }
     }
 
     loadPosts();
+    const refreshWhenVisible = () => {
+      if (!document.hidden) {
+        void loadPosts({ silent: true });
+      }
+    };
+    const refreshTimer = window.setInterval(refreshWhenVisible, POST_REFRESH_INTERVAL_MS);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       ignore = true;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, []);
 

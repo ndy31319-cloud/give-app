@@ -428,6 +428,11 @@ router.delete("/chatbot/history", authenticateToken, async (req, res) => {
     await db.query("DELETE FROM AI_CHAT_HISTORY WHERE member_id = ?", [memberId]);
     return res.json({ success: true, message: "대화 기록이 삭제되었습니다." });
   } catch (error) {
+    // History is optional for the live chat flow. A missing migration should
+    // not prevent the user from starting a new conversation.
+    if (error?.code === "ER_NO_SUCH_TABLE") {
+      return res.json({ success: true, message: "대화 기록 저장소가 없어 새 대화로 시작합니다." });
+    }
     console.error("Chat history deletion failed:", error.code);
     return res.status(500).json({ message: "대화 기록을 삭제하지 못했습니다. 다시 시도해주세요." });
   }

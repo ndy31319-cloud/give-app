@@ -103,18 +103,23 @@ export function PolicyScreen() {
     Keyboard.dismiss();
     chatResetLock.current = true;
     setChatResetting(true);
+
+    // Starting/ending a chat must not depend on the history cleanup request.
+    // The visible conversation is local state; server cleanup is best effort.
+    setChatInput('');
+    setMessages(start ? [{ sender: 'bot', text: '안녕하세요! 현재 상황이나 필요하신 지원을 말씀해주시면 알맞은 정책을 추천해드릴게요.' }] : []);
+    setChatStarted(start);
+
     try {
-      // Clear abandoned sessions too, so Start always begins with fresh context.
-      const result = await policyAPI.clearChatbotHistory(authToken ?? undefined);
-      if (result.error) {
-        Alert.alert(start ? '대화를 시작하지 못했어요' : '대화를 종료하지 못했어요', result.error);
-        return;
+      if (authToken) {
+        // Clear abandoned sessions too, so Start begins with fresh context.
+        const result = await policyAPI.clearChatbotHistory(authToken);
+        if (result.error) {
+          console.warn('Chat history cleanup skipped:', result.error);
+        }
       }
-      setChatInput('');
-      setMessages(start ? [{ sender: 'bot', text: '안녕하세요! 현재 상황이나 필요하신 지원을 말씀해주시면 알맞은 정책을 추천해드릴게요.' }] : []);
-      setChatStarted(start);
     } catch {
-      Alert.alert('대화 기록 삭제 실패', '연결을 확인한 뒤 다시 시도해주세요.');
+      console.warn('Chat history cleanup request failed. Continuing with local chat.');
     } finally {
       chatResetLock.current = false;
       setChatResetting(false);
@@ -239,6 +244,14 @@ export function PolicyScreen() {
   const sendChat = async () => {
     const trimmed = chatInput.trim();
     if (!trimmed || !chatStarted || chatRequestLock.current || chatResetLock.current) return;
+
+    if (!authToken) {
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'bot', text: '로그인 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.' },
+      ]);
+      return;
+    }
 
     Keyboard.dismiss();
     chatRequestLock.current = true;
