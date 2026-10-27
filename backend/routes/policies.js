@@ -33,15 +33,21 @@ const POLICY_CHAT_CONTEXT_LIMIT = boundedIntegerEnv(
   10,
   100,
 );
+const AI_STREAM_REQUEST_TIMEOUT_MS = boundedIntegerEnv(
+  "AI_STREAM_REQUEST_TIMEOUT_MS",
+  60000,
+  15000,
+  120000,
+);
 const policyListCache = new Map();
 const recommendationCache = new Map();
 const recommendationInFlight = new Map();
 
-const resolveAiChatbotApiUrls = () => {
+const resolveAiChatbotApiUrls = (endpointPath = "/api/chat/") => {
   const explicitUrls = splitConfiguredUrls(process.env.AI_CHATBOT_URL);
 
   return resolveAiEndpointUrls({
-    endpointPath: "/api/chat/",
+    endpointPath,
     explicitUrls,
     missingMessage:
       "AI 서버 URL이 설정되어 있지 않습니다. 로컬 AI 서버를 Render 백엔드에서 사용하려면 ngrok 또는 Cloudflare Tunnel 공개 주소를 AI_SERVER_URL에 설정해주세요.",
@@ -412,10 +418,7 @@ router.get("/recommended", authenticateToken, async (req, res) => {
   }
 });
 
-const callAiChatbot = async (payload) => {
-  const urls = resolveAiChatbotApiUrls();
-  let lastError = null;
-  const requestPayload = {
+const buildAiChatRequestPayload = (payload) => ({
     user_message: payload.message,
     member_id: payload.user?.member_id ?? null,
     user: payload.user ?? null,
@@ -426,7 +429,12 @@ const callAiChatbot = async (payload) => {
           message: message.message,
         }))
       : [],
-  };
+});
+
+const callAiChatbot = async (payload) => {
+  const urls = resolveAiChatbotApiUrls();
+  let lastError = null;
+  const requestPayload = buildAiChatRequestPayload(payload);
 
   for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
     const url = urls[urlIndex];
@@ -470,6 +478,55 @@ const callAiChatbot = async (payload) => {
   }
 
   throw lastError || new Error("AI 챗봇 서버 응답을 받을 수 없습니다.");
+};
+
+const callAiChatbotStream = async (payload) => {
+  const urls = resolveAiChatbotApiUrls("/api/chat/stream");
+  let lastError = null;
+  const requestPayload = buildAiChatRequestPayload(payload);
+
+  for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
+    const url = urls[urlIndex];
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const startedAt = Date.now();
+      try {
+        const response = await axios.post(url, requestPayload, {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "text/event-stream",
+            "ngrok-skip-browser-warning": "true",
+          },
+          proxy: false,
+          responseType: "stream",
+          timeout: AI_STREAM_REQUEST_TIMEOUT_MS,
+          validateStatus: () => true,
+        });
+
+        if (response.status < 200 || response.status >= 300) {
+          response.data?.resume?.();
+          const error = new Error(`AI streaming endpoint returned ${response.status}`);
+          error.response = { status: response.status };
+          throw error;
+        }
+
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        logAiRequestError({ url, attempt, startedAt, error });
+        if (attempt < 2 && isTransientAiError(error)) {
+          await sleep(AI_RETRY_DELAY_MS);
+          continue;
+        }
+        const hasFallback = urlIndex < urls.length - 1;
+        if (hasFallback && canFailOverAiError(error)) {
+          break;
+        }
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error("AI 스트리밍 서버 응답을 받을 수 없습니다.");
 };
 
 const normalizeSuggestedPolicies = (rawSuggestedPolicies, policies) => {
@@ -627,6 +684,91 @@ router.post(["/chatbot", "/chat"], authenticateToken, async (req, res) => {
     return res.status(500).json({
       message: "챗봇 답변 생성 중 오류가 발생했습니다.",
     });
+  }
+});
+
+// Token-streaming variant for the Expo app. The JSON endpoint above remains
+// available for older builds and non-streaming clients.
+router.post("/chatbot/stream", authenticateToken, async (req, res) => {
+  const message = String(req.body.message || "").trim();
+  const conversationHistory = Array.isArray(req.body.conversationHistory)
+    ? req.body.conversationHistory
+    : [];
+  const memberId = req.user.member_id || req.user.id;
+
+  if (!message) {
+    return res.status(400).json({ message: "질문 내용을 입력해주세요." });
+  }
+
+  res.status(200);
+  res.set({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders?.();
+
+  const writeEvent = (event, payload) => {
+    if (!res.writableEnded) {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+    }
+  };
+
+  writeEvent("status", { stage: "preparing" });
+
+  try {
+    const [member, policies] = await Promise.all([
+      loadCurrentMember(memberId),
+      loadPolicies(null, { limit: POLICY_CHAT_CONTEXT_LIMIT }),
+    ]);
+    const policyContext = policies.map(toPolicyResponse);
+    const upstream = await callAiChatbotStream({
+      message,
+      conversationHistory,
+      user: member
+        ? {
+            member_id: member.member_id,
+            name: member.name,
+            role_id: member.role_id,
+            dong_name: member.dong_name,
+            birthdate: member.birthdate,
+          }
+        : null,
+      policies: policyContext,
+    });
+
+    upstream.on("data", (chunk) => {
+      if (!res.writableEnded) {
+        res.write(chunk);
+      }
+    });
+    upstream.on("end", () => {
+      if (!res.writableEnded) {
+        res.end();
+      }
+    });
+    upstream.on("error", (error) => {
+      console.error("AI chatbot stream ended with an error:", error.message);
+      writeEvent("error", { message: "AI 챗봇 스트리밍이 중단되었습니다." });
+      if (!res.writableEnded) res.end();
+    });
+    res.on("close", () => {
+      if (!res.writableEnded) {
+        upstream.destroy?.();
+      }
+    });
+  } catch (error) {
+    console.error("Policy chatbot stream error:", error.response?.data || error.message);
+    const status = error.response?.status;
+    const isTimeout = error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
+    const messageText = isTimeout
+      ? "AI 챗봇 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요."
+      : status === 404
+        ? "AI 챗봇 스트리밍 경로를 찾을 수 없습니다. AI 서버 주소와 경로를 확인해주세요."
+        : "AI 챗봇 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.";
+    writeEvent("error", { message: messageText });
+    if (!res.writableEnded) res.end();
   }
 });
 

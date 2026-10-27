@@ -1,5 +1,6 @@
 # 챗 봇 
 import asyncio
+import json
 import logging
 import numpy as np
 import faiss
@@ -12,6 +13,7 @@ from collections import OrderedDict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
@@ -88,6 +90,7 @@ clova_client_lock = asyncio.Lock()
 CHAT_HISTORY_LIMIT = max(2, _safe_int_env("AI_CHAT_HISTORY_LIMIT", 6, 2))
 POLICY_QUERY_CACHE_TTL_SECONDS = _safe_int_env("POLICY_QUERY_CACHE_TTL_SECONDS", 120, 0)
 POLICY_QUERY_CACHE_MAX_SIZE = max(16, _safe_int_env("POLICY_QUERY_CACHE_MAX_SIZE", 128, 16))
+CLOVA_STREAM_TIMEOUT_SECONDS = max(20, _safe_int_env("CLOVA_STREAM_TIMEOUT_SECONDS", 60, 20))
 
 
 def _compact(value):
@@ -480,6 +483,168 @@ async def process_chat(request: ChatRequest):
         ai_confidence=confidence,
         ai_response=ai_answer,
         recommended_policies=[PolicyItem(**p) for p in matched_policies]
+    )
+
+
+def _sse_event(event_name, payload):
+    return (
+        f"event: {event_name}\n"
+        f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    )
+
+
+def _stream_content(event):
+    """Read both v1/v3 CLOVA streaming response shapes."""
+    if not isinstance(event, dict):
+        return ""
+    message = event.get("message")
+    if isinstance(message, dict) and isinstance(message.get("content"), str):
+        return message["content"]
+    result = event.get("result")
+    if isinstance(result, dict):
+        result_message = result.get("message")
+        if isinstance(result_message, dict) and isinstance(result_message.get("content"), str):
+            return result_message["content"]
+    return ""
+
+
+@router.post("/stream")
+async def process_chat_stream(request: ChatRequest):
+    """Stream chatbot tokens while keeping the existing JSON endpoint intact."""
+    message = request.user_message
+    member_id = request.member_id if isinstance(request.member_id, int) and request.member_id > 0 else None
+
+    async def event_generator():
+        yield _sse_event("status", {"stage": "searching"})
+
+        if not message or not message.strip():
+            yield _sse_event("error", {"message": "메시지를 입력해 주세요."})
+            return
+        if len(message) > MAX_MESSAGE_LENGTH:
+            yield _sse_event("error", {"message": f"질문이 너무 깁니다. {MAX_MESSAGE_LENGTH}자 이내로 요약해 주세요."})
+            return
+        if not embedder or (faiss_index is None and not refresh_policy_index_if_needed()):
+            yield _sse_event("error", {"message": "AI 엔진이 준비되지 않았습니다."})
+            return
+
+        try:
+            matched_policies = await run_in_threadpool(search_policies, message)
+            policies_str = build_policy_context(matched_policies)
+
+            past_messages = []
+            if db_engine and member_id is not None:
+                try:
+                    past_messages = await run_in_threadpool(load_chat_history, member_id)
+                except Exception as error:
+                    logger.error(f"히스토리 로드 실패: {error}")
+
+            system_prompt = build_system_prompt(policies_str, bool(past_messages))
+            clova_messages = [{"role": "system", "content": system_prompt}]
+            clova_messages.extend(past_messages)
+            clova_messages.append({"role": "user", "content": message})
+            headers = {
+                "Authorization": f"Bearer {CLOVA_STUDIO_API_KEY}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            }
+            payload = {
+                "messages": clova_messages,
+                "topP": 0.8,
+                "topK": 0,
+                "maxTokens": 500,
+                "temperature": 0.5,
+                "repeatPenalty": 5.0,
+            }
+
+            if not CLOVA_API_URL or not CLOVA_STUDIO_API_KEY:
+                yield _sse_event("error", {"message": "AI 챗봇 서버 설정이 완료되지 않았습니다."})
+                return
+
+            yield _sse_event("status", {"stage": "generating"})
+            client = await get_clova_client()
+            raw_parts = []
+            stream_timeout = httpx.Timeout(
+                float(CLOVA_STREAM_TIMEOUT_SECONDS),
+                connect=5.0,
+            )
+            async with client.stream(
+                "POST",
+                CLOVA_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=stream_timeout,
+            ) as response:
+                if response.status_code != 200:
+                    response_text = (await response.aread()).decode("utf-8", errors="replace")[:300]
+                    logger.error("CLOVA streaming error: %s - %s", response.status_code, response_text)
+                    yield _sse_event("error", {"message": "AI 서버 통신 중 오류가 발생했습니다."})
+                    return
+
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if not data or data == "[DONE]":
+                        continue
+                    try:
+                        event = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    token = _stream_content(event)
+                    if token:
+                        raw_parts.append(token)
+                        yield _sse_event("chunk", {"text": token})
+
+            raw_answer = "".join(raw_parts)
+            if not raw_answer.strip():
+                yield _sse_event("error", {"message": "AI 서버가 빈 답변을 반환했습니다."})
+                return
+
+            ai_answer = normalize_chatbot_text(raw_answer)
+            ai_answer = ensure_policy_link(ai_answer, matched_policies, message)
+            ai_answer = remove_application_method_sections(ai_answer)
+            if not ai_answer:
+                yield _sse_event("error", {"message": "AI 서버가 빈 답변을 반환했습니다."})
+                return
+
+            if db_engine and member_id is not None:
+                try:
+                    await run_in_threadpool(save_chat_history, member_id, message, ai_answer, matched_policies)
+                except Exception as error:
+                    logger.error(f"대화 기록 DB 저장 실패: {error}")
+
+            if len(past_messages) == 0 and ("어떤 정책" in ai_answer or "알려주시면" in ai_answer):
+                matched_policies = []
+                keyword = "알 수 없음"
+                confidence = "문맥 부족으로 검색 보류"
+            else:
+                keyword = matched_policies[0]["policy_name"] if matched_policies else "알 수 없음"
+                confidence = "RAG 시맨틱 매칭 성공" if matched_policies else "결과 없음"
+
+            yield _sse_event("done", {
+                "response": ai_answer,
+                "extracted_keyword": keyword,
+                "ai_confidence": confidence,
+                "recommended_policies": matched_policies,
+            })
+        except httpx.TimeoutException:
+            logger.error("CLOVA streaming response timeout")
+            yield _sse_event("error", {"message": "AI 응답 시간이 초과되었습니다."})
+        except httpx.HTTPError as error:
+            logger.error("CLOVA streaming request failed: %s", error)
+            yield _sse_event("error", {"message": "AI 서버에 연결할 수 없습니다."})
+        except Exception as error:
+            logger.error("스트리밍 챗봇 처리 실패: %s", error)
+            yield _sse_event("error", {"message": "AI 응답 생성 중 오류가 발생했습니다."})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 @router.get("/history/{member_id}", response_model=ChatHistoryResponse)

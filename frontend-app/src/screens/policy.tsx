@@ -14,6 +14,7 @@ import { normalizeChatbotText, removeApplicationMethodSections, splitChatbotLink
 import { LoadingDots } from '@/src/components/common/LoadingDots';
 
 const POLICY_DIRECTORY_URL = 'https://www.gov.kr/portal/rcvfvrSvc/main';
+const POLICY_CATEGORIES = ['생활비', '주거', '의료', '교육', '문화', '일자리', '복지'];
 
 function ChatbotReply({ text }: { text: string }) {
   const content = splitChatbotLinks(text).map((part, index) => {
@@ -91,6 +92,8 @@ export function PolicyScreen() {
   const [recommendedLoading, setRecommendedLoading] = useState(true);
   const [allPoliciesLoading, setAllPoliciesLoading] = useState(false);
   const [allPoliciesLoaded, setAllPoliciesLoaded] = useState(false);
+  const [loadedCategory, setLoadedCategory] = useState<string | null>(null);
+  const [allPoliciesError, setAllPoliciesError] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatPending, setChatPending] = useState(false);
   const [chatStarted, setChatStarted] = useState(false);
@@ -129,12 +132,12 @@ export function PolicyScreen() {
     }
   };
 
-  const categories = ['생활비', '주거', '의료', '교육', '문화', '일자리', '복지'];
-
   useEffect(() => {
     let mounted = true;
     setAllPolicies([]);
     setAllPoliciesLoaded(false);
+    setLoadedCategory(null);
+    setAllPoliciesError(null);
 
     async function loadRecommendedPolicies() {
       setRecommendedLoading(true);
@@ -162,25 +165,37 @@ export function PolicyScreen() {
   }, [authToken]);
 
   useEffect(() => {
-    if (activeTab !== 'category' || allPoliciesLoaded || allPoliciesLoading) {
+    const selectedCategory = selectedCategories[0] ?? '';
+    if (
+      activeTab !== 'category' ||
+      !selectedCategory ||
+      allPoliciesLoading ||
+      Boolean(allPoliciesError) ||
+      (allPoliciesLoaded && loadedCategory === selectedCategory)
+    ) {
       return;
     }
 
     let mounted = true;
     setAllPoliciesLoading(true);
+    setAllPoliciesError(null);
 
     async function loadAllPolicies() {
       try {
-        const allResult = await policyAPI.listPolicies(authToken ?? undefined);
+        const allResult = await policyAPI.listPolicies(authToken ?? undefined, selectedCategory);
         if (mounted) {
           setAllPolicies(allResult.data ?? []);
-          setAllPoliciesLoaded(true);
+          setAllPoliciesLoaded(!allResult.error);
+          setLoadedCategory(allResult.error ? null : selectedCategory);
+          setAllPoliciesError(allResult.error);
         }
       } catch (error) {
         console.warn('Policy list load failed:', error);
         if (mounted) {
           setAllPolicies([]);
-          setAllPoliciesLoaded(true);
+          setAllPoliciesLoaded(false);
+          setLoadedCategory(null);
+          setAllPoliciesError('정책 목록을 불러오지 못했습니다.');
         }
       } finally {
         if (mounted) {
@@ -193,7 +208,16 @@ export function PolicyScreen() {
     return () => {
       mounted = false;
     };
-  }, [activeTab, allPoliciesLoaded, allPoliciesLoading, authToken]);
+  }, [activeTab, allPoliciesLoaded, allPoliciesLoading, authToken, loadedCategory, selectedCategories]);
+
+  useEffect(() => {
+    if (activeTab !== 'category') return;
+    // Warm the small category responses in parallel. The API layer deduplicates
+    // overlapping requests and keeps the results for subsequent visits.
+    void Promise.all(POLICY_CATEGORIES.map((category) => policyAPI.listPolicies(authToken ?? undefined, category))).catch(() => {
+      // The selected category request still reports its own error in the UI.
+    });
+  }, [activeTab, authToken]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -226,9 +250,15 @@ export function PolicyScreen() {
   }, [normalizedQuery, recommendedPolicies]);
 
   const categoryPolicies = useMemo(() => {
-    if (!selectedCategories.length) return filteredPolicies;
+    if (!selectedCategories.length) return [];
     return filteredPolicies.filter((policy) => selectedCategories.includes(policy.category));
   }, [filteredPolicies, selectedCategories]);
+
+  const retryCategoryPolicies = () => {
+    setAllPoliciesLoaded(false);
+    setLoadedCategory(null);
+    setAllPoliciesError(null);
+  };
 
   const saveSearchHistory = async (queryText: string) => {
     if (!user?.id) {
@@ -303,24 +333,30 @@ export function PolicyScreen() {
     chatRequestLock.current = true;
     setChatPending(true);
     const nextMessages = [...messages, { sender: 'user' as const, text: trimmed }];
-    setMessages(nextMessages);
+    // Reserve the assistant bubble immediately so the first streamed token
+    // appears in place instead of moving the conversation unexpectedly.
+    setMessages([...nextMessages, { sender: 'bot', text: '' }]);
     setChatInput('');
     try {
       requestAnimationFrame(() => chatScrollRef.current?.scrollToEnd({ animated: false }));
-      const result = await policyAPI.askChatbot(
+      const result = await policyAPI.askChatbotStream(
         trimmed,
         nextMessages.map((chatMessage) => ({ role: chatMessage.sender, message: chatMessage.text })),
         authToken ?? undefined,
+        () => requestAnimationFrame(() => chatScrollRef.current?.scrollToEnd({ animated: false })),
       );
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'bot',
-          text: result.data?.response ?? result.error ?? '정책 챗봇 응답을 받을 수 없습니다.',
-        },
-      ]);
+      const responseText = result.data?.response ?? result.error ?? '정책 챗봇 응답을 받을 수 없습니다.';
+      setMessages((prev) => prev.map((item, index) =>
+        index === prev.length - 1 && item.sender === 'bot'
+          ? { ...item, text: responseText }
+          : item,
+      ));
     } catch {
-      setMessages(prev => [...prev, { sender: 'bot', text: '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.' }]);
+      setMessages(prev => prev.map((item, index) =>
+        index === prev.length - 1 && item.sender === 'bot'
+          ? { ...item, text: '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.' }
+          : item,
+      ));
     } finally {
       chatRequestLock.current = false;
       setChatPending(false);
@@ -409,12 +445,18 @@ export function PolicyScreen() {
             removeClippedSubviews
             ListHeaderComponent={
               <View style={styles.categoryGrid}>
-                {categories.map((category) => {
+                {POLICY_CATEGORIES.map((category) => {
                   const active = selectedCategories.includes(category);
                   return (
                     <Pressable
                       key={category}
-                      onPress={() => setSelectedCategories(active ? [] : [category])}
+                      onPress={() => {
+                        setSelectedCategories(active ? [] : [category]);
+                        setAllPolicies([]);
+                        setAllPoliciesLoaded(false);
+                        setLoadedCategory(null);
+                        setAllPoliciesError(null);
+                      }}
                       style={[styles.categoryButton, active && styles.categoryButtonActive]}>
                       <Text style={[styles.categoryButtonText, active && styles.categoryButtonTextActive]}>{category}</Text>
                     </Pressable>
@@ -429,6 +471,17 @@ export function PolicyScreen() {
               allPoliciesLoading ? (
                 <View style={styles.emptyStateCard}>
                   <Text style={styles.emptyStateTitle}>정책 목록을 불러오는 중이에요.</Text>
+                </View>
+              ) : allPoliciesError ? (
+                <View style={styles.emptyStateCard}>
+                  <Text style={styles.emptyStateTitle}>정책 목록을 불러오지 못했어요.</Text>
+                  <Text style={styles.emptyStateText}>{allPoliciesError}</Text>
+                  <AppButton label="다시 불러오기" variant="secondary" onPress={retryCategoryPolicies} />
+                </View>
+              ) : !selectedCategories.length ? (
+                <View style={styles.emptyStateCard}>
+                  <Text style={styles.emptyStateTitle}>카테고리를 선택해주세요.</Text>
+                  <Text style={styles.emptyStateText}>원하는 분야를 선택하면 해당 정책 목록이 표시됩니다.</Text>
                 </View>
               ) : (
                 <View style={styles.emptyStateCard}>
@@ -468,14 +521,11 @@ export function PolicyScreen() {
                 <View
                   key={`${message.sender}-${index}`}
                   style={[styles.chatBubble, message.sender === 'user' ? styles.chatUser : styles.chatBot]}>
-                  {message.sender === 'bot' ? <ChatbotReply text={removeApplicationMethodSections(normalizeChatbotText(message.text))} /> : (
+                  {message.sender === 'bot' ? (message.text ? <ChatbotReply text={removeApplicationMethodSections(normalizeChatbotText(message.text))} /> : <LoadingDots accessibilityLabel="나눔이가 답변을 작성하고 있어요" />) : (
                     <Text style={[styles.chatText, { color: '#fff' }]}>{message.text}</Text>
                   )}
                 </View>
               ))}
-              {chatPending && <View style={[styles.chatBubble, styles.chatBot]}>
-                <LoadingDots accessibilityLabel="나눔이가 답변을 작성하고 있어요" />
-              </View>}
             </ScrollView>
             <View style={styles.chatInputArea}>
               <View style={{ flex: 1 }}>

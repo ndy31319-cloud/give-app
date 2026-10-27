@@ -80,6 +80,12 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 type ApiResult<T> = Promise<{ data: T; error: string | null; errorCode?: string }>;
 const AI_IMAGE_REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_AI_IMAGE_TIMEOUT_MS || 45000);
+const CHATBOT_REQUEST_TIMEOUT_MS = Number(
+  process.env.EXPO_PUBLIC_CHATBOT_TIMEOUT_MS || 60000,
+);
+const POLICY_CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const policyCategoryCache = new Map<string, { data: Policy[]; expiresAt: number }>();
+const policyCategoryInFlight = new Map<string, Promise<{ data: Policy[]; error: string | null }>>();
 
 const knownProductCategoryIds = new Set([
   "가구",
@@ -1550,28 +1556,52 @@ export const chatAPI = {
 };
 
 export const policyAPI = {
-  async listPolicies(authToken?: string): ApiResult<Policy[]> {
-    const response = await requestEnvelope<{ policies?: any[] } | any[]>(
-      backendConfig.endpoints.policies,
-      {
-        headers: buildAuthHeaders(authToken),
-      },
-    );
-    if (response.error) {
-      return { data: [], error: response.error };
+  async listPolicies(authToken?: string, category?: string): ApiResult<Policy[]> {
+    const normalizedCategory = category?.trim();
+    const path = normalizedCategory
+      ? `${backendConfig.endpoints.policies}?category=${encodeURIComponent(normalizedCategory)}`
+      : backendConfig.endpoints.policies;
+    const cacheKey = normalizedCategory || '__all__';
+    if (normalizedCategory) {
+      const cached = policyCategoryCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return { data: cached.data, error: null };
+      }
+      const pending = policyCategoryInFlight.get(cacheKey);
+      if (pending) return pending;
     }
-    const policies = Array.isArray(response.data)
-      ? response.data
-      : Array.isArray(response.data?.policies)
-        ? response.data.policies
-        : null;
-    if (policies) {
-      return {
-        data: policies.map((policy) => mapBackendPolicy(policy)),
-        error: null,
-      };
+
+    const request = (async () => {
+      const response = await requestEnvelope<{ policies?: any[] } | any[]>(
+        path,
+        { headers: buildAuthHeaders(authToken) },
+      );
+      if (response.error) return { data: [], error: response.error };
+
+      const policies = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.policies)
+          ? response.data.policies
+          : null;
+      const mappedPolicies = policies ? policies.map((policy) => mapBackendPolicy(policy)) : [];
+      if (normalizedCategory && !response.error) {
+        policyCategoryCache.set(cacheKey, {
+          data: mappedPolicies,
+          expiresAt: Date.now() + POLICY_CATEGORY_CACHE_TTL_MS,
+        });
+      }
+      return { data: mappedPolicies, error: null };
+    })();
+
+    if (normalizedCategory) {
+      policyCategoryInFlight.set(cacheKey, request);
+      try {
+        return await request;
+      } finally {
+        policyCategoryInFlight.delete(cacheKey);
+      }
     }
-    return { data: [], error: null };
+    return request;
   },
 
   async listRecommended(authToken?: string): ApiResult<Policy[]> {
@@ -1647,6 +1677,130 @@ export const policyAPI = {
       },
       error: null,
     };
+  },
+
+  async askChatbotStream(
+    message: string,
+    conversationHistory: { role: "user" | "bot"; message: string }[],
+    authToken?: string,
+    onChunk?: (text: string) => void,
+  ): Promise<{
+    data: { response: string; suggestedPolicies: Policy[] } | null;
+    error: string | null;
+    errorCode?: string;
+  }> {
+    if (!isBackendEnabled()) {
+      return { data: null, error: null };
+    }
+
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeout = controller && Number.isFinite(CHATBOT_REQUEST_TIMEOUT_MS) && CHATBOT_REQUEST_TIMEOUT_MS > 0
+      ? setTimeout(() => controller.abort(), CHATBOT_REQUEST_TIMEOUT_MS)
+      : null;
+    let buffer = "";
+    let streamedResponse = "";
+    let finalPayload: any = null;
+    let streamError: string | null = null;
+
+    const handleEventBlock = (block: string) => {
+      let eventName = "message";
+      const dataLines: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+      }
+      if (dataLines.length === 0) return;
+
+      try {
+        const payload = JSON.parse(dataLines.join("\n"));
+        if (eventName === "chunk" && typeof payload.text === "string") {
+          streamedResponse += payload.text;
+          onChunk?.(payload.text);
+        } else if (eventName === "done") {
+          finalPayload = payload;
+        } else if (eventName === "error") {
+          streamError = String(payload.message || "AI 챗봇 응답을 받지 못했습니다.");
+        }
+      } catch {
+        // Ignore incomplete or non-JSON SSE frames. The final frame controls the result.
+      }
+    };
+
+    const consumeText = (text: string) => {
+      buffer += text.replace(/\r\n/g, "\n");
+      let separatorIndex = buffer.indexOf("\n\n");
+      while (separatorIndex >= 0) {
+        handleEventBlock(buffer.slice(0, separatorIndex));
+        buffer = buffer.slice(separatorIndex + 2);
+        separatorIndex = buffer.indexOf("\n\n");
+      }
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}${backendConfig.endpoints.policiesChatbot}/stream`, {
+        method: "POST",
+        headers: buildAuthHeaders(authToken, { "Content-Type": "application/json", Accept: "text/event-stream" }),
+        body: JSON.stringify({ message, conversationHistory }),
+        signal: controller?.signal,
+      });
+
+      if (!response.ok) {
+        const raw = await response.text().catch(() => "");
+        let messageText = `HTTP ${response.status}`;
+        try {
+          const parsed = JSON.parse(raw);
+          messageText = parsed.message || parsed.error || messageText;
+        } catch {
+          // Keep the HTTP status when the server did not return JSON.
+        }
+        return { data: null, error: messageText, errorCode: `HTTP_${response.status}` };
+      }
+
+      const reader = response.body?.getReader?.();
+      if (reader && typeof TextDecoder !== "undefined") {
+        const decoder = new TextDecoder();
+        while (true) {
+          const result = await reader.read();
+          if (result.done) break;
+          consumeText(decoder.decode(result.value, { stream: true }));
+        }
+        consumeText(decoder.decode());
+      } else {
+        // Older Expo runtimes may not expose ReadableStream. Keep the same endpoint
+        // as a safe non-progressive fallback instead of failing the chat request.
+        consumeText(await response.text());
+      }
+      if (buffer.trim()) handleEventBlock(buffer);
+
+      if (streamError) return { data: null, error: streamError, errorCode: "AI_STREAM_ERROR" };
+      const responseText = String(finalPayload?.response || streamedResponse || "").trim();
+      if (!responseText) {
+        return { data: null, error: "AI 챗봇 응답이 비어 있습니다.", errorCode: "EMPTY_AI_RESPONSE" };
+      }
+
+      return {
+        data: {
+          response: responseText,
+          suggestedPolicies: Array.isArray(finalPayload?.recommended_policies)
+            ? finalPayload.recommended_policies.map((policy: any) => mapBackendPolicy(policy))
+            : Array.isArray(finalPayload?.suggestedPolicies)
+              ? finalPayload.suggestedPolicies.map((policy: any) => mapBackendPolicy(policy))
+              : [],
+        },
+        error: null,
+      };
+    } catch (error) {
+      const isAbortError = error instanceof Error && error.name === "AbortError";
+      return {
+        data: null,
+        error: isAbortError
+          ? "AI 챗봇 응답이 지연되고 있습니다. 잠시 후 다시 시도해주세요."
+          : "AI 챗봇 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        errorCode: isAbortError ? "TIMEOUT" : "NETWORK",
+      };
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   },
 
   async listSearchHistory(memberId: string): ApiResult<SearchHistoryRecord[]> {
