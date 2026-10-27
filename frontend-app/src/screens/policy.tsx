@@ -208,7 +208,7 @@ export function PolicyScreen() {
     return () => {
       mounted = false;
     };
-  }, [activeTab, allPoliciesLoaded, allPoliciesLoading, authToken, loadedCategory, selectedCategories]);
+  }, [activeTab, allPoliciesError, allPoliciesLoaded, allPoliciesLoading, authToken, loadedCategory, selectedCategories]);
 
   useEffect(() => {
     if (activeTab !== 'category') return;

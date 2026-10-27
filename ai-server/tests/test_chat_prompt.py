@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core.chat_prompt import GOV24_POLICY_URL, build_policy_context, build_system_prompt, ensure_policy_link
+from core.chat_prompt import build_policy_context, build_system_prompt, ensure_policy_link
 from core.chat_text import remove_application_method_sections
 
 
@@ -30,17 +30,66 @@ class ChatPromptTest(unittest.TestCase):
 
         self.assertIn("첫 문장에서 사용자의 핵심 질문에 바로 답한다", prompt)
         self.assertIn("4~7개의 짧은 문장", prompt)
-        self.assertIn(f"정책 통합 확인: {GOV24_POLICY_URL}", prompt)
+        self.assertIn("정책 블록에 공식 URL이 없으면 링크를 지어내거나 공통 정부24 주소를 대신 붙이지 않는다", prompt)
         self.assertIn("새 링크를 지어내지 않는다", prompt)
         self.assertIn("별도의 '신청 방법' 또는 '신청방법' 섹션을 만들지 않는다", prompt)
 
     def test_policy_link_is_added_without_touching_locker_flow(self):
-        policy = [{"content": "", "ai_search_text": "", "official_url": ""}]
-        policy_answer = ensure_policy_link("신청 기준을 확인해 주세요.", policy, "의료비 지원 대상이 궁금해요")
+        policy = [{
+            "policy_name": "의료비 지원",
+            "content": "",
+            "ai_search_text": "",
+            "official_url": "https://example.org/medical",
+        }]
+        policy_answer = ensure_policy_link("의료비 지원의 신청 기준을 확인해 주세요.", policy, "의료비 지원 대상이 궁금해요")
         locker_answer = ensure_policy_link("인증 상태를 확인해 주세요.", policy, "QR 보관함 오류가 나요")
 
-        self.assertIn(GOV24_POLICY_URL, policy_answer)
-        self.assertNotIn(GOV24_POLICY_URL, locker_answer)
+        self.assertIn("https://example.org/medical", policy_answer)
+        self.assertNotIn("https://", locker_answer)
+
+    def test_link_follows_mentioned_policy_not_first_search_result(self):
+        policies = [
+            {
+                "policy_name": "청년 주거비 지원",
+                "official_url": "https://example.org/housing",
+            },
+            {
+                "policy_name": "긴급복지 생계 지원",
+                "official_url": "https://example.org/emergency",
+            },
+        ]
+        answer = ensure_policy_link(
+            "긴급복지 생계 지원은 위기 상황의 가구를 대상으로 합니다.",
+            policies,
+            "긴급복지 생계 지원이 궁금해요",
+        )
+
+        self.assertIn("https://example.org/emergency", answer)
+        self.assertNotIn("https://example.org/housing", answer)
+
+    def test_multiple_policies_use_best_ranked_policy_url_as_fallback(self):
+        policies = [
+            {"policy_name": "청년 주거비 지원", "official_url": "https://example.org/housing"},
+            {"policy_name": "청년 교통비 지원", "official_url": "https://example.org/transit"},
+        ]
+        answer = ensure_policy_link("지원 대상과 조건을 확인해 주세요.", policies, "청년 지원이 궁금해요")
+
+        self.assertIn("https://example.org/housing", answer)
+        self.assertNotIn("https://example.org/transit", answer)
+
+    def test_untrusted_url_is_removed_and_best_policy_url_is_added(self):
+        policies = [
+            {"policy_name": "청년 주거비 지원", "official_url": "https://example.org/housing"},
+            {"policy_name": "청년 교통비 지원", "official_url": "https://example.org/transit"},
+        ]
+        answer = ensure_policy_link(
+            "자세한 내용은 https://unrelated.example/wrong에서 확인하세요.",
+            policies,
+            "청년 지원이 궁금해요",
+        )
+
+        self.assertNotIn("unrelated.example", answer)
+        self.assertIn("https://example.org/housing", answer)
 
     def test_untrusted_answer_url_is_replaced_with_official_url(self):
         policy = [{

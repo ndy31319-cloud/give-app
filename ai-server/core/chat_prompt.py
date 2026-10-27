@@ -4,6 +4,8 @@ import re
 from typing import Any, Iterable
 
 
+# Kept for compatibility with older imports. It is intentionally not emitted
+# as a chatbot fallback URL because it is not tied to a specific policy.
 GOV24_POLICY_URL = "https://www.gov.kr/portal/rcvfvrSvc/main"
 _URL_PATTERN = re.compile(r"(?:https?://|www\.)[^\s<>\"')]+", re.IGNORECASE)
 
@@ -36,6 +38,48 @@ def _policy_urls(policies: Iterable[dict[str, Any]]) -> list[str]:
                 if url and url not in urls:
                     urls.append(url)
     return urls
+
+
+def _normalize_policy_name(value: Any) -> str:
+    """Normalize a policy title for exact, punctuation-insensitive matching."""
+    return re.sub(r"[^0-9a-z가-힣]+", "", str(value or "").lower())
+
+
+def _select_policy_for_link(
+    policies: list[dict[str, Any]],
+    answer: str,
+    user_message: str,
+) -> dict[str, Any] | None:
+    """Choose the policy whose URL may be shown in the final answer.
+
+    The RAG result can contain several related policies. Prefer an exact
+    policy-title mention in the answer or question; when the model does not
+    repeat a title, the first RAG result is the best-ranked policy and is used
+    as the deterministic fallback. URLs are historical policy references too,
+    so an expired application does not make the policy URL invalid.
+    """
+    if not policies:
+        return None
+
+    normalized_answer = _normalize_policy_name(answer)
+    normalized_message = _normalize_policy_name(user_message)
+
+    answer_matches = []
+    message_matches = []
+    for index, policy in enumerate(policies):
+        title = _normalize_policy_name(policy.get("policy_name"))
+        if not title:
+            continue
+        if title in normalized_answer:
+            answer_matches.append((len(title), index, policy))
+        if title in normalized_message:
+            message_matches.append((len(title), index, policy))
+
+    if answer_matches:
+        return max(answer_matches, key=lambda item: (item[0], -item[1]))[2]
+    if message_matches:
+        return max(message_matches, key=lambda item: (item[0], -item[1]))[2]
+    return policies[0]
 
 
 def _strip_untrusted_urls(answer: str, allowed_urls: Iterable[str]) -> str:
@@ -90,24 +134,24 @@ def build_policy_context(policies: Iterable[dict[str, Any]]) -> str:
 
 
 def ensure_policy_link(answer: str, policies: Iterable[dict[str, Any]], user_message: str) -> str:
-    """Keep policy answers actionable without adding links to technical flows."""
+    """Keep only the URL belonging to the policy actually being discussed."""
     if not answer.strip():
         return answer
-    policy_urls = _policy_urls(policies)
-    answer = _strip_untrusted_urls(answer, policy_urls)
-    answer_urls = extract_urls(answer)
-    if answer_urls and any(_normalized_url(url) in {_normalized_url(item) for item in policy_urls} for url in answer_urls):
-        return answer
-    if policy_urls:
-        return f"{answer.rstrip()}\n공식 확인 링크: {policy_urls[0]}"
 
     technical_terms = (
         "qr", "큐알", "보관함", "수령", "나눔", "인증", "토큰", "비밀번호",
         "앱", "로그인", "오류", "네트워크", "카메라", "게시글",
     )
-    if policies and not any(term in user_message.lower() for term in technical_terms):
-        return f"{answer.rstrip()}\n정책 통합 확인: {GOV24_POLICY_URL}"
-    return answer
+    if any(term in user_message.lower() for term in technical_terms):
+        return _strip_untrusted_urls(answer, [])
+
+    policy_list = list(policies)
+    primary_policy = _select_policy_for_link(policy_list, answer, user_message)
+    primary_urls = _policy_urls([primary_policy])
+    cleaned_answer = _strip_untrusted_urls(answer, [])
+    if not primary_urls:
+        return cleaned_answer
+    return f"{cleaned_answer.rstrip()}\n공식 확인 링크: {primary_urls[0]}"
 
 
 def build_system_prompt(policy_context: str, has_history: bool) -> str:
@@ -138,14 +182,13 @@ def build_system_prompt(policy_context: str, has_history: bool) -> str:
 7. 정책에 기준일·신청기간·지역이 제공되면 반드시 함께 안내한다. 제공되지 않은 값은 추측하지 않는다.
 
 [링크 원칙]
-1. 검색 정책 정보에 '공식 확인 링크'가 있으면, 정책을 설명한 답변 마지막에 정확히 한 개를 다음 형식으로 포함한다.
+1. 답변에서 특정 정책을 설명할 때는 그 정책 블록에 속한 '공식 확인 링크'만 마지막에 정확히 한 개를 포함한다.
 공식 확인 링크: https://example.com
-2. 신청 URL이 있으면 답변 마지막에 다음 형식으로 한 개를 포함한다.
-신청 링크: https://example.com
+2. 신청 URL이 있더라도 다른 정책의 URL과 섞지 말고, 현재 설명하는 정책에 속한 주소만 사용한다.
 3. 제공된 링크를 바꾸거나 새 링크를 지어내지 않는다.
-4. 정책 안내인데 공식 확인 링크가 없으면, 필요한 경우에만 다음 검증된 링크를 한 번 제공한다.
-정책 통합 확인: {GOV24_POLICY_URL}
-5. QR, 보관함, 수령 승인, 개인정보, 긴급상황 질문에는 정부24 링크를 기계적으로 붙이지 않는다.
+4. 여러 정책이 검색됐고 답변에 정책명이 없으면 검색 결과 첫 번째 정책의 공식 URL을 사용한다.
+5. 정책 블록에 공식 URL이 없으면 링크를 지어내거나 공통 정부24 주소를 대신 붙이지 않는다.
+6. QR, 보관함, 수령 승인, 개인정보, 긴급상황 질문에는 정책 URL을 기계적으로 붙이지 않는다.
 
 [신청 절차 출력 제한]
 별도의 '신청 방법' 또는 '신청방법' 섹션을 만들지 않는다. 신청 절차의 상세 설명 대신 검증된 신청 링크가 있으면 링크만 안내한다.

@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from core.chat_text import remove_application_method_sections
+from core.chat_prompt import ensure_policy_link
 from routes.post_router import router as post_router
 
 
@@ -180,7 +181,7 @@ except Exception as error:
                 "현재 질문만으로는 바로 연결되는 정책을 좁히기 어렵습니다.\n"
                 "생활비, 주거, 의료, 교육, 일자리처럼 필요한 지원 분야와 거주 지역, 가구 상황을 함께 알려주시면 더 정확하게 찾아볼게요.\n"
                 "이미 알고 계신 정책명이 있다면 그 이름을 보내주시면 지원 대상과 지원 내용을 중심으로 정리해 드리겠습니다.\n"
-                "더 다양한 맞춤형 혜택은 정부24 혜택알리미(https://www.gov.kr/portal/rcvfvrSvc/main)에서 확인하실 수 있습니다."
+                "정책명이 확인되면 해당 정책의 공식 안내 주소를 기준으로 안내해 드리겠습니다."
             )
 
         lines = ["질문 내용 기준으로는 아래 정책을 먼저 확인해 보시면 좋겠습니다."]
@@ -212,8 +213,8 @@ except Exception as error:
             if application_url and application_url != official_url:
                 lines.append(f"신청 링크: {application_url}")
         lines.append("정확한 가능 여부는 소득, 거주지, 가구 구성, 현재 위기 상황 같은 세부 조건에 따라 달라질 수 있습니다.")
-        lines.append("더 다양한 맞춤형 혜택은 정부24 혜택알리미(https://www.gov.kr/portal/rcvfvrSvc/main)에서 지역별, 대상별로 상세하게 검색해 보실 수 있습니다.")
-        return remove_application_method_sections("\n".join(lines))
+        answer = ensure_policy_link("\n".join(lines), policies, message)
+        return remove_application_method_sections(answer)
 
     def _format_user_context(user: dict[str, Any] | None) -> str:
         if not user:
@@ -298,8 +299,8 @@ except Exception as error:
 4. 여러 정책이 있으면 최대 3개까지 비교해서 어떤 상황에 맞는지 설명해.
 5. 질문이 모호하면 무작정 정책을 나열하지 말고, 확인해야 할 정보도 함께 물어봐.
 6. 마크다운 표, 굵게 표시, 별표 기호는 쓰지 말고 일반 문장과 줄바꿈만 사용해.
-7. 제공된 공식 확인 링크나 신청 링크가 있으면 링크만 답변 마지막에 정확히 포함해.
-8. 마지막에는 정부24 보조금 안내 사이트 링크를 자연스럽게 안내해.
+7. 제공된 링크는 현재 설명하는 정책 블록에 속한 주소만 답변 마지막에 포함해.
+8. 여러 정책을 나열하더라도 답변의 첫 번째 정책에 해당하는 공식 URL을 마지막에 포함해.
 
 [회원 참고 정보]
 {_format_user_context(user)}
@@ -333,6 +334,7 @@ except Exception as error:
         answer = (response.text or "").strip()
         if _is_low_detail_answer(answer, policies):
             return _fallback_answer(message, policies)
+        answer = ensure_policy_link(answer, policies, message)
         return remove_application_method_sections(answer)
 
     fallback_chat_router = APIRouter()
