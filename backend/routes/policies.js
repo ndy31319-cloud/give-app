@@ -13,6 +13,30 @@ let policyColumnsCache = null;
 const AI_REQUEST_TIMEOUT_MS = 30000;
 const AI_RETRY_DELAY_MS = 1000;
 
+const boundedIntegerEnv = (name, fallback, minimum, maximum) => {
+  const parsed = Number(process.env[name]);
+  if (!Number.isInteger(parsed)) {
+    return fallback;
+  }
+  return Math.min(maximum, Math.max(minimum, parsed));
+};
+
+const POLICY_CACHE_TTL_MS = boundedIntegerEnv(
+  "POLICY_CACHE_TTL_MS",
+  60000,
+  10000,
+  3600000,
+);
+const POLICY_CHAT_CONTEXT_LIMIT = boundedIntegerEnv(
+  "POLICY_CHAT_CONTEXT_LIMIT",
+  40,
+  10,
+  100,
+);
+const policyListCache = new Map();
+const recommendationCache = new Map();
+const recommendationInFlight = new Map();
+
 const resolveAiChatbotApiUrls = () => {
   const explicitUrls = splitConfiguredUrls(process.env.AI_CHATBOT_URL);
 
@@ -123,7 +147,16 @@ const normalizeOptionalNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const loadPolicies = async (category) => {
+const loadPolicies = async (category, options = {}) => {
+  const limit = Number.isInteger(options.limit) && options.limit > 0
+    ? Math.min(options.limit, 1200)
+    : null;
+  const cacheKey = `${category || "*"}:${limit || "all"}`;
+  const cached = policyListCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.rows;
+  }
+
   const policyColumns = await loadPolicyColumns();
   const params = [];
   let whereClause = "";
@@ -133,16 +166,27 @@ const loadPolicies = async (category) => {
     params.push(category);
   }
 
+  const limitClause = limit ? "LIMIT ?" : "";
+  if (limit) {
+    params.push(limit);
+  }
+
   const [rows] = await db.query(
     `SELECT policy_id, policy_name, category, agency, summary, content,
             target_criteria, support_detail, ai_search_text,
             ${policyMetadataSelect(policyColumns)}
      FROM POLICY
      ${whereClause}
-     ORDER BY policy_id ASC`,
+     ORDER BY policy_id ASC
+     ${limitClause}`,
     params,
   );
 
+  // Keep the full list cache small enough for a long-running Render process.
+  policyListCache.set(cacheKey, {
+    rows,
+    expiresAt: Date.now() + POLICY_CACHE_TTL_MS,
+  });
   return rows;
 };
 
@@ -258,6 +302,46 @@ const loadRecommendedPolicies = async (member) => {
   return rows;
 };
 
+const loadRecommendedPoliciesCached = async (memberId) => {
+  const cacheKey = String(memberId);
+  const cached = recommendationCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.rows;
+  }
+
+  const pending = recommendationInFlight.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const request = (async () => {
+    const member = await loadCurrentMember(memberId);
+    if (!member) {
+      const error = new Error("회원 정보를 찾을 수 없습니다.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    let rows = await loadRecommendedPolicies(member);
+    if (!rows.length) {
+      rows = (await loadPolicies(null, { limit: 10 })).slice(0, 10);
+    }
+
+    recommendationCache.set(cacheKey, {
+      rows,
+      expiresAt: Date.now() + POLICY_CACHE_TTL_MS,
+    });
+    return rows;
+  })();
+
+  recommendationInFlight.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    recommendationInFlight.delete(cacheKey);
+  }
+};
+
 router.get("/", authenticateToken, async (req, res) => {
   const category = String(req.query.category || "").trim();
 
@@ -314,20 +398,7 @@ router.get("/recommended", authenticateToken, async (req, res) => {
   const memberId = getMemberId(req);
 
   try {
-    const member = await loadCurrentMember(memberId);
-
-    if (!member) {
-      return res.status(404).json({
-        message: "회원 정보를 찾을 수 없습니다.",
-      });
-    }
-
-    let policies = await loadRecommendedPolicies(member);
-
-    if (!policies.length) {
-      policies = await loadPolicies();
-      policies = policies.slice(0, 10);
-    }
+    const policies = await loadRecommendedPoliciesCached(memberId);
 
     return res.status(200).json({
       policies: policies.map(toPolicyResponse),
@@ -455,7 +526,10 @@ router.post(["/chatbot", "/chat"], authenticateToken, async (req, res) => {
   try {
     const [member, policies] = await Promise.all([
       loadCurrentMember(memberId),
-      loadPolicies(),
+      // The full policy directory is not needed by the normal RAG chatbot.
+      // Keep a small fallback context for deployments where the RAG router is
+      // unavailable, instead of serializing all policy rows on every message.
+      loadPolicies(null, { limit: POLICY_CHAT_CONTEXT_LIMIT }),
     ]);
     const policyContext = policies.map(toPolicyResponse);
     const aiResult = await callAiChatbot({

@@ -88,6 +88,9 @@ export function PolicyScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [allPolicies, setAllPolicies] = useState<Policy[]>([]);
   const [recommendedPolicies, setRecommendedPolicies] = useState<Policy[]>([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(true);
+  const [allPoliciesLoading, setAllPoliciesLoading] = useState(false);
+  const [allPoliciesLoaded, setAllPoliciesLoaded] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatPending, setChatPending] = useState(false);
   const [chatStarted, setChatStarted] = useState(false);
@@ -130,24 +133,67 @@ export function PolicyScreen() {
 
   useEffect(() => {
     let mounted = true;
+    setAllPolicies([]);
+    setAllPoliciesLoaded(false);
 
-    async function loadPolicies() {
-      const [allResult, recommendedResult] = await Promise.all([
-        policyAPI.listPolicies(authToken ?? undefined),
-        policyAPI.listRecommended(authToken ?? undefined),
-      ]);
-
-      if (mounted) {
-        setAllPolicies(allResult.data ?? []);
-        setRecommendedPolicies(recommendedResult.data ?? []);
+    async function loadRecommendedPolicies() {
+      setRecommendedLoading(true);
+      try {
+        const recommendedResult = await policyAPI.listRecommended(authToken ?? undefined);
+        if (mounted) {
+          setRecommendedPolicies(recommendedResult.data ?? []);
+        }
+      } catch (error) {
+        console.warn('Policy recommendation load failed:', error);
+        if (mounted) {
+          setRecommendedPolicies([]);
+        }
+      } finally {
+        if (mounted) {
+          setRecommendedLoading(false);
+        }
       }
     }
 
-    loadPolicies();
+    void loadRecommendedPolicies();
     return () => {
       mounted = false;
     };
   }, [authToken]);
+
+  useEffect(() => {
+    if (activeTab !== 'category' || allPoliciesLoaded || allPoliciesLoading) {
+      return;
+    }
+
+    let mounted = true;
+    setAllPoliciesLoading(true);
+
+    async function loadAllPolicies() {
+      try {
+        const allResult = await policyAPI.listPolicies(authToken ?? undefined);
+        if (mounted) {
+          setAllPolicies(allResult.data ?? []);
+          setAllPoliciesLoaded(true);
+        }
+      } catch (error) {
+        console.warn('Policy list load failed:', error);
+        if (mounted) {
+          setAllPolicies([]);
+          setAllPoliciesLoaded(true);
+        }
+      } finally {
+        if (mounted) {
+          setAllPoliciesLoading(false);
+        }
+      }
+    }
+
+    void loadAllPolicies();
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, allPoliciesLoaded, allPoliciesLoading, authToken]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -336,10 +382,16 @@ export function PolicyScreen() {
               <PolicyCard {...policy} onPress={() => handlePolicyPress(policy, 'recommended')} />
             )}
             ListEmptyComponent={
-              <View style={styles.emptyStateCard}>
-                <Text style={styles.emptyStateTitle}>추천 정책이 아직 없어요.</Text>
-                <Text style={styles.emptyStateText}>조건에 맞는 정책이 없거나 아직 불러오지 못했습니다.</Text>
-              </View>
+              recommendedLoading ? (
+                <View style={styles.emptyStateCard}>
+                  <Text style={styles.emptyStateTitle}>추천 정책을 불러오는 중이에요.</Text>
+                </View>
+              ) : (
+                <View style={styles.emptyStateCard}>
+                  <Text style={styles.emptyStateTitle}>추천 정책이 아직 없어요.</Text>
+                  <Text style={styles.emptyStateText}>조건에 맞는 정책이 없거나 아직 불러오지 못했습니다.</Text>
+                </View>
+              )
             }
           />
         ) : null}
@@ -374,10 +426,16 @@ export function PolicyScreen() {
               <PolicyCard {...policy} onPress={() => handlePolicyPress(policy, 'browse')} />
             )}
             ListEmptyComponent={
-              <View style={styles.emptyStateCard}>
-                <Text style={styles.emptyStateTitle}>조건에 맞는 정책이 없습니다.</Text>
-                <Text style={styles.emptyStateText}>검색어나 카테고리를 바꿔보세요.</Text>
-              </View>
+              allPoliciesLoading ? (
+                <View style={styles.emptyStateCard}>
+                  <Text style={styles.emptyStateTitle}>정책 목록을 불러오는 중이에요.</Text>
+                </View>
+              ) : (
+                <View style={styles.emptyStateCard}>
+                  <Text style={styles.emptyStateTitle}>조건에 맞는 정책이 없습니다.</Text>
+                  <Text style={styles.emptyStateText}>검색어나 카테고리를 바꿔보세요.</Text>
+                </View>
+              )
             }
           />
         ) : null}

@@ -35,6 +35,19 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 파일 용량 제한 (5MB)
 
 
+def _bounded_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(value, maximum))
+
+
+IMAGE_MAX_SIDE = _bounded_int_env("AI_IMAGE_MAX_SIDE", 768, 512, 1536)
+IMAGE_JPEG_QUALITY = _bounded_int_env("AI_IMAGE_JPEG_QUALITY", 78, 60, 92)
+IMAGE_MAX_OUTPUT_TOKENS = _bounded_int_env("AI_IMAGE_MAX_OUTPUT_TOKENS", 450, 256, 900)
+
+
 # -------------------------------------------------------------------
 # 2. JSON 정제 함수
 # -------------------------------------------------------------------
@@ -145,11 +158,12 @@ async def generate_market_post(
             # 🔥 이미지 압축 및 리사이징 로직 추가
             img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
             
-            # Preserve enough visual detail for item recognition while keeping upload size small.
-            img.thumbnail((1024, 1024))
+            # Keep enough detail for item recognition while reducing upload and
+            # vision-token latency on mobile photos.
+            img.thumbnail((IMAGE_MAX_SIDE, IMAGE_MAX_SIDE))
 
             output = io.BytesIO()
-            img.save(output, format="JPEG", quality=85, optimize=True)
+            img.save(output, format="JPEG", quality=IMAGE_JPEG_QUALITY, optimize=True)
             compressed_bytes = output.getvalue()
 
             image_parts.append(
@@ -172,7 +186,9 @@ async def generate_market_post(
             model=GEMINI_MODEL,
             contents=contents,
             config=types.GenerateContentConfig(
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                max_output_tokens=IMAGE_MAX_OUTPUT_TOKENS,
+                temperature=0.2,
             )
         )
 

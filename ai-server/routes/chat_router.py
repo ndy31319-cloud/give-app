@@ -1,4 +1,5 @@
 # 챗 봇 
+import asyncio
 import logging
 import numpy as np
 import faiss
@@ -7,6 +8,7 @@ import re
 import threading
 import time
 import httpx  
+from collections import OrderedDict
 
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -76,6 +78,16 @@ POLICY_INDEX_TTL_SECONDS = _safe_int_env("POLICY_INDEX_TTL_SECONDS", 300, 0)
 POLICY_EMBED_BATCH_SIZE = max(1, _safe_int_env("POLICY_EMBED_BATCH_SIZE", 32, 1))
 policy_index_built_at = 0.0
 policy_index_lock = threading.Lock()
+policy_refresh_thread = None
+policy_refresh_thread_lock = threading.Lock()
+policy_query_cache = OrderedDict()
+policy_query_cache_lock = threading.Lock()
+clova_client = None
+clova_client_lock = asyncio.Lock()
+
+CHAT_HISTORY_LIMIT = max(2, _safe_int_env("AI_CHAT_HISTORY_LIMIT", 6, 2))
+POLICY_QUERY_CACHE_TTL_SECONDS = _safe_int_env("POLICY_QUERY_CACHE_TTL_SECONDS", 120, 0)
+POLICY_QUERY_CACHE_MAX_SIZE = max(16, _safe_int_env("POLICY_QUERY_CACHE_MAX_SIZE", 128, 16))
 
 
 def _compact(value):
@@ -126,7 +138,7 @@ def _policy_lexical_score(policy, message, terms):
     return score
 
 def build_faiss_index():
-    global POLICIES_CACHE, faiss_index, policy_index_built_at
+    global POLICIES_CACHE, faiss_index, policy_index_built_at, policy_query_cache
     if not db_engine or not embedder:
         return False
     if not policy_index_lock.acquire(blocking=False):
@@ -192,6 +204,8 @@ def build_faiss_index():
         POLICIES_CACHE = next_policies
         faiss_index = next_index
         policy_index_built_at = time.time()
+        with policy_query_cache_lock:
+            policy_query_cache = OrderedDict()
         logger.info("✅ FAISS 인덱싱 완료: %s개 정책, 의미 검색 상위 %s개 + 키워드 보정", len(POLICIES_CACHE), SEMANTIC_TOP_K)
         return True
     except Exception as e:
@@ -205,13 +219,38 @@ def refresh_policy_index_if_needed():
     if not POLICIES_CACHE or faiss_index is None:
         return build_faiss_index()
     if POLICY_INDEX_TTL_SECONDS and time.time() - policy_index_built_at >= POLICY_INDEX_TTL_SECONDS:
-        return build_faiss_index()
+        schedule_policy_index_refresh()
     return True
+
+
+def schedule_policy_index_refresh():
+    """Refresh an expired index in the background while serving the old index."""
+    global policy_refresh_thread
+    with policy_refresh_thread_lock:
+        if policy_refresh_thread and policy_refresh_thread.is_alive():
+            return
+        policy_refresh_thread = threading.Thread(
+            target=build_faiss_index,
+            name="policy-index-refresh",
+            daemon=True,
+        )
+        policy_refresh_thread.start()
 
 
 def search_policies(message):
     if not refresh_policy_index_if_needed():
         return []
+
+    cache_key = _normalize_search_text(message)
+    if POLICY_QUERY_CACHE_TTL_SECONDS and cache_key:
+        with policy_query_cache_lock:
+            cached = policy_query_cache.get(cache_key)
+            if cached and time.time() - cached[0] < POLICY_QUERY_CACHE_TTL_SECONDS:
+                policy_query_cache.move_to_end(cache_key)
+                return cached[1]
+            if cached:
+                policy_query_cache.pop(cache_key, None)
+
     user_vector = embedder.encode([message])
     semantic_k = min(SEMANTIC_TOP_K, len(POLICIES_CACHE))
     distances, indices = faiss_index.search(np.array(user_vector).astype("float32"), semantic_k)
@@ -229,7 +268,70 @@ def search_policies(message):
         if lexical or rank is not None:
             scored.append((lexical + semantic, lexical, -(rank if rank is not None else semantic_k + 1), policy))
     scored.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
-    return [item[3] for item in scored[:RETURN_TOP_K]]
+    result = [item[3] for item in scored[:RETURN_TOP_K]]
+    if POLICY_QUERY_CACHE_TTL_SECONDS and cache_key:
+        with policy_query_cache_lock:
+            policy_query_cache[cache_key] = (time.time(), result)
+            policy_query_cache.move_to_end(cache_key)
+            while len(policy_query_cache) > POLICY_QUERY_CACHE_MAX_SIZE:
+                policy_query_cache.popitem(last=False)
+    return result
+
+
+def load_chat_history(member_id):
+    if not db_engine or member_id is None:
+        return []
+
+    with db_engine.connect() as conn:
+        rows = conn.execute(
+            text(f"""
+                SELECT role, content FROM (
+                    SELECT role, content, created_at
+                    FROM AI_CHAT_HISTORY
+                    WHERE member_id = :mid
+                    ORDER BY created_at DESC
+                    LIMIT {CHAT_HISTORY_LIMIT}
+                ) AS recent_history
+                ORDER BY created_at ASC
+            """),
+            {"mid": member_id},
+        ).fetchall()
+    return [{"role": row[0], "content": row[1]} for row in rows]
+
+
+def save_chat_history(member_id, message, answer, matched_policies):
+    if not db_engine or member_id is None:
+        return
+
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO AI_CHAT_HISTORY (member_id, role, content) VALUES (:mid, 'user', :msg)"),
+            {"mid": member_id, "msg": message},
+        )
+        conn.execute(
+            text("INSERT INTO AI_CHAT_HISTORY (member_id, role, content) VALUES (:mid, 'assistant', :ans)"),
+            {"mid": member_id, "ans": answer},
+        )
+        if matched_policies:
+            conn.execute(
+                text("""
+                    INSERT INTO SEARCH_HISTORY (member_id, query_text, search_date, recommend_policy_id)
+                    VALUES (:mid, :msg, NOW(), :pid)
+                """),
+                {"mid": member_id, "msg": message, "pid": matched_policies[0]["policy_id"]},
+            )
+
+
+async def get_clova_client():
+    global clova_client
+    if clova_client is None:
+        async with clova_client_lock:
+            if clova_client is None:
+                clova_client = httpx.AsyncClient(
+                    timeout=httpx.Timeout(20.0, connect=5.0),
+                    limits=httpx.Limits(max_keepalive_connections=4, max_connections=8),
+                )
+    return clova_client
 
 build_faiss_index()
 
@@ -280,26 +382,12 @@ async def process_chat(request: ChatRequest):
     # 검색 레코드에 포함된 공식 URL만 모델에 전달한다.
     policies_str = build_policy_context(matched_policies)
 
-    # [Step 2 & 기능 2] DB에서 이전 대화 기록(Context) 가져오기
+    # [Step 2 & 기능 2] DB에서 이전 대화 기록(Context) 가져오기.
+    # SQLAlchemy is synchronous, so keep it off FastAPI's event loop.
     past_messages = []
     if db_engine and member_id is not None:
         try:
-            with db_engine.connect() as conn:
-                rows = conn.execute(
-                    text("""
-                        SELECT role, content FROM (
-                            SELECT role, content, created_at
-                            FROM AI_CHAT_HISTORY
-                            WHERE member_id = :mid
-                            ORDER BY created_at DESC
-                            LIMIT 10
-                        ) AS recent_history
-                        ORDER BY created_at ASC
-                    """),
-                    {"mid": member_id}
-                ).fetchall()
-                for r in rows:
-                    past_messages.append({"role": r[0], "content": r[1]})
+            past_messages = await run_in_threadpool(load_chat_history, member_id)
         except Exception as e:
             logger.error(f"히스토리 로드 실패: {e}")
 
@@ -328,27 +416,27 @@ async def process_chat(request: ChatRequest):
         if not CLOVA_API_URL or not CLOVA_STUDIO_API_KEY:
             raise HTTPException(status_code=503, detail="AI 챗봇 서버 설정이 완료되지 않았습니다.")
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(CLOVA_API_URL, headers=headers, json=payload, timeout=20.0)
-            
-            if response.status_code != 200:
-                logger.error(f"CLOVA 통신 에러: {response.status_code} - {response.text}")
-                raise HTTPException(status_code=503, detail="AI 서버 통신 중 오류가 발생했습니다.")
-                
-            try:
-                res_json = response.json()
-                raw_answer = res_json["result"]["message"]["content"]
-                if not isinstance(raw_answer, str) or not raw_answer.strip():
-                    raise ValueError("AI response content is empty")
-            except (ValueError, KeyError, TypeError) as parse_error:
-                logger.error(f"CLOVA 응답 파싱 실패: {parse_error}")
-                raise HTTPException(status_code=502, detail="AI 응답 형식이 올바르지 않습니다.")
+        client = await get_clova_client()
+        response = await client.post(CLOVA_API_URL, headers=headers, json=payload)
 
-            ai_answer = normalize_chatbot_text(raw_answer)
-            ai_answer = ensure_policy_link(ai_answer, matched_policies, message)
-            ai_answer = remove_application_method_sections(ai_answer)
-            if not ai_answer:
-                raise HTTPException(status_code=502, detail="AI 서버가 빈 답변을 반환했습니다.")
+        if response.status_code != 200:
+            logger.error(f"CLOVA 통신 에러: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=503, detail="AI 서버 통신 중 오류가 발생했습니다.")
+
+        try:
+            res_json = response.json()
+            raw_answer = res_json["result"]["message"]["content"]
+            if not isinstance(raw_answer, str) or not raw_answer.strip():
+                raise ValueError("AI response content is empty")
+        except (ValueError, KeyError, TypeError) as parse_error:
+            logger.error(f"CLOVA 응답 파싱 실패: {parse_error}")
+            raise HTTPException(status_code=502, detail="AI 응답 형식이 올바르지 않습니다.")
+
+        ai_answer = normalize_chatbot_text(raw_answer)
+        ai_answer = ensure_policy_link(ai_answer, matched_policies, message)
+        ai_answer = remove_application_method_sections(ai_answer)
+        if not ai_answer:
+            raise HTTPException(status_code=502, detail="AI 서버가 빈 답변을 반환했습니다.")
 
     except HTTPException:
         raise
@@ -366,25 +454,13 @@ async def process_chat(request: ChatRequest):
     # [Step 4 & 기능 3] DB에 현재 대화 저장 (사용자 질문 + AI 답변)
     if db_engine and member_id is not None:
         try:
-            with db_engine.begin() as conn:
-                conn.execute(
-                    text("INSERT INTO AI_CHAT_HISTORY (member_id, role, content) VALUES (:mid, 'user', :msg)"),
-                    {"mid": member_id, "msg": message}
-                )
-                conn.execute(
-                    text("INSERT INTO AI_CHAT_HISTORY (member_id, role, content) VALUES (:mid, 'assistant', :ans)"),
-                    {"mid": member_id, "ans": ai_answer}
-                )
-                
-                # 기존 검색 기록(SEARCH_HISTORY) 저장 로직
-                if matched_policies:
-                    conn.execute(
-                        text("""
-                            INSERT INTO SEARCH_HISTORY (member_id, query_text, search_date, recommend_policy_id)
-                            VALUES (:mid, :msg, NOW(), :pid)
-                        """),
-                        {"mid": member_id, "msg": message, "pid": matched_policies[0]["policy_id"]}
-                    )
+            await run_in_threadpool(
+                save_chat_history,
+                member_id,
+                message,
+                ai_answer,
+                matched_policies,
+            )
         except Exception as e:
             logger.error(f"❌ 대화 기록 DB 저장 실패: {e}")
 
