@@ -11,6 +11,7 @@ import { policyAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { Policy } from '@/src/types/app';
 import { normalizeChatbotText, removeApplicationMethodSections, splitChatbotLinks } from '@/src/utils/chatText';
+import { normalizePolicyUrl } from '@/src/utils/policyLinks';
 import { LoadingDots } from '@/src/components/common/LoadingDots';
 
 const POLICY_DIRECTORY_URL = 'https://www.gov.kr/portal/rcvfvrSvc/main';
@@ -19,7 +20,7 @@ const POLICY_CATEGORIES = ['생활비', '주거', '의료', '교육', '문화', 
 function ChatbotReply({ text }: { text: string }) {
   const content = splitChatbotLinks(text).map((part, index) => {
     if (!part.target) return part.text;
-    const target = part.target;
+    const target = normalizePolicyUrl(part.target) || part.target;
     return (
       <Text
         key={`link-${index}`}
@@ -254,6 +255,10 @@ export function PolicyScreen() {
     return filteredPolicies.filter((policy) => selectedCategories.includes(policy.category));
   }, [filteredPolicies, selectedCategories]);
 
+  const selectedPolicyUrl = normalizePolicyUrl(
+    selectedPolicy?.officialUrl || selectedPolicy?.applicationUrl || POLICY_DIRECTORY_URL,
+  ) || POLICY_DIRECTORY_URL;
+
   const retryCategoryPolicies = () => {
     setAllPoliciesLoaded(false);
     setLoadedCategory(null);
@@ -302,8 +307,8 @@ export function PolicyScreen() {
   };
 
   const openPolicyLink = async (url: string, label: string) => {
-    const normalized = url.trim();
-    if (!/^https?:\/\//i.test(normalized)) {
+    const normalized = normalizePolicyUrl(url);
+    if (!normalized) {
       Alert.alert('링크를 열 수 없어요', `${label} 주소가 올바르지 않습니다.`);
       return;
     }
@@ -561,14 +566,11 @@ export function PolicyScreen() {
             ) : null}
             <Pressable
               accessibilityRole="link"
-              onPress={() => void openPolicyLink(
-                selectedPolicy.officialUrl || selectedPolicy.applicationUrl || POLICY_DIRECTORY_URL,
-                '공식',
-              )}
+              onPress={() => void openPolicyLink(selectedPolicyUrl, '공식')}
               style={styles.policyLinkButton}>
               <Text style={styles.policyLinkText}>공식 안내 및 신청 경로 열기</Text>
               <Text style={styles.policyLinkUrl} numberOfLines={2}>
-                {selectedPolicy.officialUrl || selectedPolicy.applicationUrl || POLICY_DIRECTORY_URL}
+                {selectedPolicyUrl}
               </Text>
             </Pressable>
             <AppButton label="닫기" onPress={() => setSelectedPolicy(null)} />
