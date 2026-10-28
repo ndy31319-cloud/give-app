@@ -17,6 +17,9 @@ function loadHandler(query) {
       resolveAiEndpointUrls: () => [],
       splitConfiguredUrls: () => [],
     },
+    '../lib/policyLinks': {
+      enrichPolicyLinks: policies => policies,
+    },
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../routes/policies.js'), 'utf8'), {
     require: name => { assert.ok(name in dependencies, name); return dependencies[name]; },

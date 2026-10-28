@@ -6,10 +6,12 @@ const {
   resolveAiEndpointUrls,
   splitConfiguredUrls,
 } = require("../lib/aiServerUrls");
+const { enrichPolicyLinks } = require("../lib/policyLinks");
 
 const router = express.Router();
 let memberColumnsCache = null;
 let policyColumnsCache = null;
+let policyLinkCache = null;
 
 const boundedIntegerEnv = (name, fallback, minimum, maximum) => {
   const parsed = Number(process.env[name]);
@@ -131,6 +133,35 @@ const loadPolicyColumns = async () => {
   return policyColumnsCache;
 };
 
+const loadPolicyLinkRows = async () => {
+  if (policyLinkCache && policyLinkCache.expiresAt > Date.now()) {
+    return policyLinkCache.rows;
+  }
+
+  const columns = await loadPolicyColumns();
+  const urlFields = [
+    columns.has("official_url") ? "official_url" : "NULL AS official_url",
+    columns.has("application_url") ? "application_url" : "NULL AS application_url",
+  ];
+  const [rows] = await db.query(
+    `SELECT policy_id, policy_name, agency, ${urlFields.join(", ")}
+     FROM POLICY
+     WHERE ${columns.has("official_url") ? "official_url IS NOT NULL" : "1 = 0"}
+        OR ${columns.has("application_url") ? "application_url IS NOT NULL" : "1 = 0"}`,
+  );
+
+  policyLinkCache = {
+    rows,
+    expiresAt: Date.now() + POLICY_CACHE_TTL_MS,
+  };
+  return rows;
+};
+
+const enrichPolicies = async (policies) => {
+  const linkRows = await loadPolicyLinkRows();
+  return enrichPolicyLinks(policies, linkRows);
+};
+
 const policyMetadataSelect = (columns, tableAlias = "") =>
   POLICY_METADATA_FIELDS.map(([column, alias]) => {
     const qualified = tableAlias ? `${tableAlias}.${column}` : column;
@@ -207,12 +238,14 @@ const loadPolicies = async (category, options = {}) => {
     params,
   );
 
+  const enrichedRows = await enrichPolicies(rows);
+
   // Keep the full list cache small enough for a long-running Render process.
   policyListCache.set(cacheKey, {
-    rows,
+    rows: enrichedRows,
     expiresAt: Date.now() + POLICY_CACHE_TTL_MS,
   });
-  return rows;
+  return enrichedRows;
 };
 
 const loadMemberColumns = async () => {
@@ -352,11 +385,12 @@ const loadRecommendedPoliciesCached = async (memberId) => {
       rows = (await loadPolicies(null, { limit: 10 })).slice(0, 10);
     }
 
+    const enrichedRows = await enrichPolicies(rows);
     recommendationCache.set(cacheKey, {
-      rows,
+      rows: enrichedRows,
       expiresAt: Date.now() + POLICY_CACHE_TTL_MS,
     });
-    return rows;
+    return enrichedRows;
   })();
 
   recommendationInFlight.set(cacheKey, request);
