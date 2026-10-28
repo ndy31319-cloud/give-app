@@ -286,13 +286,13 @@ export function SplashScreen() {
       Animated.sequence([
         Animated.timing(logoScale, {
           toValue: 1.08,
-          duration: 650,
+          duration: 330,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(logoScale, {
           toValue: 0.96,
-          duration: 650,
+          duration: 330,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -309,7 +309,7 @@ export function SplashScreen() {
 
     const timer = setTimeout(() => {
       router.replace(isAuthenticated ? '/(tabs)' : '/login');
-    }, 1600);
+    }, 900);
 
     return () => {
       clearTimeout(timer);
