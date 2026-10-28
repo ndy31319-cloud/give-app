@@ -86,6 +86,7 @@ policy_query_cache = OrderedDict()
 policy_query_cache_lock = threading.Lock()
 clova_client = None
 clova_client_lock = asyncio.Lock()
+background_history_tasks = set()
 
 CHAT_HISTORY_LIMIT = max(2, _safe_int_env("AI_CHAT_HISTORY_LIMIT", 6, 2))
 POLICY_QUERY_CACHE_TTL_SECONDS = _safe_int_env("POLICY_QUERY_CACHE_TTL_SECONDS", 120, 0)
@@ -95,6 +96,14 @@ CLOVA_STREAM_TIMEOUT_SECONDS = max(20, _safe_int_env("CLOVA_STREAM_TIMEOUT_SECON
 
 def _compact(value):
     return " ".join(str(value or "").split())
+
+
+def _format_created_at(value):
+    if value is None:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    return str(value)
 
 
 def _policy_search_text(policy):
@@ -321,8 +330,33 @@ def save_chat_history(member_id, message, answer, matched_policies):
                     INSERT INTO SEARCH_HISTORY (member_id, query_text, search_date, recommend_policy_id)
                     VALUES (:mid, :msg, NOW(), :pid)
                 """),
-                {"mid": member_id, "msg": message, "pid": matched_policies[0]["policy_id"]},
+            {"mid": member_id, "msg": message, "pid": matched_policies[0]["policy_id"]},
             )
+
+
+async def save_chat_history_in_background(member_id, message, answer, matched_policies):
+    """Persist chat history without delaying the stream's final event."""
+    try:
+        await run_in_threadpool(
+            save_chat_history,
+            member_id,
+            message,
+            answer,
+            matched_policies,
+        )
+    except Exception as error:
+        # Chat persistence is useful but must not turn a completed AI answer
+        # into a visible timeout or an error state.
+        logger.error(f"대화 기록 백그라운드 저장 실패: {error}")
+
+
+def schedule_chat_history_save(member_id, message, answer, matched_policies):
+    """Retain the task until the optional history write has completed."""
+    task = asyncio.create_task(
+        save_chat_history_in_background(member_id, message, answer, matched_policies)
+    )
+    background_history_tasks.add(task)
+    task.add_done_callback(background_history_tasks.discard)
 
 
 async def get_clova_client():
@@ -498,14 +532,41 @@ def _stream_content(event):
     if not isinstance(event, dict):
         return ""
     message = event.get("message")
-    if isinstance(message, dict) and isinstance(message.get("content"), str):
-        return message["content"]
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part or "")
+                for part in content
+            )
     result = event.get("result")
     if isinstance(result, dict):
         result_message = result.get("message")
-        if isinstance(result_message, dict) and isinstance(result_message.get("content"), str):
-            return result_message["content"]
+        if isinstance(result_message, dict):
+            content = result_message.get("content")
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                return "".join(
+                    part.get("text", "") if isinstance(part, dict) else str(part or "")
+                    for part in content
+                )
     return ""
+
+
+def _stream_delta(previous: str, incoming: str) -> str:
+    """Normalize providers that emit either deltas or cumulative content."""
+    if not incoming:
+        return ""
+    if not previous:
+        return incoming
+    if incoming == previous or previous.endswith(incoming):
+        return ""
+    if incoming.startswith(previous):
+        return incoming[len(previous):]
+    return incoming
 
 
 @router.post("/stream")
@@ -590,7 +651,8 @@ async def process_chat_stream(request: ChatRequest):
                         event = json.loads(data)
                     except json.JSONDecodeError:
                         continue
-                    token = _stream_content(event)
+                    incoming = _stream_content(event)
+                    token = _stream_delta("".join(raw_parts), incoming)
                     if token:
                         raw_parts.append(token)
                         yield _sse_event("chunk", {"text": token})
@@ -607,12 +669,6 @@ async def process_chat_stream(request: ChatRequest):
                 yield _sse_event("error", {"message": "AI 서버가 빈 답변을 반환했습니다."})
                 return
 
-            if db_engine and member_id is not None:
-                try:
-                    await run_in_threadpool(save_chat_history, member_id, message, ai_answer, matched_policies)
-                except Exception as error:
-                    logger.error(f"대화 기록 DB 저장 실패: {error}")
-
             if len(past_messages) == 0 and ("어떤 정책" in ai_answer or "알려주시면" in ai_answer):
                 matched_policies = []
                 keyword = "알 수 없음"
@@ -620,6 +676,11 @@ async def process_chat_stream(request: ChatRequest):
             else:
                 keyword = matched_policies[0]["policy_name"] if matched_policies else "알 수 없음"
                 confidence = "RAG 시맨틱 매칭 성공" if matched_policies else "결과 없음"
+
+            if db_engine and member_id is not None:
+                # Start persistence before yielding the final event. The task
+                # runs independently, so the client does not wait for MySQL.
+                schedule_chat_history_save(member_id, message, ai_answer, matched_policies)
 
             yield _sse_event("done", {
                 "response": ai_answer,
@@ -672,7 +733,7 @@ async def get_chat_history(member_id: int):
                 chat_history.append({
                     "role": r[0],
                     "content": r[1],
-                    "created_at": r[2].strftime("%Y-%m-%d %H:%M:%S") if r[2] else ""
+                    "created_at": _format_created_at(r[2]),
                 })
 
         return ChatHistoryResponse(member_id=member_id, history=chat_history)

@@ -45,7 +45,8 @@ def _bounded_int_env(name: str, default: int, minimum: int, maximum: int) -> int
 
 IMAGE_MAX_SIDE = _bounded_int_env("AI_IMAGE_MAX_SIDE", 768, 512, 1536)
 IMAGE_JPEG_QUALITY = _bounded_int_env("AI_IMAGE_JPEG_QUALITY", 78, 60, 92)
-IMAGE_MAX_OUTPUT_TOKENS = _bounded_int_env("AI_IMAGE_MAX_OUTPUT_TOKENS", 450, 256, 900)
+IMAGE_MAX_OUTPUT_TOKENS = _bounded_int_env("AI_IMAGE_MAX_OUTPUT_TOKENS", 600, 256, 900)
+IMAGE_THINKING_BUDGET = _bounded_int_env("AI_IMAGE_THINKING_BUDGET", 0, 0, 1024)
 
 
 # -------------------------------------------------------------------
@@ -53,16 +54,36 @@ IMAGE_MAX_OUTPUT_TOKENS = _bounded_int_env("AI_IMAGE_MAX_OUTPUT_TOKENS", 450, 25
 # -------------------------------------------------------------------
 def clean_and_parse_json(text: str) -> dict:
     """Gemini가 뱉어내는 JSON을 안전하게 딕셔너리로 파싱합니다."""
-    text = text.strip()
-    if text.startswith("```json"):
-        text = text[7:]
-    if text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
-    text = text.strip()
+    cleaned = str(text or "").strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
 
-    data = json.loads(text)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as first_error:
+        # Some compatible model responses add a short sentence before or
+        # after the JSON despite response_mime_type=json. Recover the first
+        # complete object/array instead of turning a usable result into 502.
+        decoder = json.JSONDecoder()
+        data = None
+        for marker in ("{", "["):
+            start = cleaned.find(marker)
+            while start >= 0:
+                try:
+                    data, _ = decoder.raw_decode(cleaned[start:])
+                    break
+                except json.JSONDecodeError:
+                    start = cleaned.find(marker, start + 1)
+            if data is not None:
+                break
+        if data is None:
+            raise first_error
+
     if isinstance(data, list):
         if len(data) > 0:
             if not isinstance(data[0], dict):
@@ -181,15 +202,24 @@ async def generate_market_post(
         prompt = build_prompt(item_name)
         contents = image_parts + [types.Part.from_text(text=prompt)]
 
+        generation_config = {
+            "response_mime_type": "application/json",
+            "max_output_tokens": IMAGE_MAX_OUTPUT_TOKENS,
+            "temperature": 0.2,
+        }
+        # Older google-genai versions may not expose ThinkingConfig. Keep the
+        # endpoint usable after a teammate installs the documented dependency
+        # set without requiring an exact SDK patch version.
+        if hasattr(types, "ThinkingConfig"):
+            generation_config["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=IMAGE_THINKING_BUDGET,
+            )
+
         response = await run_in_threadpool(
             client.models.generate_content,
             model=GEMINI_MODEL,
             contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                max_output_tokens=IMAGE_MAX_OUTPUT_TOKENS,
-                temperature=0.2,
-            )
+            config=types.GenerateContentConfig(**generation_config),
         )
 
         if not response.text:

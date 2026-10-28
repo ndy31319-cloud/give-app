@@ -11,11 +11,13 @@ import { policyAPI } from '@/src/services/api';
 import { colors, radius, spacing } from '@/src/theme/colors';
 import { Policy } from '@/src/types/app';
 import { normalizeChatbotText, removeApplicationMethodSections, splitChatbotLinks } from '@/src/utils/chatText';
-import { normalizePolicyUrl } from '@/src/utils/policyLinks';
+import { normalizePolicyUrl, resolvePolicyUrl } from '@/src/utils/policyLinks';
 import { LoadingDots } from '@/src/components/common/LoadingDots';
+import { AiProgressModal } from '@/src/components/common/AiProgressModal';
+import { scheduleUiTask, waitForUiFrame } from '@/src/utils/ui';
 
-const POLICY_DIRECTORY_URL = 'https://www.gov.kr/portal/rcvfvrSvc/main';
 const POLICY_CATEGORIES = ['생활비', '주거', '의료', '교육', '문화', '일자리', '복지'];
+const CHAT_PROGRESS_STEPS = ['질문을 분석 중', '관련 정책 검색 중', '나눔이 답변을 작성 중'];
 
 function ChatbotReply({ text }: { text: string }) {
   const content = splitChatbotLinks(text).map((part, index) => {
@@ -97,13 +99,25 @@ export function PolicyScreen() {
   const [allPoliciesError, setAllPoliciesError] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [chatPending, setChatPending] = useState(false);
+  const [chatProgressVisible, setChatProgressVisible] = useState(false);
+  const [chatProgressStep, setChatProgressStep] = useState(0);
   const [chatStarted, setChatStarted] = useState(false);
   const [chatResetting, setChatResetting] = useState(false);
   const chatResetLock = useRef(false);
   const chatRequestLock = useRef(false);
+  const chatRequestId = useRef(0);
+  const screenMounted = useRef(true);
   const chatScrollRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<{ sender: 'user' | 'bot'; text: string }[]>([]);
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
+
+  useEffect(() => {
+    screenMounted.current = true;
+    return () => {
+      screenMounted.current = false;
+      chatRequestId.current += 1;
+    };
+  }, []);
 
   const resetChat = async (start: boolean) => {
     if (chatRequestLock.current || chatResetLock.current) return;
@@ -255,9 +269,11 @@ export function PolicyScreen() {
     return filteredPolicies.filter((policy) => selectedCategories.includes(policy.category));
   }, [filteredPolicies, selectedCategories]);
 
-  const selectedPolicyUrl = normalizePolicyUrl(
-    selectedPolicy?.officialUrl || selectedPolicy?.applicationUrl || POLICY_DIRECTORY_URL,
-  ) || POLICY_DIRECTORY_URL;
+  const selectedPolicyUrl = resolvePolicyUrl(
+    selectedPolicy?.officialUrl,
+    selectedPolicy?.applicationUrl,
+    selectedPolicy?.title,
+  );
 
   const retryCategoryPolicies = () => {
     setAllPoliciesLoaded(false);
@@ -307,16 +323,14 @@ export function PolicyScreen() {
   };
 
   const openPolicyLink = async (url: string, label: string) => {
-    const normalized = normalizePolicyUrl(url);
+    const normalized = resolvePolicyUrl(url, null, selectedPolicy?.title);
     if (!normalized) {
       Alert.alert('링크를 열 수 없어요', `${label} 주소가 올바르지 않습니다.`);
       return;
     }
-    const supported = await Linking.canOpenURL(normalized).catch(() => false);
-    if (!supported) {
-      Alert.alert('링크를 열 수 없어요', '브라우저에서 주소를 확인해주세요.');
-      return;
-    }
+    // canOpenURL can return false on a device whose URL-scheme allowlist is
+    // incomplete even though HTTPS links are still openable. Try the actual
+    // open operation so the user gets Safari/Universal Link fallback.
     await Linking.openURL(normalized).catch(() =>
       Alert.alert('링크를 열 수 없어요', '잠시 후 다시 시도해주세요.'),
     );
@@ -336,20 +350,45 @@ export function PolicyScreen() {
 
     Keyboard.dismiss();
     chatRequestLock.current = true;
+    const requestId = ++chatRequestId.current;
+    const isCurrentRequest = () => screenMounted.current && chatRequestId.current === requestId;
     setChatPending(true);
+    setChatProgressVisible(true);
+    setChatProgressStep(0);
     const nextMessages = [...messages, { sender: 'user' as const, text: trimmed }];
     // Reserve the assistant bubble immediately so the first streamed token
     // appears in place instead of moving the conversation unexpectedly.
     setMessages([...nextMessages, { sender: 'bot', text: '' }]);
     setChatInput('');
     try {
-      requestAnimationFrame(() => chatScrollRef.current?.scrollToEnd({ animated: false }));
+      await waitForUiFrame();
+      if (!isCurrentRequest()) return;
+      setChatProgressStep(1);
+      scheduleUiTask(() => {
+        if (isCurrentRequest()) chatScrollRef.current?.scrollToEnd({ animated: false });
+      });
       const result = await policyAPI.askChatbotStream(
         trimmed,
         nextMessages.map((chatMessage) => ({ role: chatMessage.sender, message: chatMessage.text })),
         authToken ?? undefined,
-        () => requestAnimationFrame(() => chatScrollRef.current?.scrollToEnd({ animated: false })),
+        (chunk) => {
+          if (!isCurrentRequest()) return;
+          if (chunk.trim()) {
+            setChatProgressStep(2);
+            // Once the first token arrives, let the user see the live answer.
+            setChatProgressVisible(false);
+            setMessages((prev) => prev.map((item, index) =>
+              index === prev.length - 1 && item.sender === 'bot'
+                ? { ...item, text: `${item.text}${chunk}` }
+                : item,
+            ));
+          }
+          scheduleUiTask(() => {
+            if (isCurrentRequest()) chatScrollRef.current?.scrollToEnd({ animated: false });
+          });
+        },
       );
+      if (!isCurrentRequest()) return;
       const responseText = result.data?.response ?? result.error ?? '정책 챗봇 응답을 받을 수 없습니다.';
       setMessages((prev) => prev.map((item, index) =>
         index === prev.length - 1 && item.sender === 'bot'
@@ -357,14 +396,18 @@ export function PolicyScreen() {
           : item,
       ));
     } catch {
+      if (!isCurrentRequest()) return;
       setMessages(prev => prev.map((item, index) =>
         index === prev.length - 1 && item.sender === 'bot'
           ? { ...item, text: '답변을 받지 못했어요. 잠시 후 다시 시도해주세요.' }
           : item,
       ));
     } finally {
-      chatRequestLock.current = false;
-      setChatPending(false);
+      if (isCurrentRequest()) {
+        chatRequestLock.current = false;
+        setChatPending(false);
+        setChatProgressVisible(false);
+      }
     }
   };
 
@@ -566,17 +609,23 @@ export function PolicyScreen() {
             ) : null}
             <Pressable
               accessibilityRole="link"
-              onPress={() => void openPolicyLink(selectedPolicyUrl, '공식')}
+              onPress={() => selectedPolicyUrl && void openPolicyLink(selectedPolicyUrl, '공식')}
               style={styles.policyLinkButton}>
               <Text style={styles.policyLinkText}>공식 안내 및 신청 경로 열기</Text>
               <Text style={styles.policyLinkUrl} numberOfLines={2}>
-                {selectedPolicyUrl}
+                {selectedPolicyUrl || '정부24에서 정책명을 검색할 수 없습니다.'}
               </Text>
             </Pressable>
             <AppButton label="닫기" onPress={() => setSelectedPolicy(null)} />
           </ScrollView>
         ) : null}
       </AppModal>
+      <AiProgressModal
+        visible={chatProgressVisible}
+        title="정책 정보를 확인하고 있어요"
+        steps={CHAT_PROGRESS_STEPS}
+        activeStep={chatProgressStep}
+      />
     </AppScreen>
   );
 }

@@ -30,7 +30,7 @@ class ChatPromptTest(unittest.TestCase):
 
         self.assertIn("첫 문장에서 사용자의 핵심 질문에 바로 답한다", prompt)
         self.assertIn("4~7개의 짧은 문장", prompt)
-        self.assertIn("정책 블록에 공식 URL이 없으면 링크를 지어내거나 공통 정부24 주소를 대신 붙이지 않는다", prompt)
+        self.assertIn("해당 정책명으로 좁힌 정부24 검색 링크를 사용한다", prompt)
         self.assertIn("새 링크를 지어내지 않는다", prompt)
         self.assertIn("별도의 '신청 방법' 또는 '신청방법' 섹션을 만들지 않는다", prompt)
 
@@ -108,6 +108,17 @@ class ChatPromptTest(unittest.TestCase):
         )
         self.assertIn("https://www.gov.kr/portal/rcvfvrSvc/dtlEx/123", mixed)
         self.assertNotIn("invalid.example", mixed)
+
+    def test_missing_policy_url_uses_title_scoped_government24_search(self):
+        answer = ensure_policy_link(
+            "기초생활보장 생계급여의 세부 조건을 확인해 주세요.",
+            [{"policy_name": "기초생활보장 생계급여", "official_url": None, "application_url": None}],
+            "기초생활보장 생계급여가 궁금해요",
+        )
+        self.assertIn(
+            "https://www.gov.kr/search?srchTxt=%EA%B8%B0%EC%B4%88%EC%83%9D%ED%99%9C%EB%B3%B4%EC%9E%A5%20%EC%83%9D%EA%B3%84%EA%B8%89%EC%97%AC",
+            answer,
+        )
 
     def test_chatbot_application_method_section_is_removed(self):
         answer = "정책 요약입니다.\n신청 방법: 주민센터에서 신청하세요.\n주의할 점입니다."

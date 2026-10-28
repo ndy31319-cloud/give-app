@@ -20,6 +20,7 @@ import { AppScreen } from "@/src/components/common/AppScreen";
 import { AppTextField } from "@/src/components/common/AppTextField";
 import { PostCard } from "@/src/components/common/PostCard";
 import { PostPhotoGallery } from "@/src/components/common/PostPhotoGallery";
+import { AiProgressModal } from "@/src/components/common/AiProgressModal";
 import { LoadingDots } from "@/src/components/common/LoadingDots";
 import { useAppContext } from "@/src/context/AppContext";
 import { catalogAPI, notificationAPI, postAPI } from "@/src/services/api";
@@ -45,6 +46,7 @@ import {
 import { getPostStatusLabel, isOpenPostStatus } from "@/src/utils/post";
 import { formatTimeAgo } from "@/src/utils/time";
 import { validateRequired } from "@/src/utils/validation";
+import { waitForUiFrame } from "@/src/utils/ui";
 
 type HomeStatusFilter = "active" | "kiosk" | "completed";
 
@@ -81,6 +83,11 @@ type LockerPickupRequestForPost = {
 } | null;
 
 const MAX_POST_IMAGES = 5;
+const AI_IMAGE_PROGRESS_STEPS = [
+  "유해물품 검증 중",
+  "물건의 종류 파악 중",
+  "물품 게시물 생성 중",
+];
 
 function getLockerPickupRequestId(item: LockerPickupRequestForPost) {
   return item?.pickupId || item?.pickup_id || null;
@@ -1224,6 +1231,8 @@ export function WriteFormScreen() {
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [aiProgressStep, setAiProgressStep] = useState(0);
+  const analysisRequestId = useRef(0);
   const [imageConfirmed, setImageConfirmed] = useState(false);
   const [manualImageConfirmation, setManualImageConfirmation] = useState(false);
   const [imageAnalysisError, setImageAnalysisError] = useState<string | null>(null);
@@ -1281,21 +1290,82 @@ export function WriteFormScreen() {
       return;
     }
 
+    const requestId = ++analysisRequestId.current;
+    const isCurrentRequest = () => analysisRequestId.current === requestId;
+
     setSelectedImages(images);
     setAiAnalysis(null);
     setImageConfirmed(false);
     setManualImageConfirmation(false);
     setImageAnalysisError(null);
     setChecking(true);
-    let result;
+    setAiProgressStep(0);
     try {
-      result = await postAPI.checkHarmfulItem(
+      const result = await postAPI.checkHarmfulItem(
         images,
         { title: formData.title, description: formData.description },
         authToken ?? undefined,
       );
+      if (!isCurrentRequest()) return;
+      setAiProgressStep(1);
+      await waitForUiFrame();
+      if (!isCurrentRequest()) return;
+      if (!result.data) {
+        const message =
+          result.error ?? "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.";
+        if (canProceedWithoutAi(result.errorCode)) {
+          confirmImagesManually(
+            `${message} 직접 확인 후 게시글을 작성할 수 있습니다.`,
+          );
+          Alert.alert(
+            "AI 판독 실패",
+            "AI가 사진을 판독하지 못해 직접 작성 모드로 전환했습니다. 사진과 내용을 확인한 뒤 등록해주세요.",
+          );
+          return;
+        }
+
+        setImageAnalysisError(message);
+        Alert.alert(
+          "AI 판독 실패",
+          message,
+        );
+        return;
+      }
+
+      setAiProgressStep(2);
+      await waitForUiFrame();
+      if (!isCurrentRequest()) return;
+      if (result.data.isHarmful) {
+        setImageAnalysisError(
+          result.data.reason ?? "정책상 등록이 제한된 품목입니다. 사진을 확인해주세요.",
+        );
+        Alert.alert(
+          "유해물품으로 나눔하실 수 없습니다!",
+          result.data.reason ?? "정책상 등록이 제한된 품목입니다.",
+        );
+        return;
+      }
+
+      if (result.data.isSameItem === false) {
+        setImageAnalysisError(
+          result.data.reason ?? "같은 물품의 사진인지 확인할 수 없습니다.",
+        );
+        Alert.alert(
+          "AI 사진 판독 실패",
+          result.data.reason ??
+            "동일한 물품 사진인지 확인할 수 없습니다. 다른 사진으로 다시 시도해주세요.",
+        );
+        return;
+      }
+
+      const analysis = result.data;
+      setSkipImage(false);
+      setAiAnalysis(analysis);
+      setImageAnalysisError(null);
+      setManualImageConfirmation(false);
+      setImageConfirmed(false);
     } catch {
-      setChecking(false);
+      if (!isCurrentRequest()) return;
       confirmImagesManually(
         "AI 검사 중 오류가 발생해 직접 확인 모드로 전환했습니다. 사진과 내용을 확인한 뒤 게시글을 작성해주세요.",
       );
@@ -1303,61 +1373,12 @@ export function WriteFormScreen() {
         "AI 판독 실패",
         "AI 검사 중 오류가 발생해 직접 작성으로 진행할 수 있게 열어두었습니다.",
       );
-      return;
-    }
-    setChecking(false);
-
-    if (!result.data) {
-      const message =
-        result.error ?? "AI 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.";
-      if (canProceedWithoutAi(result.errorCode)) {
-        confirmImagesManually(
-          `${message} 직접 확인 후 게시글을 작성할 수 있습니다.`,
-        );
-        Alert.alert(
-          "AI 판독 실패",
-          "AI가 사진을 판독하지 못해 직접 작성 모드로 전환했습니다. 사진과 내용을 확인한 뒤 등록해주세요.",
-        );
-        return;
+    } finally {
+      // Close the progress overlay on both success and every failure path.
+      if (isCurrentRequest()) {
+        setChecking(false);
       }
-
-      setImageAnalysisError(message);
-      Alert.alert(
-        "AI 판독 실패",
-        message,
-      );
-      return;
     }
-
-    if (result.data.isHarmful) {
-      setImageAnalysisError(
-        result.data.reason ?? "정책상 등록이 제한된 품목입니다. 사진을 확인해주세요.",
-      );
-      Alert.alert(
-        "유해물품으로 나눔하실 수 없습니다!",
-        result.data.reason ?? "정책상 등록이 제한된 품목입니다.",
-      );
-      return;
-    }
-
-    if (result.data.isSameItem === false) {
-      setImageAnalysisError(
-        result.data.reason ?? "같은 물품의 사진인지 확인할 수 없습니다.",
-      );
-      Alert.alert(
-        "AI 사진 판독 실패",
-        result.data.reason ??
-          "동일한 물품 사진인지 확인할 수 없습니다. 다른 사진으로 다시 시도해주세요.",
-      );
-      return;
-    }
-
-    const analysis = result.data;
-    setSkipImage(false);
-    setAiAnalysis(analysis);
-    setImageAnalysisError(null);
-    setManualImageConfirmation(false);
-    setImageConfirmed(false);
   };
 
   const handleChooseImage = async (source: "camera" | "gallery") => {
@@ -1398,6 +1419,8 @@ export function WriteFormScreen() {
   };
 
   const handleSkipImage = () => {
+    analysisRequestId.current += 1;
+    setChecking(false);
     setSelectedImages([]);
     setAiAnalysis(null);
     setImageAnalysisError(null);
@@ -1412,6 +1435,7 @@ export function WriteFormScreen() {
   };
 
   const handleRemoveImage = (uri: string) => {
+    analysisRequestId.current += 1;
     const remainingImages = selectedImages.filter((image) => image.uri !== uri);
     setImageConfirmed(false);
     setAiAnalysis(null);
@@ -1419,6 +1443,7 @@ export function WriteFormScreen() {
     setManualImageConfirmation(false);
 
     if (!remainingImages.length) {
+      setChecking(false);
       setSelectedImages([]);
       return;
     }
@@ -2027,6 +2052,12 @@ export function WriteFormScreen() {
         visible={sourceModalOpen}
         onClose={() => setSourceModalOpen(false)}
         onSelect={handleChooseImage}
+      />
+      <AiProgressModal
+        visible={checking}
+        title="사진을 안전하게 확인하고 있어요"
+        steps={AI_IMAGE_PROGRESS_STEPS}
+        activeStep={aiProgressStep}
       />
     </AppScreen>
   );

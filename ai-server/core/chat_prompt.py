@@ -2,11 +2,13 @@
 
 import re
 from typing import Any, Iterable
+from urllib.parse import quote
 
 
 # Kept for compatibility with older imports. It is intentionally not emitted
-# as a chatbot fallback URL because it is not tied to a specific policy.
+# as a generic fallback URL because it is not tied to a specific policy.
 GOV24_POLICY_URL = "https://www.gov.kr/portal/rcvfvrSvc/main"
+GOV24_SEARCH_URL = "https://www.gov.kr/search"
 _URL_PATTERN = re.compile(r"(?:https?://|www\.)[^\s<>\"')]+", re.IGNORECASE)
 
 
@@ -30,13 +32,23 @@ def _normalized_url(value: Any) -> str:
 
 
 def _policy_urls(policies: Iterable[dict[str, Any]]) -> list[str]:
-    """Return only URLs explicitly stored as official/application links."""
+    """Return a policy-specific official URL, with a title-scoped fallback."""
     urls: list[str] = []
     for policy in policies:
+        policy_urls: list[str] = []
         for key in ("official_url", "application_url"):
             for url in extract_urls(policy.get(key)):
-                if url and url not in urls:
-                    urls.append(url)
+                if url and url not in policy_urls:
+                    policy_urls.append(url)
+        if not policy_urls and _text(policy.get("policy_name")):
+            # Some legacy/manual rows have no API detail URL. A Government24
+            # search scoped to that exact title is still useful and avoids the
+            # misleading generic directory link used by the old chatbot.
+            fallback = f"{GOV24_SEARCH_URL}?srchTxt={quote(_text(policy.get('policy_name')))}"
+            policy_urls.append(fallback)
+        for url in policy_urls:
+            if url not in urls:
+                urls.append(url)
     return urls
 
 
@@ -187,7 +199,7 @@ def build_system_prompt(policy_context: str, has_history: bool) -> str:
 2. 신청 URL이 있더라도 다른 정책의 URL과 섞지 말고, 현재 설명하는 정책에 속한 주소만 사용한다.
 3. 제공된 링크를 바꾸거나 새 링크를 지어내지 않는다.
 4. 여러 정책이 검색됐고 답변에 정책명이 없으면 검색 결과 첫 번째 정책의 공식 URL을 사용한다.
-5. 정책 블록에 공식 URL이 없으면 링크를 지어내거나 공통 정부24 주소를 대신 붙이지 않는다.
+5. 정책 블록에 직접 상세 URL이 없으면 해당 정책명으로 좁힌 정부24 검색 링크를 사용한다. 공통 정책 목록 주소는 사용하지 않는다.
 6. QR, 보관함, 수령 승인, 개인정보, 긴급상황 질문에는 정책 URL을 기계적으로 붙이지 않는다.
 
 [신청 절차 출력 제한]
