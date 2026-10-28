@@ -11,6 +11,7 @@ import { colors, radius } from '@/src/theme/colors';
 function dayLabel(createdAt?: string) {
   if (!createdAt) return '이전 알림';
   const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return '이전 알림';
   const today = new Date();
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   if (date.toDateString() === today.toDateString()) return '오늘';
@@ -50,14 +51,26 @@ export function NotificationsScreen() {
     const version = ++requestVersion.current;
     if (!authToken) { busy.current = false; setLoading(false); setItems([]); setError('로그인 후 알림을 확인할 수 있어요.'); return; }
     busy.current = true; setLoading(true); setLoadingMore(Boolean(before)); setError(null);
-    const result = await notificationAPI.feed(authToken, before, unreadOnly);
-    if (version !== requestVersion.current || currentAuthToken.current !== authToken) return;
-    if (result.error) setError(result.error);
-    else {
-      setItems(previous => before ? [...previous, ...result.data.items.filter(next => !previous.some(old => old.id === next.id))] : result.data.items);
-      setCursor(result.data.nextCursor);
+    try {
+      const result = await notificationAPI.feed(authToken, before, unreadOnly);
+      if (version !== requestVersion.current || currentAuthToken.current !== authToken) return;
+      if (result.error) setError(result.error);
+      else {
+        setItems(previous => before ? [...previous, ...result.data.items.filter(next => !previous.some(old => old.id === next.id))] : result.data.items);
+        setCursor(result.data.nextCursor);
+      }
+    } catch (error) {
+      if (version === requestVersion.current && currentAuthToken.current === authToken) {
+        console.warn('Notification feed failed unexpectedly:', error);
+        setError('알림을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    } finally {
+      if (version === requestVersion.current && currentAuthToken.current === authToken) {
+        busy.current = false; setLoading(false); setLoadingMore(false);
+      } else if (version === requestVersion.current) {
+        busy.current = false;
+      }
     }
-    busy.current = false; setLoading(false);
   }, [authToken, unreadOnly]);
 
   useFocusEffect(useCallback(() => {
@@ -81,6 +94,9 @@ export function NotificationsScreen() {
       } else if (item.target?.type === 'post') router.push(`/post/${item.target.postId}`);
       else if (item.target?.type === 'inquiry') router.push(`/inquiry-detail?id=${item.target.inquiryId}`);
       else Alert.alert(item.title, `${item.message}\n\n연결된 거래나 게시글이 더 이상 없을 수 있습니다.`);
+    } catch (error) {
+      console.warn('Notification opening failed unexpectedly:', error);
+      Alert.alert('알림 확인 실패', '알림을 여는 중 문제가 발생했습니다.');
     } finally { openingLock.current = false; setOpening(null); }
   }
   async function approvePickupRequest(item: NotificationItem) {
@@ -103,6 +119,9 @@ export function NotificationsScreen() {
       await markNotificationRead(item.id);
       await refreshNotifications();
       Alert.alert('수락 완료', '이제 수령자가 키오스크에서 물품을 가져갈 수 있습니다.');
+    } catch (error) {
+      console.warn('Pickup approval failed unexpectedly:', error);
+      Alert.alert('수락 실패', '수령 요청 수락 중 문제가 발생했습니다.');
     } finally {
       setApproving(null);
     }
@@ -116,6 +135,9 @@ export function NotificationsScreen() {
       if (currentAuthToken.current !== authToken) return;
       if (result.error || !result.data) { Alert.alert('읽음 처리 실패', result.error || '잠시 후 다시 시도해주세요.'); return; }
       await refreshNotifications(); await load();
+    } catch (error) {
+      console.warn('Mark all notifications failed unexpectedly:', error);
+      Alert.alert('읽음 처리 실패', '알림을 읽음 처리하는 중 문제가 발생했습니다.');
     } finally { allReadLock.current = false; setMarkingAll(false); }
   }
 

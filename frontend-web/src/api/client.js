@@ -264,6 +264,10 @@ export async function fetchCurrentMember() {
   return request('/api/members/me');
 }
 
+export async function deleteCurrentMember() {
+  return request('/api/members/me', { method: 'DELETE' });
+}
+
 export async function fetchDonationOfferNotices() {
   const result = await request('/api/notifications');
   const notices = Array.isArray(result.data) ? result.data : [];

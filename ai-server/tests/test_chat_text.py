@@ -14,6 +14,13 @@ class ChatTextTest(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(normalize_chatbot_text(source), expected)
 
+    def test_removes_generic_template_intro(self):
+        answer = "주요 내용은 다음과 같습니다.\n\n대상자는 주민센터에 문의할 수 있습니다."
+        self.assertEqual(
+            normalize_chatbot_text(answer),
+            "대상자는 주민센터에 문의할 수 있습니다.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

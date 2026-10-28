@@ -144,12 +144,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refreshNotifications = useCallback(async () => {
     const version = ++notificationVersion.current;
     if (!authToken) { setNotifications([]); setUnreadNotificationCount(0); return { error: null }; }
-    const result = await notificationAPI.feed(authToken);
-    if (version === notificationVersion.current && currentAuthToken.current === authToken && !result.error) {
-      setNotifications(result.data.items);
-      setUnreadNotificationCount(result.data.unreadCount);
+    try {
+      const result = await notificationAPI.feed(authToken);
+      if (version === notificationVersion.current && currentAuthToken.current === authToken && !result.error) {
+        setNotifications(result.data.items);
+        setUnreadNotificationCount(result.data.unreadCount);
+      }
+      return { error: result.error };
+    } catch (error) {
+      console.warn("Notification refresh failed:", error);
+      return { error: "알림을 새로고침하지 못했습니다." };
     }
-    return { error: result.error };
   }, [authToken]);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [messagesByChat, setMessagesByChat] = useState<
@@ -162,12 +167,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deviceTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const refreshPosts = useCallback(async () => {
-    const result = await postAPI.listAll(authToken ?? undefined);
-    if (result.error) {
-      return result.error;
+    try {
+      const result = await postAPI.listAll(authToken ?? undefined);
+      if (result.error) {
+        return result.error;
+      }
+      setPosts(result.data ?? []);
+      return null;
+    } catch (error) {
+      console.warn("Post refresh failed:", error);
+      return "게시글을 새로고침하지 못했습니다.";
     }
-    setPosts(result.data ?? []);
-    return null;
   }, [authToken]);
 
   useEffect(() => {
@@ -223,16 +233,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
               return;
             }
 
-            const messagesResult = await chatAPI.listMessages(
-              room.id,
-              authToken ?? undefined,
-              user.id,
-            );
-            if (mounted) {
-              setMessagesByChat((prev) => ({
-                ...prev,
-                [room.id]: messagesResult.data ?? [],
-              }));
+            try {
+              const messagesResult = await chatAPI.listMessages(
+                room.id,
+                authToken ?? undefined,
+                user.id,
+              );
+              if (mounted) {
+                setMessagesByChat((prev) => ({
+                  ...prev,
+                  [room.id]: messagesResult.data ?? [],
+                }));
+              }
+            } catch (fallbackError) {
+              console.warn("Chat fallback refresh failed:", fallbackError);
             }
           },
         ),
@@ -299,25 +313,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     async function hydrateAppData() {
-      const postsResult = await postAPI.listAll(authToken ?? undefined);
-      if (mounted) {
-        setPosts(postsResult.data ?? []);
-      }
+      try {
+        const postsResult = await postAPI.listAll(authToken ?? undefined);
+        if (mounted && !postsResult.error) {
+          setPosts(postsResult.data ?? []);
+        }
 
-      const useFirebaseRealtime = isFirebaseChatConfigured();
-      const rooms = await hydrateChatData({
-        includeMessages: !useFirebaseRealtime,
-      });
-      if (mounted && useFirebaseRealtime) {
-        subscribeMessageRooms(rooms);
-      }
-    }
-
-    hydrateAppData();
-    const chatRefreshTimer = setInterval(
-      async () => {
-        const latestPosts = await postAPI.listAll(authToken ?? undefined);
-        if (mounted && !latestPosts.error) setPosts(latestPosts.data ?? []);
         const useFirebaseRealtime = isFirebaseChatConfigured();
         const rooms = await hydrateChatData({
           includeMessages: !useFirebaseRealtime,
@@ -325,8 +326,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (mounted && useFirebaseRealtime) {
           subscribeMessageRooms(rooms);
         }
+      } catch (error) {
+        console.warn("App data hydration failed:", error);
+      }
+    }
+
+    void hydrateAppData();
+    const chatRefreshTimer = setInterval(
+      async () => {
+        try {
+          const latestPosts = await postAPI.listAll(authToken ?? undefined);
+          if (mounted && !latestPosts.error) setPosts(latestPosts.data ?? []);
+          const useFirebaseRealtime = isFirebaseChatConfigured();
+          const rooms = await hydrateChatData({
+            includeMessages: !useFirebaseRealtime,
+          });
+          if (mounted && useFirebaseRealtime) {
+            subscribeMessageRooms(rooms);
+          }
+        } catch (error) {
+          console.warn("Background app refresh failed:", error);
+        }
       },
-      isFirebaseChatConfigured() ? 30000 : 4000,
+      // Firebase handles live messages. When it is unavailable, keep the
+      // REST fallback useful without hammering every room and its messages.
+      isFirebaseChatConfigured() ? 30000 : 15000,
     );
 
     return () => {
@@ -838,10 +862,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     clearDeviceTimers();
 
-    const validation = await dynamicQrAPI.validate(
-      trimmed,
-      authToken ?? undefined,
-    );
+    let validation;
+    try {
+      validation = await dynamicQrAPI.validate(
+        trimmed,
+        authToken ?? undefined,
+      );
+    } catch (error) {
+      console.warn("Device QR validation failed:", error);
+      setDeviceSimulation({
+        ...initialDeviceSimulationState,
+        step: "error",
+        token: trimmed,
+        message: "QR 인증 서버에 연결하지 못했습니다. 네트워크를 확인해주세요.",
+        lastUpdatedAt: new Date().toISOString(),
+      });
+      return { error: "QR 인증 서버에 연결하지 못했습니다." };
+    }
     if (validation.data?.memberId === user?.id) {
       setActiveQrSession(validation.data);
     }
@@ -942,10 +979,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     queueDeviceStep(1700, async () => {
-      const result = await dynamicQrAPI.consume(
-        targetToken,
-        authToken ?? undefined,
-      );
+      let result;
+      try {
+        result = await dynamicQrAPI.consume(
+          targetToken,
+          authToken ?? undefined,
+        );
+      } catch (error) {
+        console.warn("Device QR consume failed:", error);
+        setDeviceSimulation((prev) => ({
+          ...prev,
+          step: "error",
+          lockerOpen: false,
+          message: "완료 처리 서버에 연결하지 못했습니다.",
+          lastUpdatedAt: new Date().toISOString(),
+        }));
+        return;
+      }
 
       if (result.data?.memberId === user?.id) {
         setActiveQrSession(result.data);

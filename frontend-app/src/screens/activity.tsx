@@ -75,6 +75,11 @@ export function MyActivityScreen() {
       setData(result.data);
       setError(result.error);
       setLoading(false);
+    }).catch(error => {
+      if (!active) return;
+      console.warn('Activity load failed unexpectedly:', error);
+      setError('활동 내역을 불러오지 못했습니다.');
+      setLoading(false);
     });
     return () => { active = false; };
   }, [authToken, revision]));
@@ -87,6 +92,9 @@ export function MyActivityScreen() {
       const result = await openChatRoom(trade.roomId);
       if (result.error) Alert.alert('채팅방 연결 안내', result.error);
       else router.push(`/chat/${trade.roomId}`);
+    } catch (error) {
+      console.warn('Activity chat opening failed unexpectedly:', error);
+      Alert.alert('채팅방 연결 안내', '채팅방을 여는 중 문제가 발생했습니다.');
     } finally { opening.current = false; setOpeningId(null); }
   }
 

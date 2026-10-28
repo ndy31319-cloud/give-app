@@ -510,26 +510,30 @@ function useProductCatalog() {
 
     async function loadCatalog() {
       setLoading(true);
-      const [categoriesResult, productsResult] = await Promise.all([
-        catalogAPI.listCategories(),
-        catalogAPI.listProducts(),
-      ]);
+      try {
+        const [categoriesResult, productsResult] = await Promise.all([
+          catalogAPI.listCategories(),
+          catalogAPI.listProducts(),
+        ]);
 
-      if (!mounted) {
-        return;
+        if (!mounted) return;
+
+        const nextProducts = productsResult.data;
+        setProducts(nextProducts);
+        setCategories(
+          sortCategoriesForDisplay(
+            categoriesResult.data.length
+              ? categoriesResult.data
+              : categoriesFromProducts(nextProducts),
+          ),
+        );
+        setError(productsResult.error ?? categoriesResult.error);
+      } catch (error) {
+        console.warn('Product catalog load failed unexpectedly:', error);
+        if (mounted) setError('물품 목록을 불러오지 못했습니다.');
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      const nextProducts = productsResult.data;
-      setProducts(nextProducts);
-      setCategories(
-        sortCategoriesForDisplay(
-          categoriesResult.data.length
-            ? categoriesResult.data
-            : categoriesFromProducts(nextProducts),
-        ),
-      );
-      setError(productsResult.error ?? categoriesResult.error);
-      setLoading(false);
     }
 
     loadCatalog();
@@ -604,6 +608,9 @@ export function HomeScreen() {
     setRefreshing(true);
     try {
       await Promise.all([refreshPosts(), refreshNotifications()]);
+    } catch (error) {
+      console.warn('Home refresh failed unexpectedly:', error);
+      Alert.alert('새로고침 실패', '게시글을 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setRefreshing(false);
     }
@@ -815,23 +822,26 @@ export function PostDetailScreen() {
       }
 
       setIsLoadingPickupRequest(true);
-      const result = await notificationAPI.getLockerPickupRequestByDonation(
-        postDonationId,
-        authToken,
-      );
+      try {
+        const result = await notificationAPI.getLockerPickupRequestByDonation(
+          postDonationId,
+          authToken,
+        );
 
-      if (ignore) {
-        return;
+        if (ignore) return;
+        if (result.error) {
+          setPickupRequest(null);
+          return;
+        }
+        setPickupRequest(result.data.item);
+      } catch (error) {
+        if (!ignore) {
+          console.warn('Pickup request load failed unexpectedly:', error);
+          setPickupRequest(null);
+        }
+      } finally {
+        if (!ignore) setIsLoadingPickupRequest(false);
       }
-
-      setIsLoadingPickupRequest(false);
-
-      if (result.error) {
-        setPickupRequest(null);
-        return;
-      }
-
-      setPickupRequest(result.data.item);
     }
 
     void loadPickupRequest();
@@ -846,17 +856,23 @@ export function PostDetailScreen() {
 
     const send = async () => {
       setIsSendingOffer(true);
-      const result = await postAPI.sendKioskDonationOffer(post.recordId, authToken ?? undefined);
-      setIsSendingOffer(false);
-      if (result.error) {
-        Alert.alert("나눔 의사 전달 실패", result.error);
-        return;
+      try {
+        const result = await postAPI.sendKioskDonationOffer(post.recordId, authToken ?? undefined);
+        if (result.error) {
+          Alert.alert("나눔 의사 전달 실패", result.error);
+          return;
+        }
+        setOfferedRequestIds((current) => [...current, post.recordId]);
+        Alert.alert(
+          result.data?.alreadyExists ? "이미 전달된 나눔 의사입니다" : "나눔 의사 전달 완료",
+          "보관함 QR 발급 화면에서 이 물품을 선택해 입고용 QR을 발급할 수 있어요.",
+        );
+      } catch (error) {
+        console.warn('Kiosk offer failed unexpectedly:', error);
+        Alert.alert("나눔 의사 전달 실패", "요청 처리 중 문제가 발생했습니다.");
+      } finally {
+        setIsSendingOffer(false);
       }
-      setOfferedRequestIds((current) => [...current, post.recordId]);
-      Alert.alert(
-        result.data?.alreadyExists ? "이미 전달된 나눔 의사입니다" : "나눔 의사 전달 완료",
-        "보관함 QR 발급 화면에서 이 물품을 선택해 입고용 QR을 발급할 수 있어요.",
-      );
     };
 
     if (Platform.OS === "web") {
@@ -875,15 +891,20 @@ export function PostDetailScreen() {
     }
 
     setIsStartingChat(true);
-    const result = await startChatWithPost(post);
-    setIsStartingChat(false);
+    try {
+      const result = await startChatWithPost(post);
+      if (result.error || !result.roomId) {
+        Alert.alert("요청 처리 실패", result.error ?? "채팅방을 열 수 없습니다.");
+        return;
+      }
 
-    if (result.error || !result.roomId) {
-      Alert.alert("요청 처리 실패", result.error ?? "채팅방을 열 수 없습니다.");
-      return;
+      router.push(`/chat/${result.roomId}`);
+    } catch (error) {
+      console.warn('Chat start failed unexpectedly:', error);
+      Alert.alert("요청 처리 실패", "채팅방을 여는 중 문제가 발생했습니다.");
+    } finally {
+      setIsStartingChat(false);
     }
-
-    router.push(`/chat/${result.roomId}`);
   }
 
   async function handleDeletePost() {
@@ -893,17 +914,22 @@ export function PostDetailScreen() {
 
     const deleteCurrentPost = async () => {
       setIsDeleting(true);
-      const result = await removePost(post);
-      setIsDeleting(false);
+      try {
+        const result = await removePost(post);
+        if (result.error) {
+          Alert.alert("삭제 실패", result.error);
+          return;
+        }
 
-      if (result.error) {
-        Alert.alert("삭제 실패", result.error);
-        return;
+        Alert.alert("삭제 완료", "게시글이 삭제되었습니다.", [
+          { text: "확인", onPress: () => router.replace("/(tabs)") },
+        ]);
+      } catch (error) {
+        console.warn('Post deletion failed unexpectedly:', error);
+        Alert.alert("삭제 실패", "게시글 삭제 중 문제가 발생했습니다.");
+      } finally {
+        setIsDeleting(false);
       }
-
-      Alert.alert("삭제 완료", "게시글이 삭제되었습니다.", [
-        { text: "확인", onPress: () => router.replace("/(tabs)") },
-      ]);
     };
 
     if (Platform.OS === "web") {
@@ -930,21 +956,21 @@ export function PostDetailScreen() {
     }
 
     setIsApprovingPickupRequest(true);
-    const result = pickupRequestId
-      ? await notificationAPI.approveLockerPickupRequest(
-          pickupRequestId,
-          authToken ?? undefined,
-        )
-      : await notificationAPI.approveLockerPickupRequestByDonation(
-          postDonationId,
-          authToken ?? undefined,
-        );
-    setIsApprovingPickupRequest(false);
+    try {
+      const result = pickupRequestId
+        ? await notificationAPI.approveLockerPickupRequest(
+            pickupRequestId,
+            authToken ?? undefined,
+          )
+        : await notificationAPI.approveLockerPickupRequestByDonation(
+            postDonationId,
+            authToken ?? undefined,
+          );
 
-    if (result.error || !result.data?.success) {
-      Alert.alert("수락 실패", result.error ?? "잠시 후 다시 시도해주세요.");
-      return;
-    }
+      if (result.error || !result.data?.success) {
+        Alert.alert("수락 실패", result.error ?? "잠시 후 다시 시도해주세요.");
+        return;
+      }
 
     const approvedItem =
       result.data?.item && typeof result.data.item === "object"
@@ -963,11 +989,17 @@ export function PostDetailScreen() {
           }
         : current,
     );
-    await refreshNotifications();
-    Alert.alert(
-      "수락 완료",
-      "이제 수령자가 키오스크에서 물품을 가져갈 수 있습니다.",
-    );
+      await refreshNotifications();
+      Alert.alert(
+        "수락 완료",
+        "이제 수령자가 키오스크에서 물품을 가져갈 수 있습니다.",
+      );
+    } catch (error) {
+      console.warn('Pickup approval failed unexpectedly:', error);
+      Alert.alert("수락 실패", "수령 요청 수락 중 문제가 발생했습니다.");
+    } finally {
+      setIsApprovingPickupRequest(false);
+    }
   }
 
   if (!post) {
@@ -2146,27 +2178,33 @@ export function PostEditScreen() {
       formData.title,
     );
     setSubmitting(true);
-    const result = await updatePost({
-      postId: post.id,
-      type: post.type,
-      title: formData.title,
-      category: formData.category,
-      productId: selectedProduct?.productId,
-      itemName: selectedProduct?.productName ?? post.itemName ?? formData.title,
-      itemCondition: post.type === "share" ? formData.itemCondition : "",
-      description: formData.description,
-      urgency: post.type === "need" ? formData.urgency : undefined,
-    });
-    setSubmitting(false);
+    try {
+      const result = await updatePost({
+        postId: post.id,
+        type: post.type,
+        title: formData.title,
+        category: formData.category,
+        productId: selectedProduct?.productId,
+        itemName: selectedProduct?.productName ?? post.itemName ?? formData.title,
+        itemCondition: post.type === "share" ? formData.itemCondition : "",
+        description: formData.description,
+        urgency: post.type === "need" ? formData.urgency : undefined,
+      });
 
-    if (result.error) {
-      Alert.alert("수정 실패", result.error);
-      return;
+      if (result.error) {
+        Alert.alert("수정 실패", result.error);
+        return;
+      }
+
+      Alert.alert("수정 완료", "게시글 정보가 수정되었습니다.", [
+        { text: "확인", onPress: () => router.replace(`/post/${post.id}`) },
+      ]);
+    } catch (error) {
+      console.warn('Post edit failed unexpectedly:', error);
+      Alert.alert("수정 실패", "게시글 수정 중 문제가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
     }
-
-    Alert.alert("수정 완료", "게시글 정보가 수정되었습니다.", [
-      { text: "확인", onPress: () => router.replace(`/post/${post.id}`) },
-    ]);
   };
 
   return (

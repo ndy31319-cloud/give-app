@@ -31,10 +31,14 @@ export function TradeRequestCard({ request, onSchedule, onReview }: { request: T
     let mounted = true;
     async function refresh() {
       const version = actionVersion.current;
-      const result = await tradeAPI.get(request.id, authToken ?? undefined);
-      if (mounted && result.data && !acting.current && version === actionVersion.current) {
-        setTrade(result.data);
-        setVerified(true);
+      try {
+        const result = await tradeAPI.get(request.id, authToken ?? undefined);
+        if (mounted && result.data && !acting.current && version === actionVersion.current) {
+          setTrade(result.data);
+          setVerified(true);
+        }
+      } catch (error) {
+        console.warn('Trade refresh failed unexpectedly:', error);
       }
     }
     setVerified(false);
@@ -55,6 +59,9 @@ export function TradeRequestCard({ request, onSchedule, onReview }: { request: T
         const latest = await tradeAPI.get(trade.id, authToken ?? undefined);
         if (latest.data) setTrade(latest.data);
       }
+    } catch (error) {
+      console.warn('Appointment confirmation failed unexpectedly:', error);
+      Alert.alert('약속 확인 실패', '약속을 확인하는 중 문제가 발생했습니다.');
     } finally { acting.current = false; setBusy(false); }
   }
 
@@ -81,6 +88,10 @@ export function TradeRequestCard({ request, onSchedule, onReview }: { request: T
           setCancelError('');
         }
       }
+    } catch (error) {
+      console.warn('Trade action failed unexpectedly:', error);
+      if (action === 'cancel') setCancelError('처리 중 문제가 발생했습니다. 다시 시도해주세요.');
+      else Alert.alert('처리 실패', '거래 처리 중 문제가 발생했습니다.');
     } finally { acting.current = false; setBusy(false); }
   }
 

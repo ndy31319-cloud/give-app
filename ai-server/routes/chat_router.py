@@ -75,7 +75,7 @@ def _safe_int_env(name, default, minimum=0):
 
 
 SEMANTIC_TOP_K = max(5, _safe_int_env("POLICY_SEMANTIC_TOP_K", 8, 5))
-RETURN_TOP_K = max(3, _safe_int_env("POLICY_RETURN_TOP_K", 5, 3))
+RETURN_TOP_K = max(3, _safe_int_env("POLICY_RETURN_TOP_K", 3, 3))
 POLICY_INDEX_TTL_SECONDS = _safe_int_env("POLICY_INDEX_TTL_SECONDS", 300, 0)
 POLICY_EMBED_BATCH_SIZE = max(1, _safe_int_env("POLICY_EMBED_BATCH_SIZE", 32, 1))
 policy_index_built_at = 0.0
@@ -92,6 +92,9 @@ CHAT_HISTORY_LIMIT = max(2, _safe_int_env("AI_CHAT_HISTORY_LIMIT", 6, 2))
 POLICY_QUERY_CACHE_TTL_SECONDS = _safe_int_env("POLICY_QUERY_CACHE_TTL_SECONDS", 120, 0)
 POLICY_QUERY_CACHE_MAX_SIZE = max(16, _safe_int_env("POLICY_QUERY_CACHE_MAX_SIZE", 128, 16))
 CLOVA_STREAM_TIMEOUT_SECONDS = max(20, _safe_int_env("CLOVA_STREAM_TIMEOUT_SECONDS", 60, 20))
+CLOVA_MAX_TOKENS = max(220, _safe_int_env("CLOVA_MAX_TOKENS", 260, 220))
+CLOVA_TEMPERATURE = 0.45
+CLOVA_REPEAT_PENALTY = 1.15
 
 
 def _compact(value):
@@ -445,8 +448,8 @@ async def process_chat(request: ChatRequest):
     
     payload = {
         "messages": clova_messages,
-        "topP": 0.8, "topK": 0, "maxTokens": 500,
-        "temperature": 0.5, "repeatPenalty": 5.0
+        "topP": 0.8, "topK": 0, "maxTokens": CLOVA_MAX_TOKENS,
+        "temperature": CLOVA_TEMPERATURE, "repeatPenalty": CLOVA_REPEAT_PENALTY
     }
 
     try:
@@ -489,17 +492,10 @@ async def process_chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail="AI 응답 생성 중 오류가 발생했습니다.")
 
     # [Step 4 & 기능 3] DB에 현재 대화 저장 (사용자 질문 + AI 답변)
+    # History is optional and must not make a completed answer wait for a
+    # second synchronous MySQL round trip.
     if db_engine and member_id is not None:
-        try:
-            await run_in_threadpool(
-                save_chat_history,
-                member_id,
-                message,
-                ai_answer,
-                matched_policies,
-            )
-        except Exception as e:
-            logger.error(f"❌ 대화 기록 DB 저장 실패: {e}")
+        schedule_chat_history_save(member_id, message, ai_answer, matched_policies)
 
     # =================================================================
     # 🔥 [여기에 삽입!] AI가 되물어봤을 경우 엉뚱한 정책 리스트 날리기
@@ -612,9 +608,9 @@ async def process_chat_stream(request: ChatRequest):
                 "messages": clova_messages,
                 "topP": 0.8,
                 "topK": 0,
-                "maxTokens": 500,
-                "temperature": 0.5,
-                "repeatPenalty": 5.0,
+                "maxTokens": CLOVA_MAX_TOKENS,
+                "temperature": CLOVA_TEMPERATURE,
+                "repeatPenalty": CLOVA_REPEAT_PENALTY,
             }
 
             if not CLOVA_API_URL or not CLOVA_STUDIO_API_KEY:
@@ -624,6 +620,7 @@ async def process_chat_stream(request: ChatRequest):
             yield _sse_event("status", {"stage": "generating"})
             client = await get_clova_client()
             raw_parts = []
+            full_response = None
             stream_timeout = httpx.Timeout(
                 float(CLOVA_STREAM_TIMEOUT_SECONDS),
                 connect=5.0,
@@ -652,12 +649,26 @@ async def process_chat_stream(request: ChatRequest):
                     except json.JSONDecodeError:
                         continue
                     incoming = _stream_content(event)
-                    token = _stream_delta("".join(raw_parts), incoming)
+                    previous = "".join(raw_parts)
+                    if incoming and event.get("finishReason"):
+                        # The final CLOVA event contains the complete answer
+                        # after token deltas. Use it once instead of appending
+                        # the complete text to the already streamed prefix.
+                        full_response = incoming
+                        continue
+                    # CLOVA may emit token deltas followed by one final
+                    # message containing the complete answer. Do not append
+                    # that complete message a second time; use it as the
+                    # authoritative final response instead.
+                    if previous and len(incoming) > max(160, len(previous) * 2):
+                        full_response = incoming
+                        continue
+                    token = _stream_delta(previous, incoming)
                     if token:
                         raw_parts.append(token)
                         yield _sse_event("chunk", {"text": token})
 
-            raw_answer = "".join(raw_parts)
+            raw_answer = full_response or "".join(raw_parts)
             if not raw_answer.strip():
                 yield _sse_event("error", {"message": "AI 서버가 빈 답변을 반환했습니다."})
                 return

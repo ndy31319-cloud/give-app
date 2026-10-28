@@ -363,8 +363,16 @@ export function LoginScreen() {
     }
 
     setLoading(true);
-    const result = await login(identifier, password);
-    setLoading(false);
+    let result;
+    try {
+      result = await login(identifier, password);
+    } catch (error) {
+      console.warn('Login failed unexpectedly:', error);
+      Alert.alert('로그인 실패', '로그인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    } finally {
+      setLoading(false);
+    }
 
     if (result.error) {
       Alert.alert('로그인 실패', result.error);
@@ -611,8 +619,16 @@ export function LocationSettingScreen() {
     }
 
     setLoading(true);
-    const result = await completeSignup(representativeLocation);
-    setLoading(false);
+    let result;
+    try {
+      result = await completeSignup(representativeLocation);
+    } catch (error) {
+      console.warn('Signup completion failed unexpectedly:', error);
+      Alert.alert('회원가입 실패', '가입 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    } finally {
+      setLoading(false);
+    }
 
     if (result.error) {
       Alert.alert('회원가입 실패', result.error);

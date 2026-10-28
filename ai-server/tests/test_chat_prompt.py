@@ -29,7 +29,7 @@ class ChatPromptTest(unittest.TestCase):
         prompt = build_system_prompt("검색된 정책 없음", has_history=False)
 
         self.assertIn("첫 문장에서 사용자의 핵심 질문에 바로 답한다", prompt)
-        self.assertIn("4~7개의 짧은 문장", prompt)
+        self.assertIn("2~4개의 짧은 문단", prompt)
         self.assertIn("해당 정책명으로 좁힌 정부24 검색 링크를 사용한다", prompt)
         self.assertIn("새 링크를 지어내지 않는다", prompt)
         self.assertIn("별도의 '신청 방법' 또는 '신청방법' 섹션을 만들지 않는다", prompt)
@@ -46,6 +46,20 @@ class ChatPromptTest(unittest.TestCase):
 
         self.assertIn("https://example.org/medical", policy_answer)
         self.assertNotIn("https://", locker_answer)
+
+    def test_empty_policy_results_do_not_crash_or_add_a_generic_link(self):
+        answer = ensure_policy_link("현재 확인된 정책 정보가 없어요.", [], "복지 정책이 궁금해요")
+
+        self.assertEqual(answer, "현재 확인된 정책 정보가 없어요.")
+
+    def test_malformed_policy_results_are_ignored(self):
+        answer = ensure_policy_link(
+            "현재 확인된 정책 정보가 없어요.",
+            [None, {"policy_name": "", "official_url": None}],
+            "복지 정책이 궁금해요",
+        )
+
+        self.assertEqual(answer, "현재 확인된 정책 정보가 없어요.")
 
     def test_link_follows_mentioned_policy_not_first_search_result(self):
         policies = [

@@ -51,18 +51,28 @@ export function subscribeToChatMessages(
     return () => {};
   }
 
-  const messagesQuery = query(
-    collection(getFirebaseDb(), 'chatRooms', chatRoomId, 'messages'),
-    orderBy('createdAt', 'asc'),
-  );
+  try {
+    const messagesQuery = query(
+      collection(getFirebaseDb(), 'chatRooms', chatRoomId, 'messages'),
+      orderBy('createdAt', 'asc'),
+    );
 
-  return onSnapshot(
-    messagesQuery,
-    (snapshot) => {
-      onMessages(snapshot.docs.map((doc) => mapMessageDoc(doc, viewerId)));
-    },
-    (error) => {
-      onError?.(error);
-    },
-  );
+    return onSnapshot(
+      messagesQuery,
+      (snapshot) => {
+        try {
+          onMessages(snapshot.docs.map((doc) => mapMessageDoc(doc, viewerId)));
+        } catch (error) {
+          onError?.(error instanceof Error ? error : new Error('Firebase 메시지 처리에 실패했습니다.'));
+        }
+      },
+      (error) => {
+        onError?.(error);
+      },
+    );
+  } catch (error) {
+    console.warn('Firebase chat subscription failed:', error);
+    onError?.(error instanceof Error ? error : new Error('Firebase 채팅 연결에 실패했습니다.'));
+    return () => {};
+  }
 }

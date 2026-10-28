@@ -78,6 +78,10 @@ import { formatDate } from "@/src/utils/time";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
+function legacyMockFallbackAllowed() {
+  return !isBackendEnabled();
+}
+
 type ApiResult<T> = Promise<{ data: T; error: string | null; errorCode?: string }>;
 const AI_IMAGE_REQUEST_TIMEOUT_MS = Number(process.env.EXPO_PUBLIC_AI_IMAGE_TIMEOUT_MS || 45000);
 const CHATBOT_REQUEST_TIMEOUT_MS = Number(
@@ -494,6 +498,10 @@ export const memberAPI = {
       return { data: response.data, error: null };
     }
 
+    if (!legacyMockFallbackAllowed()) {
+      return { data: null as never, error: "백엔드 서버에서 로그인 응답을 받지 못했습니다." };
+    }
+
     await sleep(400);
     const member = findMockMemberByIdentifier(payload.identifier);
     if (!member) {
@@ -558,6 +566,10 @@ export const memberAPI = {
       return { data: response.data, error: null };
     }
 
+    if (!legacyMockFallbackAllowed()) {
+      return { data: null as never, error: "백엔드 서버에서 회원가입 응답을 받지 못했습니다." };
+    }
+
     await sleep(700);
     const user = buildUserFromDraft(draft, location);
     return {
@@ -585,6 +597,10 @@ export const memberAPI = {
     const response = await safeFetch<{ data?: User }>(`/members/${memberId}`);
     if (response?.data) {
       return { data: response.data, error: null };
+    }
+
+    if (!legacyMockFallbackAllowed()) {
+      return { data: null as never, error: "회원 정보를 불러오지 못했습니다." };
     }
 
     const member =
@@ -712,6 +728,9 @@ export const memberAPI = {
     if (response?.data) {
       return { data: response.data, error: null };
     }
+    if (!legacyMockFallbackAllowed()) {
+      return { data: null as never, error: "회원 탈퇴 요청에 실패했습니다." };
+    }
     return { data: { success: true }, error: null };
   },
 
@@ -721,6 +740,9 @@ export const memberAPI = {
     );
     if (response?.data) {
       return { data: response.data, error: null };
+    }
+    if (!legacyMockFallbackAllowed()) {
+      return { data: null as never, error: "회원 권한을 확인하지 못했습니다." };
     }
 
     const member =
@@ -741,6 +763,9 @@ export const memberAPI = {
     if (response?.data) {
       return { data: response.data, error: null };
     }
+    if (!legacyMockFallbackAllowed()) {
+      return { data: null as never, error: "회원 권한 변경에 실패했습니다." };
+    }
     return { data: { success: true, roleName: "BENEFICIARY" }, error: null };
   },
 };
@@ -752,6 +777,9 @@ export const certificationAPI = {
     );
     if (response?.data) {
       return { data: response.data, error: null };
+    }
+    if (!legacyMockFallbackAllowed()) {
+      return { data: [], error: "인증 코드 목록을 불러오지 못했습니다." };
     }
     return { data: mockCertificationCodes, error: null };
   },
@@ -779,6 +807,10 @@ export const certificationAPI = {
     );
     if (response?.data) {
       return { data: response.data, error: null };
+    }
+
+    if (!legacyMockFallbackAllowed()) {
+      return { data: { success: false }, error: "인증 코드 사용 요청에 실패했습니다." };
     }
 
     const matched = mockCertificationCodes.find(

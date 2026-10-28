@@ -359,8 +359,13 @@ export function ChatRoomScreen() {
     setMenuOpen(false); setRatingOpen(true); setReviewStatus(null); setReviewError(null);
     setRatingType(null); setRatingComment('');
     const version = ++reviewStatusVersion.current;
-    const result = await loadReviewStatus(String(id), authToken ?? undefined);
-    if (version === reviewStatusVersion.current) { setReviewStatus(result.data); setReviewError(result.error); }
+    try {
+      const result = await loadReviewStatus(String(id), authToken ?? undefined);
+      if (version === reviewStatusVersion.current) { setReviewStatus(result.data); setReviewError(result.error); }
+    } catch (error) {
+      console.warn('Review status load failed unexpectedly:', error);
+      if (version === reviewStatusVersion.current) setReviewError('후기 상태를 불러오지 못했습니다.');
+    }
   }
   const calendarDays = useMemo(
     () => buildCalendarDays(calendarMonth),
@@ -396,18 +401,23 @@ export function ChatRoomScreen() {
 
   const handleSchedulePlace = async (knownTrade?: TradeRequest) => {
     setPlusOpen(false);
-    const tradeId = knownTrade?.id || roomTrade?.id;
-    const result = tradeId ? await tradeAPI.get(tradeId, authToken ?? undefined) : null;
-    if (result?.error) { Alert.alert('약속 조회 실패', result.error); return; }
-    const approvedTrade = result?.data?.status === 'approved' ? result.data : null;
-    setEditingTrade(approvedTrade);
-    const previous = approvedTrade?.appointment?.pending || approvedTrade?.appointment?.confirmed;
-    const date = previous && new Date(previous.at).getTime() > Date.now() ? new Date(previous.at) : new Date(Date.now() + 86400000);
-    setMeetingDate(startOfDay(date)); setCalendarMonth(startOfDay(date));
-    setMeetingHour(date.getHours()); setMeetingMinute(Math.floor(date.getMinutes() / 10) * 10);
-    setMeetingLabel(previous?.place || '');
-    setMeetingPlace(previous?.latitude != null && previous.longitude != null ? { id: 'appointment', city: '', district: '', neighborhood: '', dongName: '', fullAddress: previous.place, radiusKm: 1, latitude: previous.latitude, longitude: previous.longitude } : null);
-    setMeetingPlaceOpen(true);
+    try {
+      const tradeId = knownTrade?.id || roomTrade?.id;
+      const result = tradeId ? await tradeAPI.get(tradeId, authToken ?? undefined) : null;
+      if (result?.error) { Alert.alert('약속 조회 실패', result.error); return; }
+      const approvedTrade = result?.data?.status === 'approved' ? result.data : null;
+      setEditingTrade(approvedTrade);
+      const previous = approvedTrade?.appointment?.pending || approvedTrade?.appointment?.confirmed;
+      const date = previous && new Date(previous.at).getTime() > Date.now() ? new Date(previous.at) : new Date(Date.now() + 86400000);
+      setMeetingDate(startOfDay(date)); setCalendarMonth(startOfDay(date));
+      setMeetingHour(date.getHours()); setMeetingMinute(Math.floor(date.getMinutes() / 10) * 10);
+      setMeetingLabel(previous?.place || '');
+      setMeetingPlace(previous?.latitude != null && previous.longitude != null ? { id: 'appointment', city: '', district: '', neighborhood: '', dongName: '', fullAddress: previous.place, radiusKm: 1, latitude: previous.latitude, longitude: previous.longitude } : null);
+      setMeetingPlaceOpen(true);
+    } catch (error) {
+      console.warn('Meeting place load failed unexpectedly:', error);
+      Alert.alert('약속 조회 실패', '약속 정보를 불러오지 못했습니다.');
+    }
   };
 
   const sendMeetingPlace = async () => {
@@ -709,14 +719,6 @@ export function ChatRoomScreen() {
 
         <Pressable
           style={styles.menuAction}
-          onPress={() => Alert.alert("안내", "차단 기능은 추후 연동됩니다.")}
-        >
-          <Ionicons name="ban-outline" size={20} color={colors.textMuted} />
-          <Text style={styles.menuActionText}>차단하기</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.menuAction}
           onPress={() => {
             setMenuOpen(false);
 
@@ -794,20 +796,26 @@ export function ChatRoomScreen() {
             onPress={async () => {
               if (!user?.id || reportBusy || !reportReason.trim()) return;
               setReportBusy(true);
-              const result = await reportAPI.create({
-                reporterId: user.id,
-                targetType: 'chat_room',
-                targetId: String(chatRoom.id),
-                reason: reportReason.trim(),
-              }, authToken ?? undefined);
-              setReportBusy(false);
-              if (result.error) {
-                Alert.alert('신고 접수 실패', result.error);
-                return;
+              try {
+                const result = await reportAPI.create({
+                  reporterId: user.id,
+                  targetType: 'chat_room',
+                  targetId: String(chatRoom.id),
+                  reason: reportReason.trim(),
+                }, authToken ?? undefined);
+                if (result.error) {
+                  Alert.alert('신고 접수 실패', result.error);
+                  return;
+                }
+                setReportOpen(false);
+                setReportReason('');
+                Alert.alert('신고 접수 완료', '관리자에게 신고 내용이 전달되었습니다.');
+              } catch (error) {
+                console.warn('Chat report failed unexpectedly:', error);
+                Alert.alert('신고 접수 실패', '신고 접수 중 문제가 발생했습니다.');
+              } finally {
+                setReportBusy(false);
               }
-              setReportOpen(false);
-              setReportReason('');
-              Alert.alert('신고 접수 완료', '관리자에게 신고 내용이 전달되었습니다.');
             }}
             style={{ flex: 1 }}
           />
@@ -1187,34 +1195,40 @@ export function ChatRoomScreen() {
               if (reviewLock.current || !reviewStatus?.canReview) return;
               reviewLock.current = true;
               setIsReviewing(true);
-              const result = await reviewAPI.create({
-                roomId: chatRoom.id,
-                donateId: String(chatRoom.postId ?? ""),
-                writerId: user.id,
-                targetMemberId: chatRoom.userId,
-                rating: ratingType === "positive" ? 5 : 2,
-                content:
-                  ratingComment.trim() ||
-                  (ratingType === "positive"
-                    ? "좋은 거래였습니다."
-                    : "아쉬운 거래였습니다."),
-                authToken: authToken ?? undefined,
-              });
-              setIsReviewing(false);
-              reviewLock.current = false;
+              try {
+                const result = await reviewAPI.create({
+                  roomId: chatRoom.id,
+                  donateId: String(chatRoom.postId ?? ""),
+                  writerId: user.id,
+                  targetMemberId: chatRoom.userId,
+                  rating: ratingType === "positive" ? 5 : 2,
+                  content:
+                    ratingComment.trim() ||
+                    (ratingType === "positive"
+                      ? "좋은 거래였습니다."
+                      : "아쉬운 거래였습니다."),
+                  authToken: authToken ?? undefined,
+                });
 
-              if (result.error) {
-                Alert.alert("평가 실패", result.error);
-                const latest = await loadReviewStatus(chatRoom.id, authToken ?? undefined);
-                setReviewStatus(latest.data); setReviewError(latest.error);
-                return;
+                if (result.error) {
+                  Alert.alert("평가 실패", result.error);
+                  const latest = await loadReviewStatus(chatRoom.id, authToken ?? undefined);
+                  setReviewStatus(latest.data); setReviewError(latest.error);
+                  return;
+                }
+
+                Alert.alert("평가 완료", "평가가 저장되었습니다.");
+                setRatingOpen(false);
+                setRatingType(null);
+                setRatingComment("");
+                await openChatRoom(chatRoom.id);
+              } catch (error) {
+                console.warn('Review submission failed unexpectedly:', error);
+                Alert.alert("평가 실패", "후기 저장 중 문제가 발생했습니다.");
+              } finally {
+                setIsReviewing(false);
+                reviewLock.current = false;
               }
-
-              Alert.alert("평가 완료", "평가가 저장되었습니다.");
-              setRatingOpen(false);
-              setRatingType(null);
-              setRatingComment("");
-              await openChatRoom(chatRoom.id);
             }}
             style={{ flex: 1 }}
           />

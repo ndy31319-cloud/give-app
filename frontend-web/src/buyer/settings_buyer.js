@@ -1,17 +1,33 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { deleteCurrentMember } from '../api/client';
+import useAuthStore from '../store/useAuthStore';
 
 function SettingsBuyer() {
   const navigate = useNavigate();
+  const logout = useAuthStore((state) => state.logout);
   
   // 알림 설정을 끄고 켜는 상태 
   const [isPushActive, setIsPushActive] = useState(true);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // 회원 탈퇴 처리 함수
-  const handleWithdrawal = () => {
-    if (window.confirm('정말 탈퇴하시겠습니까? 계정과 모든 활동 기록이 삭제됩니다.')) {
-      alert('탈퇴 처리가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.');
-      navigate('/'); // 홈 화면으로 이동
+  const handleWithdrawal = async () => {
+    if (isWithdrawing || !window.confirm('정말 탈퇴하시겠습니까? 계정과 모든 활동 기록이 삭제됩니다.')) {
+      return;
+    }
+
+    setIsWithdrawing(true);
+    try {
+      await deleteCurrentMember();
+      logout();
+      window.alert('탈퇴 처리가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.');
+      navigate('/', { replace: true });
+    } catch (error) {
+      window.alert(error?.message || '회원 탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -55,7 +71,7 @@ function SettingsBuyer() {
 
         {/* 2. 개인정보 처리방침 */}
         <button 
-          onClick={() => alert('개인정보 처리방침 페이지 준비 중입니다.')}
+          onClick={() => setPrivacyOpen(true)}
           className="w-full text-left p-8 border-b border-gray-50 flex justify-between items-center active:bg-gray-50 transition-all"
         >
           <div>
@@ -70,7 +86,8 @@ function SettingsBuyer() {
         {/* 3. 회원 탈퇴 */}
         <button 
           onClick={handleWithdrawal}
-          className="w-full text-left p-8 flex justify-between items-center active:bg-gray-50 transition-all"
+          disabled={isWithdrawing}
+          className="w-full text-left p-8 flex justify-between items-center active:bg-gray-50 transition-all disabled:opacity-50"
         >
           <div>
             <h2 className="text-[22px] font-bold text-[#d64545]">회원 탈퇴</h2>
@@ -81,6 +98,25 @@ function SettingsBuyer() {
           </svg>
         </button>
       </div>
+
+      {privacyOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+          <div className="w-full max-w-[760px] max-h-[82vh] overflow-y-auto rounded-[28px] bg-white p-8 shadow-xl">
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="privacy-title" className="text-[28px] font-bold text-[#333]">개인정보 처리방침</h2>
+              <button type="button" onClick={() => setPrivacyOpen(false)} className="rounded-full px-3 py-2 text-[28px] text-gray-500" aria-label="개인정보 처리방침 닫기">×</button>
+            </div>
+            <div className="mt-6 space-y-5 text-[18px] leading-relaxed text-gray-600">
+              <p>Give는 회원 인증, 나눔 게시글, 채팅, 보관함 이용에 필요한 최소한의 정보만 사용합니다.</p>
+              <p><strong className="text-[#333]">수집 정보:</strong> 이름, 닉네임, 연락처, 이메일, 동네 위치, 게시글과 채팅 내용입니다.</p>
+              <p><strong className="text-[#333]">이용 목적:</strong> 회원 인증, 나눔 상대 연결, QR 보관함 인증, 알림과 문의 처리입니다.</p>
+              <p><strong className="text-[#333]">보관 및 삭제:</strong> 회원 탈퇴 시 서비스 운영에 필요한 법정 보관 정보를 제외한 회원 관련 데이터 삭제를 요청합니다.</p>
+              <p>개인정보 관련 문의는 마이페이지의 관리자 문의를 이용해주세요.</p>
+            </div>
+            <button type="button" onClick={() => setPrivacyOpen(false)} className="mt-8 w-full rounded-[18px] bg-[#2f7d4f] py-4 text-[20px] font-bold text-white">확인</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

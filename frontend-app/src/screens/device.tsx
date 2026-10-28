@@ -235,9 +235,12 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
   const selectedPost = myDonationPosts.find((post) => String(post.recordId) === selectedDonateId);
 
   useEffect(() => {
-    refreshPosts();
-
     let isMounted = true;
+    void refreshPosts().catch((error) => {
+      console.warn('Device post refresh failed unexpectedly:', error);
+      if (isMounted) setMyPostsError('게시글을 새로고침하지 못했습니다.');
+    });
+
     const loadMyPosts = async () => {
       const result = await postAPI.listMine(authToken ?? undefined);
       if (!isMounted) return;
@@ -251,7 +254,13 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
       setMyPostsError(null);
       setMyPosts(result.data);
     };
-    loadMyPosts();
+    void loadMyPosts().catch((error) => {
+      console.warn('Device donation post load failed unexpectedly:', error);
+      if (isMounted) {
+        setMyPostsError('나눔글을 불러오지 못했습니다.');
+        setMyPosts(null);
+      }
+    });
 
     const timer = setInterval(() => {
       setNow(Date.now());
@@ -266,21 +275,31 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
 
   const handleStartWithToken = async (token: string) => {
     setWorking(true);
-    const result = await startDeviceAuthentication(token);
-    setWorking(false);
-
-    if (result.error) {
-      Alert.alert('디바이스 인증 실패', result.error);
+    try {
+      const result = await startDeviceAuthentication(token);
+      if (result.error) {
+        Alert.alert('디바이스 인증 실패', result.error);
+      }
+    } catch (error) {
+      console.warn('Device authentication failed unexpectedly:', error);
+      Alert.alert('디바이스 인증 실패', '인증 처리 중 문제가 발생했습니다.');
+    } finally {
+      setWorking(false);
     }
   };
 
   const handleItemDetected = async () => {
     setWorking(true);
-    const result = await confirmDeviceItemInserted();
-    setWorking(false);
-
-    if (result.error) {
-      Alert.alert('물품 감지 실패', result.error);
+    try {
+      const result = await confirmDeviceItemInserted();
+      if (result.error) {
+        Alert.alert('물품 감지 실패', result.error);
+      }
+    } catch (error) {
+      console.warn('Device item confirmation failed unexpectedly:', error);
+      Alert.alert('물품 감지 실패', '물품 완료 처리 중 문제가 발생했습니다.');
+    } finally {
+      setWorking(false);
     }
   };
 
@@ -291,15 +310,20 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
     }
 
     setIssuing(true);
-    const issueResult = await issueDynamicQr('donation_storage', 60, selectedPost.recordId);
-    setIssuing(false);
+    try {
+      const issueResult = await issueDynamicQr('donation_storage', 60, selectedPost.recordId);
+      if (issueResult.error) {
+        Alert.alert('QR 발급 실패', issueResult.error);
+        return;
+      }
 
-    if (issueResult.error) {
-      Alert.alert('QR 발급 실패', issueResult.error);
-      return;
+      Alert.alert('QR 발급 완료', '선택한 나눔 게시글의 보관함 입고용 QR이 발급되었습니다.');
+    } catch (error) {
+      console.warn('Donation QR issue failed unexpectedly:', error);
+      Alert.alert('QR 발급 실패', 'QR 발급 중 문제가 발생했습니다.');
+    } finally {
+      setIssuing(false);
     }
-
-    Alert.alert('QR 발급 완료', '선택한 나눔 게시글의 보관함 입고용 QR이 발급되었습니다.');
   };
 
   const simulatorContent = (
@@ -381,30 +405,32 @@ export function DeviceSimulatorScreen({ embedded = false }: { embedded?: boolean
           />
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>수동 토큰 테스트</Text>
-          <AppTextField
-            label="QR 토큰"
-            value={tokenInput}
-            onChangeText={setTokenInput}
-            placeholder="time-based QR 토큰을 입력하세요"
-          />
-          <View style={styles.actionRow}>
-            <AppButton
-              label="수동 인증"
-              onPress={() => handleStartWithToken(tokenInput)}
-              disabled={!tokenInput.trim()}
-              loading={working}
-              style={{ flex: 1 }}
+        {!embedded ? (
+          <View style={styles.formCard}>
+            <Text style={styles.sectionTitle}>수동 토큰 테스트</Text>
+            <AppTextField
+              label="QR 토큰"
+              value={tokenInput}
+              onChangeText={setTokenInput}
+              placeholder="time-based QR 토큰을 입력하세요"
             />
-            <AppButton
-              label="현재 QR 채우기"
-              variant="secondary"
-              onPress={() => setTokenInput(activeQrSession?.token ?? '')}
-              style={{ flex: 1 }}
-            />
+            <View style={styles.actionRow}>
+              <AppButton
+                label="수동 인증"
+                onPress={() => handleStartWithToken(tokenInput)}
+                disabled={!tokenInput.trim()}
+                loading={working}
+                style={{ flex: 1 }}
+              />
+              <AppButton
+                label="현재 QR 채우기"
+                variant="secondary"
+                onPress={() => setTokenInput(activeQrSession?.token ?? '')}
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
-        </View>
+        ) : null}
 
         <View style={styles.simulatorCard}>
           <View style={styles.simulatorTop}>

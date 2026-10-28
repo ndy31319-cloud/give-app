@@ -488,7 +488,18 @@ router.post("/qr/kiosk-login", requireKioskAccess, async (req, res) => {
 });
 
 router.post("/qr/issue", authenticateToken, async (req, res) => {
-  const memberId = String(req.body.memberId || req.body.member_id || getMemberId(req));
+  const authenticatedMemberId = String(getMemberId(req));
+  const requestedMemberId = String(req.body.memberId || req.body.member_id || authenticatedMemberId);
+
+  if (requestedMemberId !== authenticatedMemberId) {
+    return res.status(403).json({
+      success: false,
+      code: "QR_MEMBER_MISMATCH",
+      message: "로그인한 회원 본인의 QR만 발급할 수 있습니다.",
+    });
+  }
+
+  const memberId = authenticatedMemberId;
   const purpose = normalizePurpose(req.body.purpose);
   const donateId = parsePositiveInteger(req.body.donateId || req.body.donate_id);
   const ttlSeconds = normalizeTtl(req.body.ttlSeconds || req.body.ttl_seconds);
@@ -891,6 +902,14 @@ router.post("/qr/validate", authenticateToken, async (req, res) => {
     });
   }
 
+  if (String(session.memberId) !== String(getMemberId(req))) {
+    return res.status(403).json({
+      success: false,
+      code: "QR_MEMBER_MISMATCH",
+      message: "로그인한 회원 본인의 QR만 앱에서 검증할 수 있습니다.",
+    });
+  }
+
   return res.status(200).json({
     success: true,
     data: toResponseSession(session),
@@ -999,6 +1018,14 @@ router.post("/qr/consume", authenticateToken, async (req, res) => {
       success: false,
       data: toResponseSession(session),
       message: "이미 사용했거나 만료된 QR입니다.",
+    });
+  }
+
+  if (String(session.memberId) !== String(getMemberId(req))) {
+    return res.status(403).json({
+      success: false,
+      code: "QR_MEMBER_MISMATCH",
+      message: "로그인한 회원 본인의 QR만 사용할 수 있습니다.",
     });
   }
 

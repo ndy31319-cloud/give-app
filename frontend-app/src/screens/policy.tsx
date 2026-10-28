@@ -286,14 +286,17 @@ export function PolicyScreen() {
       return;
     }
 
-    const result = await policyAPI.createSearchHistory({
-      memberId: user.id,
-      queryText,
-      authToken: authToken ?? undefined,
-    });
+    try {
+      const result = await policyAPI.createSearchHistory({
+        memberId: user.id,
+        queryText,
+        authToken: authToken ?? undefined,
+      });
 
-    if (result.error) {
-      Alert.alert('기록 저장 실패', result.error);
+      if (result.error) Alert.alert('기록 저장 실패', result.error);
+    } catch (error) {
+      console.warn('Policy search history save failed unexpectedly:', error);
+      Alert.alert('기록 저장 실패', '검색 기록을 저장하지 못했습니다.');
     }
   };
 
@@ -310,15 +313,18 @@ export function PolicyScreen() {
     setSelectedPolicy(policy);
     if (!user?.id) return;
 
-    const result = await policyAPI.createSearchHistory({
-      memberId: user.id,
-      recommendPolicyId: source === 'recommended' ? policy.id : undefined,
-      policyId: policy.id,
-      authToken: authToken ?? undefined,
-    });
+    try {
+      const result = await policyAPI.createSearchHistory({
+        memberId: user.id,
+        recommendPolicyId: source === 'recommended' ? policy.id : undefined,
+        policyId: policy.id,
+        authToken: authToken ?? undefined,
+      });
 
-    if (result.error) {
-      Alert.alert('기록 저장 실패', result.error);
+      if (result.error) Alert.alert('기록 저장 실패', result.error);
+    } catch (error) {
+      console.warn('Policy selection history save failed unexpectedly:', error);
+      Alert.alert('기록 저장 실패', '정책 선택 기록을 저장하지 못했습니다.');
     }
   };
 
@@ -596,7 +602,7 @@ export function PolicyScreen() {
             <Text style={styles.policyDetailTitle}>{selectedPolicy.title}</Text>
             <Text style={styles.policyDetailAgency}>{selectedPolicy.agency} · {selectedPolicy.category}</Text>
             <Text style={styles.policyDetailSection}>정책 내용</Text>
-            <Text style={styles.policyDetailText}>{selectedPolicy.content || selectedPolicy.description || '상세 내용이 준비 중입니다.'}</Text>
+            <Text style={styles.policyDetailText}>{selectedPolicy.content || selectedPolicy.description || '상세 설명이 제공되지 않은 정책입니다. 아래 공식 안내 링크에서 내용을 확인해주세요.'}</Text>
             <Text style={styles.policyDetailSection}>지원 대상</Text>
             <Text style={styles.policyDetailText}>{selectedPolicy.target || selectedPolicy.targetCriteria || '지원 대상 정보를 확인해주세요.'}</Text>
             <Text style={styles.policyDetailSection}>지원 내용 및 신청 방법</Text>

@@ -10,8 +10,6 @@ const {
 const router = express.Router();
 let memberColumnsCache = null;
 let policyColumnsCache = null;
-const AI_REQUEST_TIMEOUT_MS = 30000;
-const AI_RETRY_DELAY_MS = 1000;
 
 const boundedIntegerEnv = (name, fallback, minimum, maximum) => {
   const parsed = Number(process.env[name]);
@@ -20,6 +18,17 @@ const boundedIntegerEnv = (name, fallback, minimum, maximum) => {
   }
   return Math.min(maximum, Math.max(minimum, parsed));
 };
+
+// Keep chatbot failures bounded. A dead tunnel must not make the app wait for
+// two long attempts before the fallback URL is tried.
+const AI_REQUEST_TIMEOUT_MS = boundedIntegerEnv(
+  "AI_REQUEST_TIMEOUT_MS",
+  15000,
+  5000,
+  60000,
+);
+const AI_RETRY_ATTEMPTS = boundedIntegerEnv("AI_RETRY_ATTEMPTS", 1, 1, 2);
+const AI_RETRY_DELAY_MS = boundedIntegerEnv("AI_RETRY_DELAY_MS", 500, 100, 5000);
 
 const POLICY_CACHE_TTL_MS = boundedIntegerEnv(
   "POLICY_CACHE_TTL_MS",
@@ -39,6 +48,16 @@ const AI_STREAM_REQUEST_TIMEOUT_MS = boundedIntegerEnv(
   15000,
   120000,
 );
+const envFlag = (name, fallback) => {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || String(raw).trim() === "") return fallback;
+  return !["false", "0", "no", "off"].includes(String(raw).trim().toLowerCase());
+};
+// The current local AI server owns FAISS/RAG and loads the member history by
+// member_id. Avoid doing the same member and policy queries in the backend on
+// every message. Set this to false only when pointing at a legacy AI server
+// that requires the backend-provided context.
+const AI_CHATBOT_SERVER_OWNS_RAG = envFlag("AI_CHATBOT_SERVER_OWNS_RAG", true);
 const policyListCache = new Map();
 const recommendationCache = new Map();
 const recommendationInFlight = new Map();
@@ -420,7 +439,7 @@ router.get("/recommended", authenticateToken, async (req, res) => {
 
 const buildAiChatRequestPayload = (payload) => ({
     user_message: payload.message,
-    member_id: payload.user?.member_id ?? null,
+    member_id: payload.memberId ?? payload.user?.member_id ?? null,
     user: payload.user ?? null,
     policies: Array.isArray(payload.policies) ? payload.policies : [],
     conversation_history: Array.isArray(payload.conversationHistory)
@@ -431,6 +450,18 @@ const buildAiChatRequestPayload = (payload) => ({
       : [],
 });
 
+const loadChatbotContext = async (memberId) => {
+  if (AI_CHATBOT_SERVER_OWNS_RAG) {
+    return { member: null, policies: [] };
+  }
+
+  const [member, policies] = await Promise.all([
+    loadCurrentMember(memberId),
+    loadPolicies(null, { limit: POLICY_CHAT_CONTEXT_LIMIT }),
+  ]);
+  return { member, policies };
+};
+
 const callAiChatbot = async (payload) => {
   const urls = resolveAiChatbotApiUrls();
   let lastError = null;
@@ -439,7 +470,7 @@ const callAiChatbot = async (payload) => {
   for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
     const url = urls[urlIndex];
 
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= AI_RETRY_ATTEMPTS; attempt += 1) {
       const startedAt = Date.now();
       try {
         const response = await axios.post(url, requestPayload, {
@@ -462,7 +493,7 @@ const callAiChatbot = async (payload) => {
         lastError = error;
         logAiRequestError({ url, attempt, startedAt, error });
 
-        if (attempt < 2 && isTransientAiError(error)) {
+        if (attempt < AI_RETRY_ATTEMPTS && isTransientAiError(error)) {
           await sleep(AI_RETRY_DELAY_MS);
           continue;
         }
@@ -487,7 +518,7 @@ const callAiChatbotStream = async (payload) => {
 
   for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
     const url = urls[urlIndex];
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= AI_RETRY_ATTEMPTS; attempt += 1) {
       const startedAt = Date.now();
       try {
         const response = await axios.post(url, requestPayload, {
@@ -513,7 +544,7 @@ const callAiChatbotStream = async (payload) => {
       } catch (error) {
         lastError = error;
         logAiRequestError({ url, attempt, startedAt, error });
-        if (attempt < 2 && isTransientAiError(error)) {
+        if (attempt < AI_RETRY_ATTEMPTS && isTransientAiError(error)) {
           await sleep(AI_RETRY_DELAY_MS);
           continue;
         }
@@ -581,16 +612,11 @@ router.post(["/chatbot", "/chat"], authenticateToken, async (req, res) => {
   }
 
   try {
-    const [member, policies] = await Promise.all([
-      loadCurrentMember(memberId),
-      // The full policy directory is not needed by the normal RAG chatbot.
-      // Keep a small fallback context for deployments where the RAG router is
-      // unavailable, instead of serializing all policy rows on every message.
-      loadPolicies(null, { limit: POLICY_CHAT_CONTEXT_LIMIT }),
-    ]);
+    const { member, policies } = await loadChatbotContext(memberId);
     const policyContext = policies.map(toPolicyResponse);
     const aiResult = await callAiChatbot({
       message,
+      memberId,
       conversationHistory,
       user: member
         ? {
@@ -718,13 +744,11 @@ router.post("/chatbot/stream", authenticateToken, async (req, res) => {
   writeEvent("status", { stage: "preparing" });
 
   try {
-    const [member, policies] = await Promise.all([
-      loadCurrentMember(memberId),
-      loadPolicies(null, { limit: POLICY_CHAT_CONTEXT_LIMIT }),
-    ]);
+    const { member, policies } = await loadChatbotContext(memberId);
     const policyContext = policies.map(toPolicyResponse);
     const upstream = await callAiChatbotStream({
       message,
+      memberId,
       conversationHistory,
       user: member
         ? {

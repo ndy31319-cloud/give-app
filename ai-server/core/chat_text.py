@@ -22,6 +22,14 @@ def normalize_chatbot_text(value: str) -> str:
     for marker in ("***", "**", "*"):
         escaped = re.escape(marker)
         result = re.sub(r"(?<![\\*])" + escaped + r"(?=\S)([^*\n]*?\S)" + escaped + r"(?!\*)", r"\1", result)
+    # Remove generic model boilerplate that makes a short answer sound like a
+    # copied template. Keep the actual policy facts and any following details.
+    result = re.sub(
+        r"(?m)^\s*(?:주요|자세한)\s*(?:내용|안내)은\s*다음과\s*같습니다[.!]?\s*$",
+        "",
+        result,
+    )
+    result = re.sub(r"\n{3,}", "\n\n", result).strip()
     for index, url in enumerate(urls):
         result = result.replace(f"\x00URL{index}\x00", url)
     return result

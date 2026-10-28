@@ -28,19 +28,27 @@ export function MemberQrScreen() {
       return;
     }
     if (!silent) setLoading(true);
-    const result = await requestEnvelope<MemberQr>('/api/member-qr/me', {
-      headers: buildAuthHeaders(authToken),
-    });
-    setQr(result.data);
-    setError(result.error ?? (result.data ? null : '회원 QR을 불러오지 못했습니다.'));
-    if (result.data?.roleId === 1) {
-      const trades = await requestEnvelope<EligibleTrade[]>('/api/locker/eligible', {
+    try {
+      const result = await requestEnvelope<MemberQr>('/api/member-qr/me', {
         headers: buildAuthHeaders(authToken),
       });
-      setEligible(trades.data ?? []);
-      if (trades.error) setError(trades.error);
+      setQr(result.data);
+      setError(result.error ?? (result.data ? null : '회원 QR을 불러오지 못했습니다.'));
+      if (result.data?.roleId === 1) {
+        const trades = await requestEnvelope<EligibleTrade[]>('/api/locker/eligible', {
+          headers: buildAuthHeaders(authToken),
+        });
+        setEligible(trades.data ?? []);
+        if (trades.error) setError(trades.error);
+      } else {
+        setEligible([]);
+      }
+    } catch (error) {
+      console.warn('Member QR load failed unexpectedly:', error);
+      setError('회원 QR을 불러오지 못했습니다. 네트워크를 확인해주세요.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [authToken]);
 
   useFocusEffect(useCallback(() => {
@@ -56,12 +64,18 @@ export function MemberQrScreen() {
         { text: '맞아요', onPress: async () => {
           if (!authToken || saving) return;
           setSaving(true);
-          const result = await requestEnvelope<Transfer>(`/api/locker/select/${trade.pickupId}`, {
-            method: 'POST', headers: buildAuthHeaders(authToken),
-          });
-          setSaving(false);
-          if (result.error) Alert.alert('보관함 선택 실패', result.error);
-          else await loadQr();
+          try {
+            const result = await requestEnvelope<Transfer>(`/api/locker/select/${trade.pickupId}`, {
+              method: 'POST', headers: buildAuthHeaders(authToken),
+            });
+            if (result.error) Alert.alert('보관함 선택 실패', result.error);
+            else await loadQr();
+          } catch (error) {
+            console.warn('Locker trade selection failed unexpectedly:', error);
+            Alert.alert('보관함 선택 실패', '보관함 나눔 선택 중 문제가 발생했습니다.');
+          } finally {
+            setSaving(false);
+          }
         } },
       ]);
   };

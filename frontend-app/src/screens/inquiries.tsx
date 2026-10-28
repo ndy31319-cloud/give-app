@@ -34,16 +34,31 @@ export function InquiryListScreen() {
     void inquiryAPI.list(admin, status, authToken).then(result => {
       if (version.current !== current) return;
       setData(result.data); setError(result.error); setLoading(false);
+    }).catch(error => {
+      if (version.current !== current) return;
+      console.warn('Inquiry list failed unexpectedly:', error);
+      setError('문의 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      setLoading(false);
     });
     return () => { version.current++; };
   }, [admin, status, authToken, permitted, revision]));
   async function more() {
     if (!data?.nextCursor || busy.current || loading) return;
     busy.current = true; setLoading(true); const current = version.current;
-    const result = await inquiryAPI.list(admin, status, authToken ?? undefined, data.nextCursor);
-    if (version.current !== current) return;
-    if (result.data) setData(previous => ({ ...result.data!, items: [...(previous?.items || []), ...result.data!.items.filter(item => !previous?.items.some(old => old.id === item.id))] }));
-    setError(result.error); setLoading(false); busy.current = false;
+    try {
+      const result = await inquiryAPI.list(admin, status, authToken ?? undefined, data.nextCursor);
+      if (version.current !== current) return;
+      if (result.data) setData(previous => ({ ...result.data!, items: [...(previous?.items || []), ...result.data!.items.filter(item => !previous?.items.some(old => old.id === item.id))] }));
+      setError(result.error);
+    } catch (error) {
+      if (version.current === current) {
+        console.warn('More inquiries failed unexpectedly:', error);
+        setError('문의 목록을 더 불러오지 못했습니다.');
+      }
+    } finally {
+      if (version.current === current) setLoading(false);
+      busy.current = false;
+    }
   }
   return <AppScreen scroll contentContainerStyle={styles.page}>
     <AppHeader title={admin ? '문의 관리' : '내 문의함'} />
@@ -79,6 +94,9 @@ export function InquiryComposeScreen() {
       if (currentToken.current !== authToken) return;
       if (!result.data) Alert.alert('문의 접수 실패', result.error || '다시 시도해주세요.');
       else router.replace(`/inquiry-detail?id=${result.data.id}`);
+    } catch (error) {
+      console.warn('Inquiry submission failed unexpectedly:', error);
+      if (currentToken.current === authToken) Alert.alert('문의 접수 실패', '문의 접수 중 문제가 발생했습니다.');
     } finally { lock.current = false; setBusy(false); }
   }
   return <AppScreen scroll contentContainerStyle={styles.page}>
@@ -104,7 +122,12 @@ export function InquiryDetailScreen() {
     void revision;
     const current = ++version.current; setData(null); setError(null); setAnswer('');
     if (!authToken) { setError('로그인 후 이용해주세요.'); return; }
-    void inquiryAPI.detail(String(id), authToken).then(result => { if (current === version.current) { setData(result.data); setError(result.error); } });
+    void inquiryAPI.detail(String(id), authToken).then(result => { if (current === version.current) { setData(result.data); setError(result.error); } }).catch(error => {
+      if (current === version.current) {
+        console.warn('Inquiry detail failed unexpectedly:', error);
+        setError('문의 내용을 불러오지 못했습니다.');
+      }
+    });
     return () => { version.current++; };
   }, [id, authToken, revision]));
   async function reply() {
@@ -115,6 +138,9 @@ export function InquiryDetailScreen() {
       if (current !== version.current) return;
       if (result.data) { setData(result.data); setAnswer(''); Alert.alert('답변 등록 완료', '문의한 회원에게 알림을 보냈어요.'); }
       else { Alert.alert('답변 등록 실패', result.error || '다시 시도해주세요.'); const latest = await inquiryAPI.detail(data.id, authToken); if (current === version.current && latest.data) setData(latest.data); }
+    } catch (error) {
+      console.warn('Inquiry reply failed unexpectedly:', error);
+      if (current === version.current) Alert.alert('답변 등록 실패', '답변 등록 중 문제가 발생했습니다.');
     } finally { lock.current = false; setBusy(false); }
   }
   return <AppScreen scroll contentContainerStyle={styles.page}>

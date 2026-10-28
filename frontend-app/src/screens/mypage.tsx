@@ -3,6 +3,7 @@ import {
   Alert,
   Linking,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -134,7 +135,9 @@ export function MyPageScreen() {
       }
     }
 
-    loadSummary();
+    void loadSummary().catch((error) => {
+      console.warn('My page summary load failed unexpectedly:', error);
+    });
     return () => {
       mounted = false;
     };
@@ -239,12 +242,17 @@ export function ProfileEditScreen() {
         <AppButton
           label="저장하기"
           onPress={async () => {
-            const result = await updateProfile(formData);
-            if (result.error) {
-              Alert.alert('저장 실패', result.error);
-              return;
+            try {
+              const result = await updateProfile(formData);
+              if (result.error) {
+                Alert.alert('저장 실패', result.error);
+                return;
+              }
+              router.back();
+            } catch (error) {
+              console.warn('Profile update failed unexpectedly:', error);
+              Alert.alert('저장 실패', '프로필 저장 중 문제가 발생했습니다.');
             }
-            router.back();
           }}
         />
       </View>
@@ -328,9 +336,12 @@ export function MyLocationScreen() {
                 Alert.alert('동네를 선택해주세요', '추가할 동네를 먼저 선택해주세요.');
                 return;
               }
-              const result = await addNeighborhood(selectedLocation);
-              if (result.error) {
-                Alert.alert('동네 추가 실패', result.error);
+              try {
+                const result = await addNeighborhood(selectedLocation);
+                if (result.error) Alert.alert('동네 추가 실패', result.error);
+              } catch (error) {
+                console.warn('Neighborhood add failed unexpectedly:', error);
+                Alert.alert('동네 추가 실패', '동네 추가 중 문제가 발생했습니다.');
               }
             }}
           />
@@ -352,9 +363,12 @@ export function MyLocationScreen() {
                     <Pressable
                       style={styles.smallIconButton}
                       onPress={async () => {
-                        const result = await updateLocation(location);
-                        if (result.error) {
-                          Alert.alert('대표 동네 변경 실패', result.error);
+                        try {
+                          const result = await updateLocation(location);
+                          if (result.error) Alert.alert('대표 동네 변경 실패', result.error);
+                        } catch (error) {
+                          console.warn('Primary neighborhood update failed unexpectedly:', error);
+                          Alert.alert('대표 동네 변경 실패', '대표 동네 변경 중 문제가 발생했습니다.');
                         }
                       }}>
                       <Ionicons name="checkmark-outline" size={18} color={colors.brand} />
@@ -420,12 +434,17 @@ export function MyLocationScreen() {
         label="저장하기"
         onPress={async () => {
           if (selectedLocation) {
-            const result = await updateLocation(selectedLocation);
-            if (result.error) {
-              Alert.alert('저장 실패', result.error);
-              return;
+            try {
+              const result = await updateLocation(selectedLocation);
+              if (result.error) {
+                Alert.alert('저장 실패', result.error);
+                return;
+              }
+              router.back();
+            } catch (error) {
+              console.warn('Location save failed unexpectedly:', error);
+              Alert.alert('저장 실패', '동네 저장 중 문제가 발생했습니다.');
             }
-            router.back();
           }
         }}
       />
@@ -454,7 +473,9 @@ export function MyStatsScreen() {
       }
     }
 
-    loadStats();
+    void loadStats().catch((error) => {
+      console.warn('Stats load failed unexpectedly:', error);
+    });
     return () => {
       mounted = false;
     };
@@ -532,7 +553,9 @@ export function MySharesScreen() {
       }
     }
 
-    loadHistories();
+    void loadHistories().catch((error) => {
+      console.warn('Share histories load failed unexpectedly:', error);
+    });
     return () => {
       mounted = false;
     };
@@ -596,6 +619,7 @@ export function MySharesScreen() {
 export function SettingsScreen() {
   const { logout, authToken } = useAppContext();
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [infoModal, setInfoModal] = useState<'terms' | 'faq' | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -634,8 +658,8 @@ export function SettingsScreen() {
 
       <View style={styles.menuCard}>
         <MenuRow icon="lock-closed-outline" label="비밀번호 변경" onPress={() => { setNewPassword(''); setConfirmPassword(''); setPasswordModalOpen(true); }} />
-        <MenuRow icon="document-text-outline" label="서비스 이용약관" onPress={() => Alert.alert('안내', '정책 문서는 추후 연결됩니다.')} />
-        <MenuRow icon="help-circle-outline" label="자주 묻는 질문" onPress={() => Alert.alert('안내', 'FAQ는 추후 연결됩니다.')} />
+        <MenuRow icon="document-text-outline" label="서비스 이용약관" onPress={() => setInfoModal('terms')} />
+        <MenuRow icon="help-circle-outline" label="자주 묻는 질문" onPress={() => setInfoModal('faq')} />
       </View>
 
       <AppModal visible={passwordModalOpen} onClose={() => { if (!passwordBusy) setPasswordModalOpen(false); }}>
@@ -658,18 +682,50 @@ export function SettingsScreen() {
                 return;
               }
               setPasswordBusy(true);
-              const result = await memberAPI.changePassword(newPassword, authToken ?? undefined);
-              setPasswordBusy(false);
-              if (result.error) {
-                Alert.alert('변경 실패', result.error);
-                return;
+              try {
+                const result = await memberAPI.changePassword(newPassword, authToken ?? undefined);
+                if (result.error) {
+                  Alert.alert('변경 실패', result.error);
+                  return;
+                }
+                setPasswordModalOpen(false);
+                Alert.alert('변경 완료', '비밀번호가 변경되었습니다.');
+              } catch (error) {
+                console.warn('Password change failed unexpectedly:', error);
+                Alert.alert('변경 실패', '비밀번호 변경 중 문제가 발생했습니다.');
+              } finally {
+                setPasswordBusy(false);
               }
-              setPasswordModalOpen(false);
-              Alert.alert('변경 완료', '비밀번호가 변경되었습니다.');
             }}
             style={{ flex: 1 }}
           />
         </View>
+      </AppModal>
+
+      <AppModal visible={infoModal !== null} onClose={() => setInfoModal(null)}>
+        <ScrollView contentContainerStyle={styles.infoModalContent} showsVerticalScrollIndicator>
+          <Text style={styles.modalTitle}>{infoModal === 'terms' ? '서비스 이용약관' : '자주 묻는 질문'}</Text>
+          {infoModal === 'terms' ? (
+            <>
+              <Text style={styles.infoModalHeading}>1. 서비스 이용</Text>
+              <Text style={styles.sectionText}>Give는 물품을 나누고 보관함을 통해 안전하게 전달할 수 있도록 돕는 서비스입니다. 게시글과 채팅에는 실제 거래에 필요한 내용만 작성해주세요.</Text>
+              <Text style={styles.infoModalHeading}>2. 이용자 책임</Text>
+              <Text style={styles.sectionText}>위험물, 불법 물품, 개인정보가 포함된 물품은 등록할 수 없습니다. 상대방의 개인정보를 외부에 공유하지 말고, 문제가 생기면 신고 기능을 이용해주세요.</Text>
+              <Text style={styles.infoModalHeading}>3. 보관함 이용</Text>
+              <Text style={styles.sectionText}>QR 인증은 발급 후 제한 시간 동안만 유효합니다. 입고·수령 과정에서 화면 안내를 끝까지 확인하고, 문제가 생기면 관리자에게 문의해주세요.</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.infoModalHeading}>QR이 인식되지 않아요.</Text>
+              <Text style={styles.sectionText}>카메라 권한과 네트워크를 확인한 뒤 QR을 다시 비춰주세요. 계속 실패하면 화면 아래 인증번호를 직접 입력할 수 있습니다.</Text>
+              <Text style={styles.infoModalHeading}>비밀번호를 바꾸고 싶어요.</Text>
+              <Text style={styles.sectionText}>설정의 비밀번호 변경에서 숫자와 특수문자를 포함한 8자 이상으로 입력하면 바로 변경됩니다.</Text>
+              <Text style={styles.infoModalHeading}>문제가 발생했어요.</Text>
+              <Text style={styles.sectionText}>채팅방의 신고하기 또는 마이페이지의 관리자에게 문의하기를 이용해주세요. 접수된 내용은 관리자 문의함에서 확인할 수 있습니다.</Text>
+            </>
+          )}
+          <AppButton label="닫기" onPress={() => setInfoModal(null)} />
+        </ScrollView>
       </AppModal>
 
       <AppButton
@@ -1070,6 +1126,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: colors.text,
+  },
+  infoModalContent: {
+    gap: 12,
+    paddingBottom: 4,
+  },
+  infoModalHeading: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    marginTop: 4,
   },
   switchRow: {
     flexDirection: 'row',

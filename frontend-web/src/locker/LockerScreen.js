@@ -218,7 +218,16 @@ function LockerScreen() {
     const onScanSuccess = (decodedText) => {
       if (!scanningRef.current) return;
       scanningRef.current = false;
-      void stopScanner().then(() => handleValidate(decodedText));
+      void stopScanner()
+        .then(() => handleValidate(decodedText))
+        .catch((error) => {
+          console.warn('QR scanner shutdown before validation failed:', error);
+          setStatus({
+            ...initialStatus,
+            step: 'error',
+            message: 'QR 스캐너를 정리하지 못했습니다. 카메라를 다시 시작해주세요.',
+          });
+        });
     };
     const onScanFailure = () => {};
     let lastError = null;
@@ -540,7 +549,9 @@ function LockerScreen() {
   };
 
   const handleReset = () => {
-    stopScanner();
+    void stopScanner().catch((error) => {
+      console.warn('QR scanner reset failed:', error);
+    });
     clearStorageCountdown();
     storageTimeoutInFlightRef.current = false;
     setManualCode('');
