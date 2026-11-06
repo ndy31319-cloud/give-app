@@ -3,6 +3,23 @@ const DEFAULT_API_BASE_URL =
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || DEFAULT_API_BASE_URL;
 const DEFAULT_REQUEST_TIMEOUT_MS = Number(process.env.REACT_APP_API_TIMEOUT_MS || 60000);
+export const POSTS_UPDATED_EVENT = 'give:posts-updated';
+export const POSTS_UPDATED_STORAGE_KEY = 'give:posts-updated-at';
+
+export function notifyPostsUpdated(detail = {}) {
+  if (typeof window === 'undefined') return;
+
+  const eventDetail = { ...detail, updatedAt: Date.now() };
+  window.dispatchEvent(new CustomEvent(POSTS_UPDATED_EVENT, { detail: eventDetail }));
+
+  // Notify another kiosk tab as well. The storage event is delivered only to
+  // other tabs, while the custom event above covers the current tab.
+  try {
+    window.localStorage.setItem(POSTS_UPDATED_STORAGE_KEY, JSON.stringify(eventDetail));
+  } catch {
+    // Storage can be unavailable in private browsing; the current tab still refreshes.
+  }
+}
 
 function resolveRequestUrl(path) {
   const url = `${API_BASE_URL}${path}`;
@@ -71,6 +88,7 @@ async function request(path, options = {}) {
   try {
     response = await fetch(requestUrl.url, {
       ...options,
+      cache: options.cache || 'no-store',
       headers,
       signal: options.signal || controller?.signal,
     });
@@ -230,7 +248,7 @@ export async function fetchPosts(params = {}) {
   });
 
   const query = searchParams.toString();
-  return request(`/api/posts${query ? `?${query}` : ''}`);
+  return request(`/api/posts${query ? `?${query}` : ''}`, { cache: 'no-store' });
 }
 
 export function getPostImageUrl(item) {
@@ -281,7 +299,7 @@ export async function fetchMyPosts() {
 }
 
 export async function fetchLockerPickupItems() {
-  return request('/api/device/locker/pickup/items');
+  return request('/api/device/locker/pickup/items', { cache: 'no-store' });
 }
 
 export async function openLockerForPickup(payload) {

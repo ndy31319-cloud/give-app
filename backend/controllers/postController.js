@@ -529,6 +529,8 @@ const normalizeUploadUrl = (req, imageUrl) => {
 };
 
 const getAllPosts = async (req, res) => {
+  res.set("Cache-Control", "no-store, max-age=0");
+
   try {
     const requestedDongName = String(
       req.query.dongName ||

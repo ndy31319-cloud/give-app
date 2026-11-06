@@ -1292,6 +1292,8 @@ router.post("/locker/commands/:id/ack", requireLockerDeviceAccess, (req, res) =>
 });
 
 router.get("/locker/pickup/items", authenticateToken, async (req, res) => {
+  res.set("Cache-Control", "no-store, max-age=0");
+
   const requesterId = getMemberId(req);
 
   try {

@@ -1,7 +1,12 @@
 import { Html5Qrcode } from 'html5-qrcode';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { consumeLockerQr, timeoutLockerQr, validateLockerQr } from '../api/client';
+import {
+  consumeLockerQr,
+  notifyPostsUpdated,
+  timeoutLockerQr,
+  validateLockerQr,
+} from '../api/client';
 import {
   formatLockerManualCode,
   getLockerQrErrorMessage,
@@ -535,6 +540,10 @@ function LockerScreen() {
         donor: data.donor || prev.donor,
         message: '물품 보관이 완료되었습니다.',
       }));
+      notifyPostsUpdated({
+        reason: 'locker-storage-completed',
+        donateId: data.donation?.donateId || data.donation?.donate_id || status.donation?.donateId,
+      });
       window.alert('물품 보관이 완료되었습니다.');
       navigate('/locker', { replace: true });
     } catch (error) {

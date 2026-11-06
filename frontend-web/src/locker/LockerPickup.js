@@ -6,6 +6,8 @@ import {
   fetchLockerPickupItems,
   fetchDonationReviewStatus,
   openLockerForPickup,
+  POSTS_UPDATED_EVENT,
+  POSTS_UPDATED_STORAGE_KEY,
 } from '../api/client';
 
 function getItemsFromResponse(result) {
@@ -86,11 +88,17 @@ function LockerPickup() {
 
   useEffect(() => {
     let ignore = false;
+    let requestInFlight = false;
 
-    async function loadPickupItems() {
+    async function loadPickupItems({ silent = false } = {}) {
+      if (requestInFlight) return;
+
+      requestInFlight = true;
       try {
-        setIsLoading(true);
-        setErrorMessage('');
+        if (!silent) {
+          setIsLoading(true);
+          setErrorMessage('');
+        }
         const result = await fetchLockerPickupItems();
         const nextItems = getItemsFromResponse(result);
         const nextPendingItems = getPendingItemsFromResponse(result);
@@ -100,22 +108,40 @@ function LockerPickup() {
           setPendingItems(Array.isArray(nextPendingItems) ? nextPendingItems : []);
         }
       } catch (error) {
-        if (!ignore) {
+        if (!ignore && !silent) {
           setItems([]);
           setPendingItems([]);
           setErrorMessage(error?.message || '수령 가능한 보관함 물품을 불러오지 못했습니다.');
         }
       } finally {
-        if (!ignore) {
+        requestInFlight = false;
+        if (!ignore && !silent) {
           setIsLoading(false);
         }
       }
     }
 
     loadPickupItems();
+    const refreshPickupItems = (event) => {
+      const isPostUpdate = event?.type === POSTS_UPDATED_EVENT ||
+        event?.key === POSTS_UPDATED_STORAGE_KEY;
+      if (isPostUpdate || !document.hidden) {
+        void loadPickupItems({ silent: true });
+      }
+    };
+    const refreshTimer = window.setInterval(refreshPickupItems, 5000);
+    window.addEventListener(POSTS_UPDATED_EVENT, refreshPickupItems);
+    window.addEventListener('storage', refreshPickupItems);
+    window.addEventListener('focus', refreshPickupItems);
+    document.addEventListener('visibilitychange', refreshPickupItems);
 
     return () => {
       ignore = true;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener(POSTS_UPDATED_EVENT, refreshPickupItems);
+      window.removeEventListener('storage', refreshPickupItems);
+      window.removeEventListener('focus', refreshPickupItems);
+      document.removeEventListener('visibilitychange', refreshPickupItems);
     };
   }, []);
 

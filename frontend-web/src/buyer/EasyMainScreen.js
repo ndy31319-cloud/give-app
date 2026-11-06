@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchPosts } from '../api/client';
+import {
+  fetchPosts,
+  POSTS_UPDATED_EVENT,
+  POSTS_UPDATED_STORAGE_KEY,
+} from '../api/client';
 import PostImage from './PostImage';
 import ReceiveConfirmModal from './ReceiveConfirmModal';
 import { getItemCategory, isDonatePost as isVisibleDonatePost } from './postListUtils';
 
 const PAGE_SIZE = 4;
-const POST_REFRESH_INTERVAL_MS = 15000;
+const POST_REFRESH_INTERVAL_MS = 5000;
 const MAIN_CATEGORY_IDS = ['clothing', 'electronics', 'household'];
 
 function EasyMainScreen() {
@@ -59,19 +63,25 @@ function EasyMainScreen() {
     }
 
     loadPosts();
-    const refreshWhenVisible = () => {
-      if (!document.hidden) {
+    const refreshWhenVisible = (event) => {
+      const isPostUpdate = event?.type === POSTS_UPDATED_EVENT ||
+        event?.key === POSTS_UPDATED_STORAGE_KEY;
+      if (isPostUpdate || !document.hidden) {
         void loadPosts({ silent: true });
       }
     };
     const refreshTimer = window.setInterval(refreshWhenVisible, POST_REFRESH_INTERVAL_MS);
     window.addEventListener('focus', refreshWhenVisible);
+    window.addEventListener(POSTS_UPDATED_EVENT, refreshWhenVisible);
+    window.addEventListener('storage', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
 
     return () => {
       ignore = true;
       window.clearInterval(refreshTimer);
       window.removeEventListener('focus', refreshWhenVisible);
+      window.removeEventListener(POSTS_UPDATED_EVENT, refreshWhenVisible);
+      window.removeEventListener('storage', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, []);
