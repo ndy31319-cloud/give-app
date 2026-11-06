@@ -19,6 +19,11 @@ function loadHandler(query) {
     },
     '../lib/policyLinks': {
       enrichPolicyLinks: policies => policies,
+      resolvePolicyLinks: () => null,
+    },
+    '../lib/policyCategories': {
+      canonicalPolicyCategory: category => category || '',
+      getPolicyCategoryAliases: category => [category],
     },
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../routes/policies.js'), 'utf8'), {

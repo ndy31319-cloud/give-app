@@ -106,6 +106,38 @@ test("known AI endpoint suffixes are normalized before appending a different end
   );
 });
 
+test("a configured streaming endpoint is normalized without duplicating the path", () => {
+  withEnv(
+    {
+      AI_SERVER_URL: "https://example-ai.ngrok-free.app/api/chat/stream",
+    },
+    () => {
+      assert.deepEqual(
+        resolveAiEndpointUrls({ endpointPath: "/api/chat/stream" }),
+        ["https://example-ai.ngrok-free.app/api/chat/stream"],
+      );
+    },
+  );
+});
+
+test("legacy AI_SERVER_URL is still tried when PRIMARY is stale", () => {
+  withEnv(
+    {
+      AI_SERVER_URL_PRIMARY: "https://stale-ai.ngrok-free.app",
+      AI_SERVER_URL: "https://current-ai.ngrok-free.app",
+    },
+    () => {
+      assert.deepEqual(
+        resolveAiEndpointUrls({ endpointPath: "/api/chat/stream" }),
+        [
+          "https://stale-ai.ngrok-free.app/api/chat/stream",
+          "https://current-ai.ngrok-free.app/api/chat/stream",
+        ],
+      );
+    },
+  );
+});
+
 test("explicit chatbot URL keeps the chat endpoint shape", () => {
   withEnv({ AI_CHATBOT_URL: "https://example-ai.ngrok-free.app/api/chat/" }, () => {
     assert.deepEqual(

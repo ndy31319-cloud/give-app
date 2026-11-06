@@ -332,6 +332,7 @@ export interface Policy {
   id: string;
   title: string;
   category: string;
+  categoryGroup?: string;
   agency: string;
   content: string;
   targetCriteria: string;

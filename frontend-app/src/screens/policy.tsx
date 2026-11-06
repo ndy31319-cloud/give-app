@@ -12,6 +12,7 @@ import { colors, radius, spacing } from '@/src/theme/colors';
 import { Policy } from '@/src/types/app';
 import { normalizeChatbotText, removeApplicationMethodSections, splitChatbotLinks } from '@/src/utils/chatText';
 import { normalizePolicyUrl, resolvePolicyUrl } from '@/src/utils/policyLinks';
+import { matchesPolicyCategory } from '@/src/utils/policyCategories';
 import { LoadingDots } from '@/src/components/common/LoadingDots';
 import { AiProgressModal } from '@/src/components/common/AiProgressModal';
 import { scheduleUiTask, waitForUiFrame } from '@/src/utils/ui';
@@ -266,7 +267,9 @@ export function PolicyScreen() {
 
   const categoryPolicies = useMemo(() => {
     if (!selectedCategories.length) return [];
-    return filteredPolicies.filter((policy) => selectedCategories.includes(policy.category));
+    return filteredPolicies.filter((policy) =>
+      selectedCategories.some((category) => matchesPolicyCategory(policy.category, category, policy.categoryGroup)),
+    );
   }, [filteredPolicies, selectedCategories]);
 
   const selectedPolicyUrl = resolvePolicyUrl(

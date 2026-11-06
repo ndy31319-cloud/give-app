@@ -564,7 +564,8 @@ const getAllPosts = async (req, res) => {
       LEFT JOIN ITEM i ON i.donate_id = d.donate_id
       LEFT JOIN PRODUCT p ON p.product_id = i.product_id
       LEFT JOIN ITEM_DONATE_IMAGE di ON di.donate_id = d.donate_id
-      WHERE NOT EXISTS (
+      WHERE d.status = 'open'
+        AND NOT EXISTS (
         SELECT 1
         FROM PICKUP_REQUEST internal_pickup
         WHERE internal_pickup.donate_id = d.donate_id
@@ -603,6 +604,7 @@ const getAllPosts = async (req, res) => {
       LEFT JOIN ITEM i ON i.request_id = r.request_id
       LEFT JOIN PRODUCT p ON p.product_id = i.product_id
       LEFT JOIN ITEM_REQUEST_IMAGE ri ON ri.request_id = r.request_id
+      WHERE r.status = 'open'
       GROUP BY
         r.request_id, r.member_id, m.name, m.nickname, r.title, r.content,
         r.dong_name, r.latitude, r.longitude, r.status, r.created_at, r.updated_at,

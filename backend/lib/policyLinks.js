@@ -1,5 +1,11 @@
 const GOV24_HOSTS = new Set(["gov.kr", "www.gov.kr"]);
 
+// This legacy seed row predates the Government24 URL sync. It has a verified
+// Government24 application page, so it should never fall back to the home page.
+const VERIFIED_POLICY_LINKS = new Map([
+  ["기초생활보장생계급여", "https://www.gov.kr/mw/AA020InfoCappView.do?CappBizCD=14600000275"],
+]);
+
 const text = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
 
 const normalizeKey = (value) =>
@@ -46,10 +52,38 @@ const isPolicySpecificUrl = (value) => {
 
 const usableUrl = (value) => (isPolicySpecificUrl(value) ? normalizeUrl(value) : null);
 
-function linkValues(row) {
+const policyTitleKey = (row) => normalizeKey(row?.policy_name ?? row?.title);
+
+const resolvePolicyLinks = (row) => {
   const officialUrl = usableUrl(row?.official_url ?? row?.officialUrl);
   const applicationUrl = usableUrl(row?.application_url ?? row?.applicationUrl);
-  return officialUrl || applicationUrl ? { officialUrl, applicationUrl } : null;
+  if (officialUrl || applicationUrl) return { officialUrl, applicationUrl };
+
+  const verifiedUrl = VERIFIED_POLICY_LINKS.get(policyTitleKey(row));
+  return verifiedUrl ? { officialUrl: verifiedUrl, applicationUrl: null } : null;
+};
+
+function linkValues(row) {
+  return resolvePolicyLinks(row);
+}
+
+function sanitizePolicyUrlFields(policy) {
+  const sanitized = { ...policy };
+  const links = resolvePolicyLinks(policy);
+
+  if (Object.prototype.hasOwnProperty.call(policy, "official_url")) {
+    sanitized.official_url = links?.officialUrl ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(policy, "officialUrl")) {
+    sanitized.officialUrl = links?.officialUrl ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(policy, "application_url")) {
+    sanitized.application_url = links?.applicationUrl ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(policy, "applicationUrl")) {
+    sanitized.applicationUrl = links?.applicationUrl ?? null;
+  }
+  return sanitized;
 }
 
 function candidateScore(policy, candidate) {
@@ -81,22 +115,26 @@ function candidateScore(policy, candidate) {
  * from a loose similarity match.
  */
 function enrichPolicyLinks(policies, linkRows) {
-  if (!Array.isArray(policies) || !Array.isArray(linkRows) || !linkRows.length) {
-    return Array.isArray(policies) ? policies : [];
+  if (!Array.isArray(policies)) {
+    return [];
+  }
+  if (!Array.isArray(linkRows) || !linkRows.length) {
+    return policies.map(sanitizePolicyUrlFields);
   }
 
   return policies.map((policy) => {
+    const sanitizedPolicy = sanitizePolicyUrlFields(policy);
     const ownLinks = linkValues(policy) || {};
-    if (ownLinks.officialUrl || ownLinks.applicationUrl) return policy;
+    if (ownLinks.officialUrl || ownLinks.applicationUrl) return sanitizedPolicy;
 
     const candidate = linkRows
       .map((row) => ({ row, score: candidateScore(policy, row), links: linkValues(row) }))
       .filter((item) => item.score >= 0 && item.links)
       .sort((left, right) => right.score - left.score)[0];
 
-    if (!candidate) return policy;
+    if (!candidate) return sanitizedPolicy;
     return {
-      ...policy,
+      ...sanitizedPolicy,
       official_url: candidate.links.officialUrl,
       application_url: candidate.links.applicationUrl,
     };
@@ -108,4 +146,5 @@ module.exports = {
   isPolicySpecificUrl,
   normalizeKey,
   normalizeUrl,
+  resolvePolicyLinks,
 };

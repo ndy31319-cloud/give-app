@@ -166,7 +166,8 @@ function AuthShell({
 function SignupForm({
   includeCertificate,
   onNext,
-  beforeSubmit,
+  beforePassword,
+  afterPassword,
 }: {
   includeCertificate: boolean;
   onNext: (payload: {
@@ -178,7 +179,8 @@ function SignupForm({
     password: string;
     confirmPassword: string;
   }) => void;
-  beforeSubmit?: (helpers: { submitForm: () => boolean }) => React.ReactNode;
+  beforePassword?: (helpers: { submitForm: () => boolean }) => React.ReactNode;
+  afterPassword?: (helpers: { submitForm: () => boolean }) => React.ReactNode;
 }) {
   const { signupDraft } = useAppContext();
   const [formData, setFormData] = useState({
@@ -251,6 +253,7 @@ function SignupForm({
       {includeCertificate ? (
         <Text style={styles.supportText}>개인정보 입력 후 인증 서류를 등록하고 다음 단계로 진행해주세요.</Text>
       ) : null}
+      {beforePassword?.({ submitForm })}
       <AppTextField
         label="비밀번호 *"
         secureTextEntry
@@ -265,8 +268,8 @@ function SignupForm({
         onChangeText={(value) => update('confirmPassword', value)}
         error={errors.confirmPassword}
       />
-      {beforeSubmit?.({ submitForm })}
-      {!beforeSubmit ? <AppButton
+      {afterPassword?.({ submitForm })}
+      {!beforePassword && !afterPassword ? <AppButton
         label="다음"
         onPress={() => {
           submitForm();
@@ -503,11 +506,14 @@ export function VulnerableInfoScreen() {
         onNext={(payload) => {
           mergeSignupDraft({ ...payload, isVulnerable: true });
         }}
-        beforeSubmit={({ submitForm }) => (
+        beforePassword={() => (
           <>
             <CertificateVerification />
             {certificateError && !signupDraft.certificateVerified ? <Text style={styles.errorText}>{certificateError}</Text> : null}
-
+          </>
+        )}
+        afterPassword={({ submitForm }) => (
+          <>
             <View style={styles.locationActionCard}>
               <Text style={styles.uploadTitle}>동네 설정</Text>
               <Text style={styles.supportText}>개인정보와 인증서 확인을 완료한 뒤 대표 동네를 설정합니다.</Text>

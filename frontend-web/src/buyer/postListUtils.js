@@ -2,6 +2,12 @@ const DONATE_TYPES = new Set(['donate', 'share', 'give', 'donation']);
 const REQUEST_TYPES = new Set(['request', 'need', 'wanted']);
 const UNAVAILABLE_DONATE_STATUSES = new Set([
   'reserved',
+  'stored',
+  'awaiting deposit',
+  'awaiting_deposit',
+  'in progress',
+  'in_progress',
+  'processing',
   'completed',
   'complete',
   'closed',
@@ -126,6 +132,13 @@ export function isDonatePost(item) {
   const status = simplify(item?.status || item?.postStatus || item?.post_status);
 
   if (UNAVAILABLE_DONATE_STATUSES.has(status)) {
+    return false;
+  }
+
+  // The public kiosk list is an active inventory list. Unknown legacy values
+  // remain compatible, but any explicit non-open state is hidden locally too
+  // in case an older backend or cached response bypasses the SQL filter.
+  if (status && status !== 'open') {
     return false;
   }
 

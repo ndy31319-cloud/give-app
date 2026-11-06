@@ -5,6 +5,7 @@ const {
   enrichPolicyLinks,
   isPolicySpecificUrl,
   normalizeUrl,
+  resolvePolicyLinks,
 } = require("../lib/policyLinks");
 
 test("keeps a policy's own official detail URL", () => {
@@ -12,7 +13,7 @@ test("keeps a policy's own official detail URL", () => {
     [{ policy_id: 1, policy_name: "긴급복지 생계지원", agency: "보건복지부", official_url: "http://gov.kr/portal/rcvfvrSvc/dtlEx/135200005003" }],
     [],
   );
-  assert.equal(policy.official_url, "http://gov.kr/portal/rcvfvrSvc/dtlEx/135200005003");
+  assert.equal(policy.official_url, "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/135200005003");
 });
 
 test("fills a legacy category row from an exact synchronized policy name", () => {
@@ -43,4 +44,17 @@ test("does not copy generic Government24 directories", () => {
   assert.equal(policy.official_url, "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/1");
   assert.equal(isPolicySpecificUrl("https://www.gov.kr/portal/gvrnPolicy/listAll"), false);
   assert.equal(normalizeUrl("http://gov.kr/portal/rcvfvrSvc/dtlEx/1"), "https://www.gov.kr/portal/rcvfvrSvc/dtlEx/1");
+});
+
+test("removes a generic Government24 URL when no specific match exists", () => {
+  const [policy] = enrichPolicyLinks(
+    [{ policy_id: 1, policy_name: "정책", agency: "기관", official_url: "https://www.gov.kr/" }],
+    [],
+  );
+  assert.equal(policy.official_url, null);
+});
+
+test("uses the verified legacy link for basic livelihood support", () => {
+  const links = resolvePolicyLinks({ policy_name: "기초생활보장 생계급여", official_url: null, application_url: null });
+  assert.equal(links.officialUrl, "https://www.gov.kr/mw/AA020InfoCappView.do?CappBizCD=14600000275");
 });

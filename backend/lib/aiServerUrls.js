@@ -36,6 +36,7 @@ const stripKnownAiSuffix = (rawUrl) => {
   const suffixes = [
     "/docs",
     "/api/post/generate-post",
+    "/api/chat/stream",
     "/api/chat",
     "/api/image/check-safety",
     "/api/image",
@@ -88,7 +89,10 @@ const getBaseAiServerUrls = ({ includeDefaultLocal = true } = {}) => {
   ];
   const fallbackUrls = splitConfiguredUrls(process.env.AI_SERVER_URL_FALLBACK);
   const configuredUrls = [
-    ...(primaryUrls.length ? primaryUrls : legacyUrls),
+    // Keep both names in the candidate list. A stale PRIMARY value must not
+    // hide a newer AI_SERVER_URL while a tunnel is being rotated.
+    ...primaryUrls,
+    ...legacyUrls,
     ...localUrls,
     ...fallbackUrls,
   ];

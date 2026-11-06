@@ -6,7 +6,11 @@ const {
   resolveAiEndpointUrls,
   splitConfiguredUrls,
 } = require("../lib/aiServerUrls");
-const { enrichPolicyLinks } = require("../lib/policyLinks");
+const { enrichPolicyLinks, resolvePolicyLinks } = require("../lib/policyLinks");
+const {
+  canonicalPolicyCategory,
+  getPolicyCategoryAliases,
+} = require("../lib/policyCategories");
 
 const router = express.Router();
 let memberColumnsCache = null;
@@ -184,8 +188,9 @@ const toPolicyResponse = (policy) => ({
   target: policy.target_criteria ?? policy.target ?? "",
   support: policy.support_detail ?? policy.support ?? "",
   aiSearchText: policy.ai_search_text ?? policy.aiSearchText ?? "",
-  officialUrl: policy.official_url ?? policy.officialUrl ?? null,
-  applicationUrl: policy.application_url ?? policy.applicationUrl ?? null,
+  categoryGroup: canonicalPolicyCategory(policy.category),
+  officialUrl: resolvePolicyLinks(policy)?.officialUrl ?? null,
+  applicationUrl: resolvePolicyLinks(policy)?.applicationUrl ?? null,
   applicationMethod: policy.application_method ?? policy.applicationMethod ?? null,
   applicationPeriod: policy.application_period ?? policy.applicationPeriod ?? null,
   region: policy.region ?? null,
@@ -218,8 +223,9 @@ const loadPolicies = async (category, options = {}) => {
   let whereClause = "";
 
   if (category) {
-    whereClause = "WHERE category = ?";
-    params.push(category);
+    const aliases = getPolicyCategoryAliases(category);
+    whereClause = `WHERE category IN (${aliases.map(() => "?").join(", ")})`;
+    params.push(...aliases);
   }
 
   const limitClause = limit ? "LIMIT ?" : "";

@@ -456,6 +456,7 @@ export function mapBackendPolicy(raw: any): Policy {
     id: String(raw?.id ?? `policy_${Date.now()}`),
     title: raw?.title ?? '',
     category: raw?.category ?? '',
+    categoryGroup: raw?.categoryGroup ?? raw?.category_group ?? undefined,
     agency: raw?.agency ?? '정책기관',
     content: raw?.content ?? raw?.description ?? '',
     targetCriteria: Array.isArray(raw?.eligibility) ? raw.eligibility.join(', ') : raw?.target ?? '',
